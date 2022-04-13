@@ -4,7 +4,7 @@ from pathlib import Path
 
 from energytool.epluspostprocess import contains_regex
 from energytool.epluspostprocess import read_eplus_res
-from energytool.epluspostprocess import get_zone_variable
+from energytool.epluspostprocess import get_output_zone_variable
 
 RESOURCES_PATH = Path(__file__).parent / "resources"
 
@@ -34,7 +34,7 @@ class TestEplusPostProcess:
 
         pd.testing.assert_frame_equal(res, expected_res_df)
 
-    def test_get_zone_variable(self):
+    def test_get_output_zone_variable(self):
         toy_df = pd.DataFrame({
             'ZONE1:Zone Other Equipment Total Heating Energy [J](Hourly)': [1],
             'ZONE2:Zone Other Equipment Total Heating Energy [J](Hourly)': [1],
@@ -46,7 +46,7 @@ class TestEplusPostProcess:
 
         pd.testing.assert_frame_equal(
             toy_df.iloc[:, 0].to_frame(),
-            get_zone_variable(
+            get_output_zone_variable(
                 eplus_res=toy_df,
                 zones='Zone1',
                 variables='Equipment Total Heating Energy'
@@ -55,7 +55,7 @@ class TestEplusPostProcess:
 
         pd.testing.assert_frame_equal(
             toy_df.iloc[:, :2],
-            get_zone_variable(
+            get_output_zone_variable(
                 eplus_res=toy_df,
                 zones=['Zone1', 'ZONE2'],
                 variables='Equipment Total Heating Energy'
@@ -64,7 +64,7 @@ class TestEplusPostProcess:
 
         pd.testing.assert_frame_equal(
             toy_df.iloc[:, [0, 3]],
-            get_zone_variable(
+            get_output_zone_variable(
                 eplus_res=toy_df,
                 zones='Zone1',
                 variables=[

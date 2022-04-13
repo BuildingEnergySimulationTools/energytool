@@ -44,7 +44,7 @@ def contains_regex(elmt_list):
     return ''.join(tempo)[:-1]
 
 
-def get_zone_variable(eplus_res, zones, variables):
+def get_output_zone_variable(eplus_res, zones, variables):
     zone_list = format_input_to_list(zones)
     variable_names_list = format_input_to_list(variables)
 
