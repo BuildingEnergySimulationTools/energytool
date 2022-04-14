@@ -1,9 +1,12 @@
 from io import StringIO
 from pathlib import Path
 
+import datetime as dt
+
 from eppy.modeleditor import IDF
 
 from energytool.epluspreprocess import add_output_zone_variable
+from energytool.epluspreprocess import set_run_period
 
 RESOURCES_PATH = Path(__file__).parent / "resources"
 
@@ -50,3 +53,38 @@ class TestEplusPreProcess:
         ref = [['OUTPUT:VARIABLE', 'Z3', 'Elec', 'Hourly'],
                ['OUTPUT:VARIABLE', '*', 'Conso', 'Hourly']]
         assert to_test == ref
+
+    def test_add_output_zone_variable(self):
+        empty_idf = ""
+        fhandle = StringIO(empty_idf)
+        toy_idf = IDF(fhandle)
+
+        toy_idf.newidfobject("RunPeriod")
+
+        ref = [
+            'RUNPERIOD',
+             'run_period',
+             1,
+             1,
+             2009,
+             12,
+             31,
+             2009,
+             'Thursday',
+             'No',
+             'No',
+             'Yes',
+             'Yes',
+             'Yes',
+             'No'
+        ]
+
+        set_run_period(
+            toy_idf,
+            simulation_start=dt.datetime(2009, 1, 1, 0, 0, 0),
+            simulation_stop=dt.datetime(2009, 12, 31, 23, 0, 0)
+        )
+
+        to_test = toy_idf.idfobjects["RunPeriod"][0]
+
+        assert to_test.fieldvalues == ref

@@ -4,6 +4,28 @@ from energytool.tools import format_input_to_list
 from energytool.tools import value_in_object_fieldnames
 
 
+def set_run_period(idf, simulation_start, simulation_stop):
+    run_period_list = idf.idfobjects["RunPeriod"]
+    run_period_list.clear()
+    idf.newidfobject(
+        "RunPeriod",
+        Name="run_period",
+        Begin_Month=simulation_start.month,
+        Begin_Day_of_Month=simulation_start.day,
+        Begin_Year=simulation_start.year,
+        End_Month=simulation_stop.month,
+        End_Day_of_Month=simulation_stop.day,
+        End_Year=simulation_stop.year,
+        Day_of_Week_for_Start_Day=simulation_start.strftime('%A'),
+        Use_Weather_File_Holidays_and_Special_Days="No",
+        Use_Weather_File_Daylight_Saving_Period="No",
+        Apply_Weekend_Holiday_Rule="Yes",
+        Use_Weather_File_Rain_Indicators="Yes",
+        Use_Weather_File_Snow_Indicators="Yes",
+        Treat_Weather_as_Actual="No"
+    )
+
+
 def output_zone_variable_present(idf, zones, variables):
     zones_bool = value_in_object_fieldnames(
         idf, "Output:Variable", "Key_Value", zones)
