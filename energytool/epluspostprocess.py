@@ -45,15 +45,17 @@ def contains_regex(elmt_list):
 
 
 def get_output_zone_variable(eplus_res, zones, variables):
-    zone_list = format_input_to_list(zones)
+
+    if zones == '*':
+        zone_mask = np.full((1, eplus_res.shape[1]), True).flatten()
+    else:
+        zone_list = format_input_to_list(zones)
+        zone_list_upper = [elmt.upper() for elmt in zone_list]
+        reg_zone = contains_regex(zone_list_upper)
+        zone_mask = eplus_res.columns.str.contains(reg_zone)
+
     variable_names_list = format_input_to_list(variables)
-
-    zone_list_upper = [elmt.upper() for elmt in zone_list]
-
-    reg_zone = contains_regex(zone_list_upper)
     reg_var = contains_regex(variable_names_list)
-
-    zone_mask = eplus_res.columns.str.contains(reg_zone)
     variable_mask = eplus_res.columns.str.contains(reg_var)
 
     mask = np.logical_and(zone_mask, variable_mask)

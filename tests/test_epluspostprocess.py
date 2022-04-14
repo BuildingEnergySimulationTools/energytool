@@ -63,6 +63,15 @@ class TestEplusPostProcess:
         )
 
         pd.testing.assert_frame_equal(
+            toy_df.iloc[:, :3],
+            get_output_zone_variable(
+                eplus_res=toy_df,
+                zones="*",
+                variables='Equipment Total Heating Energy'
+            )
+        )
+
+        pd.testing.assert_frame_equal(
             toy_df.iloc[:, [0, 3]],
             get_output_zone_variable(
                 eplus_res=toy_df,
