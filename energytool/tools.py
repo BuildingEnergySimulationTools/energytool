@@ -40,3 +40,12 @@ def value_in_object_fieldnames(idf, idf_object, field_name, values):
         True if elmt in values_list
         else False
         for elmt in var_in_idf]
+
+
+def set_value_object_fieldname(idf, idf_object, field_name, value):
+    obj_list = idf.idfobjects[idf_object]
+    if not obj_list:
+        raise ValueError(f"No {idf_object} in idf file")
+
+    for obj in obj_list:
+        obj[field_name] = value
