@@ -26,6 +26,15 @@ def set_run_period(idf, simulation_start, simulation_stop):
     )
 
 
+def set_timestep(idf, nb_timestep_per_hour):
+    timestep_list = idf.idfobjects["Timestep"]
+    timestep_list.clear()
+    idf.newidfobject(
+        "Timestep",
+        Number_of_Timesteps_per_Hour=nb_timestep_per_hour
+    )
+
+
 def output_zone_variable_present(idf, zones, variables):
     zones_bool = value_in_object_fieldnames(
         idf, "Output:Variable", "Key_Value", zones)
