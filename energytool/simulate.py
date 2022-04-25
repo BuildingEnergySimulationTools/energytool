@@ -16,7 +16,6 @@ from fastprogress.fastprogress import force_console_behavior
 
 master_bar, progress_bar = force_console_behavior()
 
-# TODO Prog bar not working
 
 class SimulationConfig:
     def __init__(self,
