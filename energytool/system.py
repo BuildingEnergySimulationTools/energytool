@@ -27,7 +27,7 @@ class GasBoiler:
             variables="Zone Ideal Loads Supply Air Total Heating Energy"
         )
 
-        system_out = (ideal_heating * self.cop).sum(axis=1)
+        system_out = (ideal_heating / self.cop).sum(axis=1)
         system_out.name = f"{self.name}_Energy"
 
         self.building.building_results = pd.concat([
