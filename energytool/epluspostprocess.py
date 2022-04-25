@@ -24,12 +24,17 @@ def eplus_date_parser(timestamp):
 
 
 def read_eplus_res(file_path, ref_year=None):
-    results = pd.read_csv(
-        file_path,
-        index_col=0,
-        parse_dates=True,
-        date_parser=eplus_date_parser
-    )
+    try:
+        results = pd.read_csv(
+            file_path,
+            index_col=0,
+            parse_dates=True,
+            date_parser=eplus_date_parser
+        )
+    except FileNotFoundError:
+        print("EnergyPlus output file not found, "
+              "Empty DataFrame is returned")
+        return pd.DataFrame()
 
     # Careful here, not sure what will happen with leap years
     if ref_year is not None:
