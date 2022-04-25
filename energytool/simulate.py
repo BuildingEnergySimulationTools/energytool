@@ -5,6 +5,7 @@ import shutil
 import tempfile
 from pathlib import Path
 
+import pandas as pd
 from eppy.runner.run_functions import runIDFs
 
 from energytool.epluspostprocess import read_eplus_res
@@ -17,7 +18,7 @@ from fastprogress.fastprogress import force_console_behavior
 master_bar, progress_bar = force_console_behavior()
 
 
-class SimulationConfig:
+class Simulation:
     def __init__(self,
                  building,
                  epw_file_path,
@@ -30,6 +31,7 @@ class SimulationConfig:
         self.simulation_start = simulation_start
         self.simulation_stop = simulation_stop
         self.timestep_per_hour = timestep_per_hour
+        self.results = pd.DataFrame()
 
         set_run_period(building.idf, simulation_start, simulation_stop)
         building.idf.epw = str(epw_file_path)
@@ -133,3 +135,5 @@ class SimulationsRunner:
 
                 # 3rd Apply system post-processing
                 current_simu.building.post_process()
+
+                current_simu.results = current_simu.building.building_results
