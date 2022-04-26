@@ -4,6 +4,25 @@ from energytool.tools import format_input_to_list
 from energytool.tools import value_in_object_fieldnames
 
 
+def set_object_field_value(
+        idf, idf_object, field_name, value, idf_object_name=None):
+    try:
+        obj_list = idf.idfobjects[idf_object]
+    except KeyError:
+        print("Unknown EnergyPlus idf_object")
+        obj_list = []
+
+    if not obj_list:
+        raise ValueError("No idf_object was found")
+
+    for obj in obj_list:
+        if idf_object_name is not None:
+            if obj.Name == idf_object_name:
+                obj[field_name] = value
+        else:
+            obj[field_name] = value
+
+
 def set_run_period(idf, simulation_start, simulation_stop):
     run_period_list = idf.idfobjects["RunPeriod"]
     run_period_list.clear()
