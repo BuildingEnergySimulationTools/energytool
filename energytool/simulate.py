@@ -40,12 +40,12 @@ class Simulation:
 
 class SimulationsRunner:
     def __init__(self,
-                 simu_config_list,
+                 simu_list,
                  run_dir=None,
                  nb_cpus=-1,
                  nb_simu_per_batch=10):
 
-        self.simu_config_list = simu_config_list
+        self.simu_list = simu_list
         self.nb_simu_per_batch = nb_simu_per_batch
         self.nb_cpus = nb_cpus
 
@@ -66,12 +66,12 @@ class SimulationsRunner:
         os.makedirs(pool_path)
 
         nb_batches = math.ceil(
-            len(self.simu_config_list)
+            len(self.simu_list)
             / self.nb_simu_per_batch
         )
 
         simu_iterator = (
-            (i, elmt) for i, elmt in enumerate(self.simu_config_list))
+            (i, elmt) for i, elmt in enumerate(self.simu_list))
 
         prog_bar = progress_bar(range(nb_batches))
 
@@ -127,7 +127,7 @@ class SimulationsRunner:
 
             for idx in batch_simu_list:
                 simu_fold = pool_path / str(idx)
-                current_simu = self.simu_config_list[idx]
+                current_simu = self.simu_list[idx]
                 current_simu.building.energyplus_results = read_eplus_res(
                     file_path=simu_fold / "eplusout.csv",
                     ref_year=current_simu.simulation_start.year
