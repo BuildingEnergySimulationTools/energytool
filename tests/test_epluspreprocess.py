@@ -122,7 +122,7 @@ class TestEplusPreProcess:
         # Test for all object
         assert to_test == [42, 42]
 
-        # Test by object Name
+        # Test by object with a single Name
         set_object_field_value(
             idf=toy_idf,
             idf_object="Zone",
@@ -134,4 +134,17 @@ class TestEplusPreProcess:
         to_test = [z.Floor_Area for z in zone_list]
 
         assert to_test == [4.2, 42]
+
+        # Test by object with multiple Names
+        set_object_field_value(
+            idf=toy_idf,
+            idf_object="Zone",
+            idf_object_name=["Zone_0", "Zone_1"],
+            field_name="Floor_Area",
+            value=4.2
+        )
+
+        to_test = [z.Floor_Area for z in zone_list]
+
+        assert to_test == [4.2, 4.2]
 

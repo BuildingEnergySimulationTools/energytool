@@ -6,6 +6,7 @@ from energytool.tools import value_in_object_fieldnames
 
 def set_object_field_value(
         idf, idf_object, field_name, value, idf_object_name=None):
+
     try:
         obj_list = idf.idfobjects[idf_object]
     except KeyError:
@@ -17,7 +18,8 @@ def set_object_field_value(
 
     for obj in obj_list:
         if idf_object_name is not None:
-            if obj.Name == idf_object_name:
+            idf_object_name_list = format_input_to_list(idf_object_name)
+            if obj.Name in idf_object_name_list:
                 obj[field_name] = value
         else:
             obj[field_name] = value
