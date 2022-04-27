@@ -1,6 +1,8 @@
 import pandas as pd
 from eppy.modeleditor import IDF
 
+import energytool.epluspreprocess as pr
+
 
 class Building:
     def __init__(self, idf_path, clean_output_variable=True):
@@ -15,7 +17,7 @@ class Building:
         self.dwh_system = {}
         self.pv_production = {}
 
-        self.zone_name_list = [z.Name for z in self.idf.idfobjects['Zone']]
+        self.zone_name_list = pr.get_objects_name_list('Zone')
         self.surface = sum(z.Floor_Area for z in self.idf.idfobjects['Zone'])
         self.volume = sum(z.Volume for z in self.idf.idfobjects['Zone'])
 

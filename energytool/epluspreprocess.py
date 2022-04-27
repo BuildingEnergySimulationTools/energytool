@@ -3,6 +3,10 @@ import numpy as np
 from energytool.tools import format_input_to_list
 
 
+def get_objects_name_list(idf, idf_object):
+    return [obj.Name for obj in idf.idfobjects[idf_object]]
+
+
 def is_value_in_object_fieldnames(idf, idf_object, field_name, values):
     """
     :param values:
