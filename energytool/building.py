@@ -17,7 +17,7 @@ class Building:
         self.dwh_system = {}
         self.pv_production = {}
 
-        self.zone_name_list = pr.get_objects_name_list('Zone')
+        self.zone_name_list = pr.get_objects_name_list(self.idf, 'Zone')
         self.surface = sum(z.Floor_Area for z in self.idf.idfobjects['Zone'])
         self.volume = sum(z.Volume for z in self.idf.idfobjects['Zone'])
 

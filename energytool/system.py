@@ -2,6 +2,7 @@ import pandas as pd
 
 import energytool.epluspreprocess as pr
 import energytool.epluspostprocess as po
+import energytool.tools as tl
 
 
 class GasBoiler:
@@ -84,7 +85,7 @@ class AirHandlingUnit:
                  building,
                  zones='*',
                  fan_energy_coefficient=0.23,
-                 heat_recovery_efficiency=0,
+                 heat_recovery_efficiency=None,
                  ach=None):
 
         self.name = name
@@ -102,24 +103,47 @@ class AirHandlingUnit:
             "Zone Mechanical Ventilation Standard Density Volume Flow Rate"
         )
 
+        # Modify ACH if necessary
         if self.ach is not None:
-            if self.zones == "*":
-                obj_name_arg = None
-            else:
-                design_list = self.building.idf.idfojects[
-                    "DesignSpecification:OutdoorAir"]
-                obj_name_arg = []
-                for zn in self.building.zone_name_list:
-                    for obj in design_list:
-                        if zn in obj.Name:
-                            obj_name_arg.append(obj.Name)
+            obj_name_arg = tl.select_by_strings(
+                items_list=pr.get_objects_name_list(
+                    self.building.idf, "DesignSpecification:OutdoorAir"),
+                select_by=self.zones
+            )
 
+            mod_fields = {
+                "Outdoor_Air_Flow_Air_Changes_per_Hour": self.ach,
+                "Outdoor_Air_Method": "AirChanges/Hour"
+            }
+
+            for field, value in mod_fields.items():
                 pr.set_object_field_value(
                     idf=self.building.idf,
                     idf_object="DesignSpecification:OutdoorAir",
                     idf_object_name=obj_name_arg,
-                    field_name="Outdoor_Air_Flow_Air_Changes_per_Hour",
-                    value=self.ach
+                    field_name=field,
+                    value=value
+                )
+
+        # Modify Heat Recovery if necessary
+        if self.heat_recovery_efficiency is not None:
+            obj_name_arg = tl.select_by_strings(
+                items_list=pr.get_objects_name_list(
+                    self.building.idf, "ZoneHVAC:IdealLoadsAirSystem"),
+                select_by=self.zones
+            )
+
+            mod_fields = {
+                "Sensible_Heat_Recovery_Effectiveness": self.heat_recovery_efficiency,
+                "Latent_Heat_Recovery_Effectiveness": self.heat_recovery_efficiency,
+            }
+            for field, value in mod_fields.items():
+                pr.set_object_field_value(
+                    idf=self.building.idf,
+                    idf_object="ZoneHVAC:IdealLoadsAirSystem",
+                    idf_object_name=obj_name_arg,
+                    field_name=field,
+                    value=value
                 )
 
     def post_process(self):
