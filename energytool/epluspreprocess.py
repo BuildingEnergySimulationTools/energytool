@@ -1,12 +1,37 @@
 import numpy as np
 
 from energytool.tools import format_input_to_list
-from energytool.tools import value_in_object_fieldnames
+
+
+def is_value_in_object_fieldnames(idf, idf_object, field_name, values):
+    """
+    :param values:
+    :param idf:
+    :param idf_object
+    :param field_name:
+    :return: list of Boolean.
+
+    For  each instance of the idf_object in the idf.
+    Return True if specific field_name as variables value
+    """
+    idf_object = idf_object.upper()
+    values_list = format_input_to_list(values)
+
+    try:
+        outputs = idf.idfobjects[idf_object]
+    except KeyError:
+        outputs = []
+
+    var_in_idf = [out[field_name] for out in outputs]
+
+    return [
+        True if elmt in values_list
+        else False
+        for elmt in var_in_idf]
 
 
 def set_object_field_value(
         idf, idf_object, field_name, value, idf_object_name=None):
-
     try:
         obj_list = idf.idfobjects[idf_object]
     except KeyError:
@@ -57,15 +82,15 @@ def set_timestep(idf, nb_timestep_per_hour):
 
 
 def output_zone_variable_present(idf, zones, variables):
-    zones_bool = value_in_object_fieldnames(
+    zones_bool = is_value_in_object_fieldnames(
         idf, "Output:Variable", "Key_Value", zones)
 
-    all_zones_bool = value_in_object_fieldnames(
+    all_zones_bool = is_value_in_object_fieldnames(
         idf, "Output:Variable", "Key_Value", "*")
 
     zones_bool = np.logical_or(zones_bool, all_zones_bool)
 
-    variables_bool = value_in_object_fieldnames(
+    variables_bool = is_value_in_object_fieldnames(
         idf, "Output:Variable", "Variable_Name", variables)
 
     return np.logical_and(zones_bool, variables_bool)
@@ -84,7 +109,7 @@ def del_output_zone_variable(idf, zones, variables):
 
 def del_output_variable(idf, variables):
     output_list = idf.idfobjects["OUTPUT:VARIABLE"]
-    to_delete = value_in_object_fieldnames(
+    to_delete = is_value_in_object_fieldnames(
         idf, "Output:Variable", "Variable_Name", variables)
 
     if np.any(to_delete):

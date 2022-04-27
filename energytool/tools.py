@@ -13,39 +13,3 @@ def format_input_to_list(f_input):
         return f_input
     else:
         raise ValueError("Input must be a string or a list of string")
-
-
-def value_in_object_fieldnames(idf, idf_object, field_name, values):
-    """
-    :param values:
-    :param idf:
-    :param idf_object
-    :param field_name:
-    :return: list of Boolean.
-
-    For  each instance of the idf_object in the idf.
-    Return True if specific field_name as variables value
-    """
-    idf_object = idf_object.upper()
-    values_list = format_input_to_list(values)
-
-    try:
-        outputs = idf.idfobjects[idf_object]
-    except KeyError:
-        outputs = []
-
-    var_in_idf = [out[field_name] for out in outputs]
-
-    return [
-        True if elmt in values_list
-        else False
-        for elmt in var_in_idf]
-
-
-def set_value_object_fieldname(idf, idf_object, field_name, value):
-    obj_list = idf.idfobjects[idf_object]
-    if not obj_list:
-        raise ValueError(f"No {idf_object} in idf file")
-
-    for obj in obj_list:
-        obj[field_name] = value
