@@ -84,7 +84,7 @@ class AirHandlingUnit:
                  name,
                  building,
                  zones='*',
-                 fan_energy_coefficient=0.23,
+                 fan_energy_coefficient=0.23, # Wh/m3
                  heat_recovery_efficiency=None,
                  ach=None):
 
@@ -154,8 +154,9 @@ class AirHandlingUnit:
             "Zone Mechanical Ventilation Standard Density Volume Flow Rate"
         )
 
+        # Air_volume [m3/s] * 3600 [s] * fan_coef [Wh/m3] * 3600 [J/Wh]
         system_out = (
-                air_volume * 3600 * self.fan_energy_coefficient
+                air_volume * 3600 * self.fan_energy_coefficient * 3600
         ).sum(axis=1)
 
         system_out.name = f"{self.name}_Energy"

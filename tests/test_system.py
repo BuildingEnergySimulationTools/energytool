@@ -75,4 +75,4 @@ class TestSystems:
                ] == [0.7, 0.7, 3., 3.]
 
         # Post Process tests
-        assert simu.results.AHU_Energy.sum() == 176361.7961951998
+        assert simu.results.AHU_Energy.sum() == 634902466.3027192
