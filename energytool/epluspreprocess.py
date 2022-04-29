@@ -1,7 +1,6 @@
 import numpy as np
 
-from energytool.tools import format_input_to_list
-
+import energytool.tools as tl
 
 def get_objects_name_list(idf, idf_object):
     return [obj.Name for obj in idf.idfobjects[idf_object]]
@@ -19,7 +18,7 @@ def is_value_in_object_fieldnames(idf, idf_object, field_name, values):
     Return True if specific field_name as variables value
     """
     idf_object = idf_object.upper()
-    values_list = format_input_to_list(values)
+    values_list = tl.format_input_to_list(values)
 
     try:
         outputs = idf.idfobjects[idf_object]
@@ -47,7 +46,7 @@ def set_object_field_value(
 
     for obj in obj_list:
         if idf_object_name is not None:
-            idf_object_name_list = format_input_to_list(idf_object_name)
+            idf_object_name_list = tl.format_input_to_list(idf_object_name)
             if obj.Name in idf_object_name_list:
                 obj[field_name] = value
         else:
@@ -125,8 +124,8 @@ def del_output_variable(idf, variables):
 
 def add_output_zone_variable(idf, zones, variables,
                              reporting_frequency="Hourly"):
-    zones_list = format_input_to_list(zones)
-    variables_list = format_input_to_list(variables)
+    zones_list = tl.format_input_to_list(zones)
+    variables_list = tl.format_input_to_list(variables)
 
     for zne in zones_list:
         for var in variables_list:
@@ -140,3 +139,34 @@ def add_output_zone_variable(idf, zones, variables,
                     Variable_Name=var,
                     Reporting_Frequency=reporting_frequency
                 )
+
+
+def get_number_of_people(idf, zones="*"):
+    zone_name_list = tl.format_input_to_list(zones)
+    if zones == "*":
+        zone_list = idf.idfobjects["Zone"]
+    else:
+        zone_list = [obj for obj in idf.idfobjects["Zone"]
+                     if obj.Name in zone_name_list]
+
+    people_list = idf.idfobjects["People"]
+    occupation = 0
+    for zone in zone_list:
+        try:
+            people = next(
+                p for p in people_list if p.Zone_or_ZoneList_Name == zone.Name
+            )
+        except StopIteration:
+            continue
+        else:
+            people_method = people.Number_of_People_Calculation_Method
+            if people_method == "People/Area":
+                occupation += (
+                        people.People_per_Zone_Floor_Area * zone.Floor_Area)
+            elif people_method == "People":
+                occupation += people.Number_of_People
+            elif people_method == "Area/Person":
+                occupation += (
+                        zone.Floor_Area / people.Zone_Floor_Area_per_Person)
+    return occupation
+

@@ -20,11 +20,12 @@ def toy_idf(tmp_path_factory):
     handle = StringIO(empty_idf)
     toy_idf = IDF(handle)
 
-    zone_list = toy_idf.idfobjects["Zone"]
-
-    for toy_zone in range(2):
-        toy_idf.newidfobject("Zone")
-        zone_list[-1]["Name"] = f"Zone_{toy_zone}"
+    for toy_zone in range(10):
+        toy_idf.newidfobject(
+            "Zone",
+            Name=f"Zone_{toy_zone}",
+            Floor_Area=10
+        )
 
     return toy_idf
 
@@ -33,7 +34,7 @@ class TestEplusPreProcess:
     def test_get_objects_name_list(self, toy_idf):
 
         to_test = pr.get_objects_name_list(toy_idf, "Zone")
-        assert to_test == ["Zone_0", "Zone_1"]
+        assert to_test == [f"Zone_{i}" for i in range(10)]
 
     def test_add_output_zone_variable(self, toy_idf):
         pr.add_output_zone_variable(toy_idf, zones='Z1', variables="Conso")
@@ -123,7 +124,7 @@ class TestEplusPreProcess:
         to_test = [z.Floor_Area for z in zone_list]
 
         # Test for all object
-        assert to_test == [42, 42]
+        assert to_test == [42]*10
 
         # Test by object with a single Name
         pr.set_object_field_value(
@@ -136,7 +137,7 @@ class TestEplusPreProcess:
 
         to_test = [z.Floor_Area for z in zone_list]
 
-        assert to_test == [4.2, 42]
+        assert to_test == [4.2] + [42]*9
 
         # Test by object with multiple Names
         pr.set_object_field_value(
@@ -149,4 +150,40 @@ class TestEplusPreProcess:
 
         to_test = [z.Floor_Area for z in zone_list]
 
-        assert to_test == [4.2, 4.2]
+        assert to_test == [4.2, 4.2] + [42]*8
+
+    def test_get_number_of_people(self, toy_idf):
+        configurations = [
+            [
+                ("Number_of_People_Calculation_Method", "People/Area"),
+                ("People_per_Zone_Floor_Area", 0.5)
+            ],
+            [
+                ("Number_of_People_Calculation_Method", "People",),
+                ("Number_of_People", 2)
+            ],
+            [
+                ("Number_of_People_Calculation_Method", "Area/Person"),
+                ("Zone_Floor_Area_per_Person", 2)
+            ],
+        ]
+
+        for z in toy_idf.idfobjects["Zone"]:
+            z.Floor_Area = 10
+
+        zone_name_iterator = (z.Name for z in toy_idf.idfobjects["Zone"])
+
+        for config in configurations:
+            zne = next(zone_name_iterator)
+            new_people = toy_idf.newidfobject(
+                "People",
+                Name=f"People_{zne}",
+                Zone_or_ZoneList_Name=zne,
+            )
+            new_people[config[0][0]] = config[0][1]
+            new_people[config[1][0]] = config[1][1]
+
+        assert pr.get_number_of_people(toy_idf) == 12.
+
+        assert pr.get_number_of_people(
+            toy_idf, zones=["Zone_1", "Zone_2"]) == 7.
