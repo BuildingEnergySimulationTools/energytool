@@ -29,9 +29,11 @@ class Building:
         IDF.setiddname(root_eplus / "Energy+.idd")
 
     def infos(self):
+        nb_occupant = pr.get_number_of_people(self.idf)
         print(
-            f"==Building geometry==\n"
+            f"==Building==\n"
             f"\n"
+            f"Number of occupants : {round(nb_occupant, 2)}\n"
             f"Building surface : {self.surface} m²\n"
             f"Building volume : {self.volume} m3\n"
             f"Zone number : {len(self.zone_name_list)}\n"
@@ -61,6 +63,7 @@ class Building:
 
     def post_process(self):
         self.building_results = pd.DataFrame()
+        self.building_results.index = self.energyplus_results.index
 
         system_dict = (
                 self.heating_system |

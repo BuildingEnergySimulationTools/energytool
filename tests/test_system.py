@@ -10,7 +10,6 @@ import energytool.system as sys
 
 RESOURCES_PATH = Path(__file__).parent / "resources"
 
-
 Building.set_idd(RESOURCES_PATH)
 
 
@@ -76,3 +75,20 @@ class TestSystems:
 
         # Post Process tests
         assert simu.results.AHU_Energy.sum() == 634902466.3027192
+
+    def test_dhw_ideal_external(self, building):
+        dhw = sys.DHWIdealExternal(
+            name="DHW_prod",
+            building=building
+        )
+
+        building.dwh_system = {
+            dhw.name: dhw
+        }
+
+        simu = Simulation(
+            building, epw_file_path=RESOURCES_PATH / "Paris_2020.epw")
+        runner = SimulationsRunner([simu])
+        runner.run()
+
+        assert simu.results.DHW_energy.sum() == 8430408987.330694

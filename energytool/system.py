@@ -1,3 +1,4 @@
+import numpy as np
 import pandas as pd
 
 import energytool.epluspreprocess as pr
@@ -84,7 +85,7 @@ class AirHandlingUnit:
                  name,
                  building,
                  zones='*',
-                 fan_energy_coefficient=0.23, # Wh/m3
+                 fan_energy_coefficient=0.23,  # Wh/m3
                  heat_recovery_efficiency=None,
                  ach=None):
 
@@ -164,4 +165,55 @@ class AirHandlingUnit:
         self.building.building_results = pd.concat([
             self.building.building_results,
             system_out
+        ], axis=1)
+
+
+class DHWIdealExternal:
+    def __init__(self,
+                 name,
+                 building,
+                 zones='*',
+                 cop=0.95,  # Wh/m3
+                 t_dwh_set_point=60,
+                 t_cold_water=15,
+                 daily_volume_occupant=30,
+                 cp_water=4183.2  # J/L.°C
+                 ):
+        self.name = name
+        self.building = building
+        self.zones = zones
+        self.cop = cop
+        self.t_dwh_set_point = t_dwh_set_point
+        self.t_cold_water = t_cold_water
+        self.daily_volume_occupant = daily_volume_occupant
+        self.cp_water = cp_water
+
+    def pre_process(self):
+        return None
+
+    def post_process(self):
+        nb_people = pr.get_number_of_people(
+            self.building.idf, zones=self.zones)
+
+        # 4183.2[J/L.°C]
+        daily_cons_per_occupant = (
+                self.cp_water *
+                (self.t_dwh_set_point - self.t_cold_water) *
+                self.daily_volume_occupant
+        )
+
+        nb_days = self.building.energyplus_results.resample("D").sum().shape[0]
+        nb_entry = self.building.energyplus_results.shape[0]
+
+        dhw_consumption = (
+                daily_cons_per_occupant * nb_days * nb_people / self.cop
+        )
+
+        self.building.building_results = pd.concat([
+            self.building.building_results,
+            pd.Series(
+                name="DHW_energy",
+                data=np.ones(nb_entry) * dhw_consumption / nb_entry,
+                index=self.building.building_results.index
+            )
         ], axis=1)
