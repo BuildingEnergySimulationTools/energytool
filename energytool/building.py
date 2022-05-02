@@ -14,6 +14,7 @@ class Building:
         self.heating_system = {}
         self.cooling_system = {}
         self.ventilation_system = {}
+        self.artificial_lighting_system = {}
         self.dwh_system = {}
         self.pv_production = {}
 
@@ -42,7 +43,10 @@ class Building:
             f"\n"
             f"Heating systems : {[n for n in self.heating_system.keys()]}\n"
             f"Cooling systems : {[n for n in self.cooling_system.keys()]}\n"
-            f"Ventilation system : {[n for n in self.ventilation_system.keys()]}\n"
+            f"Ventilation system : "
+            f"{[n for n in self.ventilation_system.keys()]}\n"
+            f"Artificial lighting system : "
+            f"{[n for n in self.artificial_lighting_system.keys()]}\n"
             f"DHW production : {[n for n in self.dwh_system.keys()]}\n"
             f"PV production : {[n for n in self.pv_production.keys()]}\n"
         )
@@ -54,6 +58,7 @@ class Building:
                 self.heating_system |
                 self.cooling_system |
                 self.ventilation_system |
+                self.artificial_lighting_system |
                 self.dwh_system |
                 self.pv_production
         )
@@ -69,6 +74,7 @@ class Building:
                 self.heating_system |
                 self.cooling_system |
                 self.ventilation_system |
+                self.artificial_lighting_system |
                 self.dwh_system |
                 self.pv_production
         )

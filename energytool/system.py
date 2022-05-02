@@ -217,3 +217,58 @@ class DHWIdealExternal:
                 index=self.building.building_results.index
             )
         ], axis=1)
+
+
+class ArtificialLightingSimple:
+    def __init__(self,
+                 name,
+                 building,
+                 zones='*',
+                 power_ratio=3,  # W/m²
+                 cop=1):
+        self.name = name
+        self.building = building
+        self.zones = zones
+        self.power_ratio = power_ratio
+        self.cop = cop
+
+    def pre_process(self):
+        pr.add_output_zone_variable(
+            idf=self.building.idf,
+            zones=self.zones,
+            variables="Zone Lights Electricity Energy"
+        )
+
+        config = {
+            "Design_Level_Calculation_Method": "Watts/Area",
+            "Watts_per_Zone_Floor_Area": self.power_ratio,
+        }
+        obj_name_arg = tl.select_by_strings(
+            items_list=pr.get_objects_name_list(
+                self.building.idf, "Lights"),
+            select_by=self.zones
+        )
+
+        for field, value in config.items():
+            pr.set_object_field_value(
+                idf=self.building.idf,
+                idf_object="Lights",
+                idf_object_name=obj_name_arg,
+                field_name=field,
+                value=value
+            )
+
+    def post_process(self):
+        lighting_consumption = po.get_output_zone_variable(
+            eplus_res=self.building.energyplus_results,
+            zones=self.zones,
+            variables="Zone Lights Electricity Energy"
+        )
+
+        lighting_out = (lighting_consumption / self.cop).sum(axis=1)
+        lighting_out.name = f"{self.name}_Energy"
+
+        self.building.building_results = pd.concat([
+            self.building.building_results,
+            lighting_out
+        ], axis=1)
