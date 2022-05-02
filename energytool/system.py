@@ -6,7 +6,7 @@ import energytool.epluspostprocess as po
 import energytool.tools as tl
 
 
-class GasBoiler:
+class HeaterSimple:
     def __init__(self, name, building, zones="*", cop=0.86, energy="gaz",
                  cost=0):
         self.name = name

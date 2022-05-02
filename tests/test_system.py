@@ -21,8 +21,8 @@ def building(tmp_path_factory):
 
 
 class TestSystems:
-    def test_gas_boiler(self, building):
-        gas_boiler = sys.GasBoiler(
+    def test_heater_simple(self, building):
+        gas_boiler = sys.HeaterSimple(
             name="Main_boiler", cop=0.5, building=building, zones='*')
         building.heating_system = {gas_boiler.name: gas_boiler}
 

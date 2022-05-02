@@ -5,7 +5,7 @@ from copy import deepcopy
 from energytool.building import Building
 from energytool.simulate import Simulation
 from energytool.simulate import SimulationsRunner
-from energytool.system import GasBoiler
+from energytool.system import HeaterSimple
 
 RESOURCES_PATH = Path(__file__).parent / "resources"
 
@@ -15,7 +15,7 @@ Building.set_idd(RESOURCES_PATH)
 class TestSimulate:
     def test_simulation_runner(self):
         building = Building(idf_path=RESOURCES_PATH / "test.idf")
-        gas_boiler = GasBoiler(
+        gas_boiler = HeaterSimple(
             name="Main_boiler", cop=0.5, building=building, zones='*')
         building.heating_system = {gas_boiler.name: gas_boiler}
 
