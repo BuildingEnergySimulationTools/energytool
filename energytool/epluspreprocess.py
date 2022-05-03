@@ -2,10 +2,16 @@ import numpy as np
 from pathlib import Path
 
 import energytool.tools as tl
+import eppy
+
 from eppy.modeleditor import IDF
 
 RESOURCES_PATH = Path(__file__).parent / "resources"
-IDF.setiddname(RESOURCES_PATH / 'Energy+.idd')
+
+try:
+    IDF.setiddname(RESOURCES_PATH / 'Energy+.idd')
+except eppy.modeleditor.IDDAlreadySetError:
+    pass
 
 
 def get_resources_idf():
@@ -14,6 +20,13 @@ def get_resources_idf():
 
 def get_objects_name_list(idf, idf_object):
     return [obj.Name for obj in idf.idfobjects[idf_object]]
+
+
+def get_objects_by_names(idf, idf_object, names):
+    names_list = tl.format_input_to_list(names)
+    objects_list = idf.idfobjects[idf_object]
+
+    return [obj for obj in objects_list if obj.Name in names_list]
 
 
 def is_value_in_object_fieldnames(idf, idf_object, field_name, values):

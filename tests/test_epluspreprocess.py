@@ -4,6 +4,7 @@ from pathlib import Path
 import datetime as dt
 
 import pytest
+import eppy
 
 from eppy.modeleditor import IDF
 
@@ -11,7 +12,10 @@ import energytool.epluspreprocess as pr
 
 RESOURCES_PATH = Path(__file__).parent / "resources"
 
-IDF.setiddname(RESOURCES_PATH / 'Energy+.idd')
+try:
+    IDF.setiddname(RESOURCES_PATH / 'Energy+.idd')
+except eppy.modeleditor.IDDAlreadySetError:
+    pass
 
 
 @pytest.fixture(scope="session")
@@ -124,7 +128,7 @@ class TestEplusPreProcess:
         to_test = [z.Floor_Area for z in zone_list]
 
         # Test for all object
-        assert to_test == [42]*10
+        assert to_test == [42] * 10
 
         # Test by object with a single Name
         pr.set_object_field_value(
@@ -137,7 +141,7 @@ class TestEplusPreProcess:
 
         to_test = [z.Floor_Area for z in zone_list]
 
-        assert to_test == [4.2] + [42]*9
+        assert to_test == [4.2] + [42] * 9
 
         # Test by object with multiple Names
         pr.set_object_field_value(
@@ -150,7 +154,7 @@ class TestEplusPreProcess:
 
         to_test = [z.Floor_Area for z in zone_list]
 
-        assert to_test == [4.2, 4.2] + [42]*8
+        assert to_test == [4.2, 4.2] + [42] * 8
 
     def test_get_number_of_people(self, toy_idf):
         configurations = [
@@ -187,3 +191,11 @@ class TestEplusPreProcess:
 
         assert pr.get_number_of_people(
             toy_idf, zones=["Zone_1", "Zone_2"]) == 7.
+
+    def test_get_objects_by_names(self, toy_idf):
+        res_to_test = pr.get_objects_by_names(
+            toy_idf, "Zone", ["Zone_0", "Zone_1"])
+
+        ref = toy_idf.idfobjects["Zone"][:2]
+
+        assert res_to_test == ref

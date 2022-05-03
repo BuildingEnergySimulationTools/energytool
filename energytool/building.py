@@ -1,4 +1,6 @@
 import pandas as pd
+
+import eppy
 from eppy.modeleditor import IDF
 
 import energytool.epluspreprocess as pr
@@ -27,7 +29,10 @@ class Building:
 
     @staticmethod
     def set_idd(root_eplus):
-        IDF.setiddname(root_eplus / "Energy+.idd")
+        try:
+            IDF.setiddname(root_eplus / "Energy+.idd")
+        except eppy.modeleditor.IDDAlreadySetError:
+            pass
 
     def infos(self):
         nb_occupant = pr.get_number_of_people(self.idf)
