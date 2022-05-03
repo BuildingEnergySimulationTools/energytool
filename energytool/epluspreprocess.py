@@ -1,6 +1,16 @@
 import numpy as np
+from pathlib import Path
 
 import energytool.tools as tl
+from eppy.modeleditor import IDF
+
+RESOURCES_PATH = Path(__file__).parent / "resources"
+IDF.setiddname(RESOURCES_PATH / 'Energy+.idd')
+
+
+def get_resources_idf():
+    return IDF(RESOURCES_PATH / "resources_idf.idf")
+
 
 def get_objects_name_list(idf, idf_object):
     return [obj.Name for obj in idf.idfobjects[idf_object]]
@@ -169,4 +179,3 @@ def get_number_of_people(idf, zones="*"):
                 occupation += (
                         zone.Floor_Area / people.Zone_Floor_Area_per_Person)
     return occupation
-
