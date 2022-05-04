@@ -189,7 +189,7 @@ class DHWIdealExternal:
         self.cp_water = cp_water
 
     def pre_process(self):
-        return None
+        pass
 
     def post_process(self):
         nb_people = pr.get_number_of_people(
@@ -272,3 +272,48 @@ class ArtificialLightingSimple:
             self.building.building_results,
             lighting_out
         ], axis=1)
+
+
+class AHUControl:
+    def __init__(self,
+                 name,
+                 building,
+                 zones='*',
+                 control_strategy="Schedule",
+                 schedule_name="ON_24h24h_FULL_YEAR"):
+        self.name = name
+        self.building = building
+        self.zones = zones
+        self.control_strategy = control_strategy
+        self.schedule_name = schedule_name
+        self.resources_idf = pr.get_resources_idf()
+
+    def pre_process(self):
+        if self.control_strategy == "Schedule":
+            # Get schedule in resources file
+            idf_schedules = self.building.idf.idfobjects['Schedule:Compact']
+            schedule_to_copy = pr.get_objects_by_names(
+                self.resources_idf, "Schedule:Compact", self.schedule_name)
+
+            # Copy in building idf if not already present
+            if schedule_to_copy[0].Name not in pr.get_objects_name_list(
+                    self.building.idf, 'Schedule:Compact'):
+                idf_schedules.append(schedule_to_copy[0])
+
+            # Get Design spec object to modify and set schedule
+            obj_name_arg = tl.select_by_strings(
+                items_list=pr.get_objects_name_list(
+                    self.building.idf, "DesignSpecification:OutdoorAir"),
+                select_by=self.zones
+            )
+
+            pr.set_object_field_value(
+                idf=self.building.idf,
+                idf_object="DesignSpecification:OutdoorAir",
+                idf_object_name=obj_name_arg,
+                field_name="Outdoor_Air_Schedule_Name",
+                value=schedule_to_copy[0].Name
+            )
+
+    def post_process(self):
+        pass

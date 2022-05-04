@@ -7,6 +7,7 @@ from energytool.building import Building
 from energytool.epluspostprocess import read_eplus_res
 from energytool.simulate import Simulation, SimulationsRunner
 import energytool.system as sys
+import energytool.epluspreprocess as pr
 
 RESOURCES_PATH = Path(__file__).parent / "resources"
 
@@ -92,3 +93,23 @@ class TestSystems:
         runner.run()
 
         assert simu.results.DHW_energy.sum() == 8430408987.330694
+
+    def test_ahu_control(self, building):
+        ahu_control = sys.AHUControl(
+            name="ahu_control",
+            building=building
+        )
+
+        building.ventilation_system[ahu_control.name] = ahu_control
+
+        building.pre_process()
+
+        schedules_name_list = pr.get_objects_name_list(
+            building.idf, 'Schedule:Compact')
+
+        design_list = [obj.Outdoor_Air_Schedule_Name
+                       for obj in building.idf.idfobjects[
+                           'DesignSpecification:OutdoorAir']]
+
+        assert "ON_24h24h_FULL_YEAR" in schedules_name_list
+        assert design_list == ["ON_24h24h_FULL_YEAR"] * len(design_list)
