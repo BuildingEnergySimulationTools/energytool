@@ -80,7 +80,8 @@ class TestSystems:
     def test_dhw_ideal_external(self, building):
         dhw = sys.DHWIdealExternal(
             name="DHW_prod",
-            building=building
+            building=building,
+            daily_volume_occupant=30
         )
 
         building.dwh_system = {

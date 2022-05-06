@@ -176,7 +176,7 @@ class DHWIdealExternal:
                  cop=0.95,  # Wh/m3
                  t_dwh_set_point=60,
                  t_cold_water=15,
-                 daily_volume_occupant=30,
+                 daily_volume_occupant=50,
                  cp_water=4183.2  # J/L.°C
                  ):
         self.name = name
