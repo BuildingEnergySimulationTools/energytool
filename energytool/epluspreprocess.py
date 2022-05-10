@@ -147,12 +147,12 @@ def del_output_variable(idf, variables):
             del output_list[idx]
 
 
-def add_output_zone_variable(idf, zones, variables,
-                             reporting_frequency="Hourly"):
-    zones_list = tl.format_input_to_list(zones)
+def add_output_variable(idf, key_values, variables,
+                        reporting_frequency="Hourly"):
+    key_values_list = tl.format_input_to_list(key_values)
     variables_list = tl.format_input_to_list(variables)
 
-    for zne in zones_list:
+    for zne in key_values_list:
         for var in variables_list:
             if not np.any(output_zone_variable_present(idf, zne, var)):
                 if zne == "*":
@@ -199,7 +199,6 @@ def get_number_of_people(idf, zones="*"):
 def add_hourly_schedules_from_df(
         idf, data, schedule_type="Dimensionless",
         file_name=None, directory=None):
-
     if isinstance(data, pd.Series):
         data = data.to_frame()
     if not isinstance(data, pd.DataFrame):
@@ -210,7 +209,7 @@ def add_hourly_schedules_from_df(
 
     eplus_ref = ["Dimensionless", "Temperature", "DeltaTemperature",
                  "PrecipitationRate", "Angle", "Convection" "Coefficient",
-                 "Activity" "Level", "Velocity",  "Capacity", "Power",
+                 "Activity" "Level", "Velocity", "Capacity", "Power",
                  "Availability", "Percent", "Control", "Mode"
                  ]
 

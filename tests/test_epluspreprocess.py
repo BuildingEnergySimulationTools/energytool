@@ -47,15 +47,15 @@ class TestEplusPreProcess:
         assert to_test == [f"Zone_{i}" for i in range(10)]
 
     def test_add_output_zone_variable(self, toy_idf):
-        pr.add_output_zone_variable(toy_idf, zones='Z1', variables="Conso")
+        pr.add_output_variable(toy_idf, key_values='Z1', variables="Conso")
 
         to_test = [elmt['obj'] for elmt in
                    toy_idf.idfobjects["Output:Variable"]]
         ref = [['OUTPUT:VARIABLE', 'Z1', 'Conso', 'Hourly']]
         assert to_test == ref
 
-        pr.add_output_zone_variable(
-            toy_idf, zones=['Z1', 'Z2'], variables="Conso")
+        pr.add_output_variable(
+            toy_idf, key_values=['Z1', 'Z2'], variables="Conso")
 
         to_test = [elmt['obj'] for elmt in
                    toy_idf.idfobjects["Output:Variable"]]
@@ -63,8 +63,8 @@ class TestEplusPreProcess:
                ['OUTPUT:VARIABLE', 'Z2', 'Conso', 'Hourly']]
         assert to_test == ref
 
-        pr.add_output_zone_variable(
-            toy_idf, zones='Z3', variables=["Conso", "Elec"])
+        pr.add_output_variable(
+            toy_idf, key_values='Z3', variables=["Conso", "Elec"])
 
         to_test = [elmt['obj'] for elmt in
                    toy_idf.idfobjects["Output:Variable"]]
@@ -74,7 +74,7 @@ class TestEplusPreProcess:
                ['OUTPUT:VARIABLE', 'Z3', 'Elec', 'Hourly']]
         assert to_test == ref
 
-        pr.add_output_zone_variable(toy_idf, zones='*', variables="Conso")
+        pr.add_output_variable(toy_idf, key_values='*', variables="Conso")
 
         to_test = [elmt['obj'] for elmt in
                    toy_idf.idfobjects["Output:Variable"]]
@@ -216,10 +216,10 @@ class TestEplusPreProcess:
 
         pr.add_hourly_schedules_from_df(building.idf, data_frame)
 
-        pr.add_output_zone_variable(
-            building.idf,
-            list(data_frame.columns),
-            "Schedule Value")
+        pr.add_output_variable(
+            idf=building.idf,
+            key_values=list(data_frame.columns),
+            variables="Schedule Value")
 
         simu = Simulation(building,
                           epw_file_path=RESOURCES_PATH / "Paris_2020.epw")

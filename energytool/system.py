@@ -17,9 +17,9 @@ class HeaterSimple:
         self.zones = zones
 
     def pre_process(self):
-        pr.add_output_zone_variable(
+        pr.add_output_variable(
             idf=self.building.idf,
-            zones=self.zones,
+            key_values=self.zones,
             variables="Zone Ideal Loads Supply Air Total Heating Energy"
         )
 
@@ -52,9 +52,9 @@ class AuxiliarySimplified:
         self.ratio = ratio
 
     def pre_process(self):
-        pr.add_output_zone_variable(
+        pr.add_output_variable(
             idf=self.building.idf,
-            zones=self.zones,
+            key_values=self.zones,
             variables="Zone Ideal Loads Supply Air Total Heating Energy"
         )
 
@@ -97,9 +97,9 @@ class AirHandlingUnit:
         self.heat_recovery_efficiency = heat_recovery_efficiency
 
     def pre_process(self):
-        pr.add_output_zone_variable(
+        pr.add_output_variable(
             idf=self.building.idf,
-            zones=self.zones,
+            key_values=self.zones,
             variables=
             "Zone Mechanical Ventilation Standard Density Volume Flow Rate"
         )
@@ -233,9 +233,9 @@ class ArtificialLightingSimple:
         self.cop = cop
 
     def pre_process(self):
-        pr.add_output_zone_variable(
+        pr.add_output_variable(
             idf=self.building.idf,
-            zones=self.zones,
+            key_values=self.zones,
             variables="Zone Lights Electricity Energy"
         )
 
