@@ -280,13 +280,24 @@ class AHUControl:
                  building,
                  zones='*',
                  control_strategy="Schedule",
-                 schedule_name="ON_24h24h_FULL_YEAR"):
+                 schedule_name="ON_24h24h_FULL_YEAR",
+                 data_frame=None):
         self.name = name
         self.building = building
         self.zones = zones
         self.control_strategy = control_strategy
         self.schedule_name = schedule_name
         self.resources_idf = pr.get_resources_idf()
+
+        if data_frame is not None:
+            if data_frame.shape[1] > 1:
+                raise ValueError("Specify a one columns DataFrame or "
+                                 "a Pandas Series")
+            to_test = np.logical_or(data_frame < 0, data_frame > 1).to_numpy()
+            if to_test.any():
+                raise ValueError("Invalid values in DataFrame. Values > 1 "
+                                 "or Value < 0")
+        self.data_frame = data_frame
 
     def pre_process(self):
         if self.control_strategy == "Schedule":
@@ -300,20 +311,31 @@ class AHUControl:
                     self.building.idf, 'Schedule:Compact'):
                 idf_schedules.append(schedule_to_copy[0])
 
-            # Get Design spec object to modify and set schedule
-            obj_name_arg = tl.select_by_strings(
-                items_list=pr.get_objects_name_list(
-                    self.building.idf, "DesignSpecification:OutdoorAir"),
-                select_by=self.zones
-            )
+            schedule_name = schedule_to_copy[0].Name
 
-            pr.set_object_field_value(
-                idf=self.building.idf,
-                idf_object="DesignSpecification:OutdoorAir",
-                idf_object_name=obj_name_arg,
-                field_name="Outdoor_Air_Schedule_Name",
-                value=schedule_to_copy[0].Name
-            )
+        elif self.control_strategy == "DataFrame":
+            pr.add_hourly_schedules_from_df(self.building.idf, self.data_frame)
+            schedule_name = self.data_frame.columns[0]
+
+        else:
+            raise ValueError("Specify valid control_strategy")
+
+        # Get Design spec object to modify and set schedule
+        obj_name_arg = tl.select_by_strings(
+            items_list=pr.get_objects_name_list(
+                self.building.idf, "DesignSpecification:OutdoorAir"),
+            select_by=self.zones
+        )
+
+        pr.set_object_field_value(
+            idf=self.building.idf,
+            idf_object="DesignSpecification:OutdoorAir",
+            idf_object_name=obj_name_arg,
+            field_name="Outdoor_Air_Schedule_Name",
+            value=schedule_name
+        )
 
     def post_process(self):
         pass
+
+
