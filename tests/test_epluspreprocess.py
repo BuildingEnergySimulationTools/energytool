@@ -3,12 +3,18 @@ from pathlib import Path
 
 import datetime as dt
 
+import pandas as pd
+import numpy as np
 import pytest
 import eppy
 
 from eppy.modeleditor import IDF
+from energytool.simulate import Simulation
+from energytool.simulate import SimulationsRunner
+from energytool.building import Building
 
 import energytool.epluspreprocess as pr
+import energytool.epluspostprocess as po
 
 RESOURCES_PATH = Path(__file__).parent / "resources"
 
@@ -199,3 +205,33 @@ class TestEplusPreProcess:
         ref = toy_idf.idfobjects["Zone"][:2]
 
         assert res_to_test == ref
+
+    def test_add_hourly_schedules_from_df(self):
+        building = Building(idf_path=RESOURCES_PATH / 'test.idf')
+
+        data_frame = pd.DataFrame({
+            "schedule_1": [1] * 8760,
+            "schedule_2": [2] * 8760,
+        }, index=pd.date_range("2009-01-01", freq="H", periods=8760))
+
+        pr.add_hourly_schedules_from_df(building.idf, data_frame)
+
+        pr.add_output_zone_variable(
+            building.idf,
+            list(data_frame.columns),
+            "Schedule Value")
+
+        simu = Simulation(building,
+                          epw_file_path=RESOURCES_PATH / "Paris_2020.epw")
+        runner = SimulationsRunner([simu])
+        runner.run()
+
+        output = po.get_output_zone_variable(
+            simu.building.energyplus_results,
+            list(data_frame.columns),
+            "Schedule Value"
+        )
+
+        np.testing.assert_equal(output.to_numpy(), data_frame.to_numpy())
+
+

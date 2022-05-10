@@ -1,6 +1,11 @@
 import numpy as np
 from pathlib import Path
 
+import pandas as pd
+
+import os
+import uuid
+import tempfile
 import energytool.tools as tl
 import eppy
 
@@ -50,10 +55,7 @@ def is_value_in_object_fieldnames(idf, idf_object, field_name, values):
 
     var_in_idf = [out[field_name] for out in outputs]
 
-    return [
-        True if elmt in values_list
-        else False
-        for elmt in var_in_idf]
+    return tl.is_list_items_in_list(var_in_idf, values_list)
 
 
 def set_object_field_value(
@@ -192,3 +194,69 @@ def get_number_of_people(idf, zones="*"):
                 occupation += (
                         zone.Floor_Area / people.Zone_Floor_Area_per_Person)
     return occupation
+
+
+def add_hourly_schedules_from_df(
+        idf, data, schedule_type="Dimensionless",
+        file_name=None, directory=None):
+
+    if isinstance(data, pd.Series):
+        data = data.to_frame()
+    if not isinstance(data, pd.DataFrame):
+        raise ValueError("data must be a Pandas Series on DataFrame")
+    if not (data.shape[0] == 8760 or data.shape[0] == 8760 + 24):
+        raise ValueError("Invalid DataFrame. Dimension 0 must be 8760 or "
+                         "8760 + 24")
+
+    eplus_ref = ["Dimensionless", "Temperature", "DeltaTemperature",
+                 "PrecipitationRate", "Angle", "Convection" "Coefficient",
+                 "Activity" "Level", "Velocity",  "Capacity", "Power",
+                 "Availability", "Percent", "Control", "Mode"
+                 ]
+
+    schedule_type_list = tl.format_input_to_list(schedule_type)
+    if not np.array(
+            tl.is_list_items_in_list(schedule_type_list, eplus_ref)).all():
+        raise ValueError(f"Invalid schedules type in schedules type list\n"
+                         f"Valid types are {eplus_ref}")
+
+    if len(schedule_type_list) == 1:
+        schedule_type_list = schedule_type_list * len(data.columns)
+    elif len(schedule_type_list) != len(data.columns):
+        raise ValueError("Invalid Schedule type list. Provide a single type"
+                         "or as many type as data columns")
+
+    already_existing = is_value_in_object_fieldnames(
+        idf,
+        idf_object="Schedule:File",
+        field_name="Name",
+        values=list(data.columns)
+    )
+
+    if np.array(already_existing).any():
+        raise ValueError(f"{list(data.columns[already_existing])} already "
+                         f"presents in Schedules:Files")
+
+    if file_name is None:
+        file_name = str(uuid.uuid4()) + ".csv"
+
+    if directory is None:
+        directory = tempfile.mkdtemp()
+
+    full_path = os.path.realpath(os.path.join(directory, file_name))
+
+    data.to_csv(full_path, index=False, sep=",")
+
+    for idx, (schedule, schedule_type) in enumerate(
+            zip(data.columns, schedule_type_list)):
+        idf.newidfobject(
+            "Schedule:File",
+            Name=schedule,
+            Schedule_Type_Limits_Name=schedule_type,
+            File_Name=full_path,
+            Column_Number=idx + 1,
+            Rows_to_Skip_at_Top=1,
+            Number_of_Hours_of_Data=8760,
+            Column_Separator='Comma',
+            Interpolate_to_Timestep='No',
+        )
