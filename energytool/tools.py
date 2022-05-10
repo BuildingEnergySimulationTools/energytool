@@ -45,6 +45,13 @@ def hourly_lst_from_dict(hourly_dict):
     return val_list
 
 
+def is_list_items_in_list(tested_list, reference_list):
+    return [
+        True if elmt in reference_list
+        else False
+        for elmt in tested_list]
+
+
 class Scheduler:
     def __init__(self, name, year=dt.datetime.today().year):
         self.name = name
