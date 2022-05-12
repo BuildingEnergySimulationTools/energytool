@@ -5,8 +5,10 @@ import shutil
 import tempfile
 from pathlib import Path
 
+from contextvars import ContextVar
+
 import pandas as pd
-from eppy.runner.run_functions import runIDFs
+import eppy.runner.run_functions as errf
 
 from energytool.epluspostprocess import read_eplus_res
 from energytool.epluspreprocess import set_run_period
@@ -16,6 +18,53 @@ from fastprogress.fastprogress import master_bar, progress_bar
 from fastprogress.fastprogress import force_console_behavior
 
 master_bar, progress_bar = force_console_behavior()
+
+try:
+    import multiprocessing as mp
+except ImportError:
+    pass
+
+RUN_WORK_DIRPATH = ContextVar("run_work_dirpath")
+
+
+def runIDFs(jobs, processors=1):
+    if processors <= 0:
+        processors = max(1, mp.cpu_count() - processors)
+
+    shutil.rmtree("multi_runs", ignore_errors=True)
+
+    # Patch here
+    multiruns_dirpath = RUN_WORK_DIRPATH.get() / "multi_runs"
+    multiruns_dirpath.mkdir(exist_ok=True)
+
+    prepared_runs = (
+        prepare_run(run_id, run_data) for run_id, run_data in enumerate(jobs)
+    )
+    try:
+        pool = mp.Pool(processors)
+        pool.map(errf.multirunner, prepared_runs)
+        pool.close()
+    except NameError:
+        # multiprocessing not present so pass the jobs one at a time
+        for job in prepared_runs:
+            errf.multirunner([job])
+    shutil.rmtree("multi_runs", ignore_errors=True)
+
+
+# Monkey-patch prepare_run to force utf-8
+# https://github.com/santoshphilip/eppy/issues/350
+def prepare_run(run_id, run_data):
+    idf, kwargs = run_data
+    epw = idf.epw
+    idf_dirpath = RUN_WORK_DIRPATH.get() / "multi_runs" / f"idf_{str(run_id)}"
+    idf_dirpath.mkdir(parents=True, exist_ok=True)
+    idf_filepath = idf_dirpath / "in.idf"
+    idf.saveas(idf_filepath, encoding="utf-8")  # Patch: Set utf-8 as encoding
+    return (idf_filepath, epw), kwargs
+
+
+errf.runIDFs = runIDFs
+errf.prepare_run = prepare_run
 
 
 class Simulation:
@@ -120,10 +169,13 @@ class SimulationsRunner:
                 )
 
             # 2nd run EnergyPlus
+            token = RUN_WORK_DIRPATH.set(self.run_dir)
             try:
-                runIDFs(runs, self.nb_cpus)
+                errf.runIDFs(runs, self.nb_cpus)
             except Exception as exc:
                 raise exc
+            finally:
+                RUN_WORK_DIRPATH.reset(token)
 
             for idx in batch_simu_list:
                 simu_fold = pool_path / str(idx)
