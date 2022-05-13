@@ -71,4 +71,4 @@ class SummerPercentageDiscomfort:
             zones_top_hot, zones_is_someone)
 
         self.building.thermal_comfort = (
-                zone_hot_and_someone.sum() / zones_is_someone.sum())
+                zone_hot_and_someone.sum() / zones_is_someone.sum()) * 100

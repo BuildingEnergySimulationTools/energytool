@@ -234,4 +234,27 @@ class TestEplusPreProcess:
 
         np.testing.assert_equal(output.to_numpy(), data_frame.to_numpy())
 
+    def test_get_objects_field_values(self):
+        building = Building(idf_path=RESOURCES_PATH / 'test.idf')
 
+        all_materials_test = pr.get_objects_field_values(
+            idf=building.idf,
+            idf_object="Material",
+            field_name="Conductivity"
+        )
+
+        assert all_materials_test == [0.04, 1.13, 0.41, 1.4, 0.25, 0.51,
+                                      0.04, 0.7, 0.04, 0.25]
+
+        three_materials_test = pr.get_objects_field_values(
+            idf=building.idf,
+            idf_object="Material",
+            field_name="Conductivity",
+            idf_object_names=[
+                'Floor/Roof Screed_.03',
+                'Cast Concrete (Dense)_.1',
+                'Gypsum Plasterboard_.025'
+            ]
+        )
+
+        assert three_materials_test == [0.41, 1.4, 0.25]

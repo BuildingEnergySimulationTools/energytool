@@ -78,6 +78,33 @@ def set_object_field_value(
             obj[field_name] = value
 
 
+def get_objects_field_values(
+        idf, idf_object, field_name, idf_object_names=None):
+    if idf_object_names is not None:
+        idf_object_names_list = tl.format_input_to_list(idf_object_names)
+        return [get_object_name_field_value(
+            idf, idf_object, obj_name, field_name)
+            for obj_name in idf_object_names_list]
+    else:
+        return [get_object_name_field_value(
+            idf, idf_object, obj_name, field_name)
+            for obj_name in get_objects_name_list(idf, idf_object)]
+
+
+def get_object_name_field_value(idf, idf_object, idf_object_name, field_name):
+    try:
+        obj_list = idf.idfobjects[idf_object]
+    except KeyError:
+        print("Unknown EnergyPlus idf_object")
+        obj_list = []
+    if not obj_list:
+        raise ValueError("No idf_object was found")
+
+    for obj in obj_list:
+        if obj.Name == idf_object_name:
+            return obj[field_name]
+
+
 def set_run_period(idf, simulation_start, simulation_stop):
     run_period_list = idf.idfobjects["RunPeriod"]
     run_period_list.clear()
