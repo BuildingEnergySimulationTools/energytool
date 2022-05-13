@@ -19,6 +19,7 @@ class Building:
         self.artificial_lighting_system = {}
         self.dwh_system = {}
         self.pv_production = {}
+        self.other = {}
 
         self.zone_name_list = pr.get_objects_name_list(self.idf, 'Zone')
         self.surface = sum(z.Floor_Area for z in self.idf.idfobjects['Zone'])
@@ -26,6 +27,7 @@ class Building:
 
         self.energyplus_results = pd.DataFrame()
         self.building_results = pd.DataFrame()
+        self.thermal_comfort = pd.DataFrame()
 
     @staticmethod
     def set_idd(root_eplus):
@@ -54,6 +56,7 @@ class Building:
             f"{[n for n in self.artificial_lighting_system.keys()]}\n"
             f"DHW production : {[n for n in self.dwh_system.keys()]}\n"
             f"PV production : {[n for n in self.pv_production.keys()]}\n"
+            f"Others : {[n for n in self.other.keys()]}"
         )
 
     def pre_process(self):
@@ -65,7 +68,8 @@ class Building:
                 self.ventilation_system |
                 self.artificial_lighting_system |
                 self.dwh_system |
-                self.pv_production
+                self.pv_production |
+                self.other
         )
 
         for build_sys in system_dict.values():
@@ -81,7 +85,8 @@ class Building:
                 self.ventilation_system |
                 self.artificial_lighting_system |
                 self.dwh_system |
-                self.pv_production
+                self.pv_production |
+                self.other
         )
 
         for build_sys in system_dict.values():
