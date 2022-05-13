@@ -58,23 +58,38 @@ def is_value_in_object_fieldnames(idf, idf_object, field_name, values):
     return tl.is_list_items_in_list(var_in_idf, values_list)
 
 
-def set_object_field_value(
-        idf, idf_object, field_name, value, idf_object_name=None):
+def set_objects_field_values(
+        idf, idf_object, field_name, values, idf_object_names=None):
+    if idf_object_names is None:
+        idf_object_names_list = get_objects_name_list(idf, idf_object)
+    else:
+        idf_object_names_list = tl.format_input_to_list(idf_object_names)
+
+    values_list = tl.format_input_to_list(values)
+    if len(values_list) == 1:
+        values_list = values_list * len(idf_object_names_list)
+
+    if len(idf_object_names_list) != len(values_list):
+        raise ValueError("values and idf_object_names list must be of the "
+                         "same length. Or values must be a single object")
+
+    for obj_name, value in zip(idf_object_names_list, values_list):
+        set_object_name_field_value(
+            idf, idf_object, obj_name, field_name, value)
+
+
+def set_object_name_field_value(
+        idf, idf_object, idf_object_name, field_name, value):
     try:
         obj_list = idf.idfobjects[idf_object]
     except KeyError:
         print("Unknown EnergyPlus idf_object")
         obj_list = []
-
     if not obj_list:
         raise ValueError("No idf_object was found")
 
     for obj in obj_list:
-        if idf_object_name is not None:
-            idf_object_name_list = tl.format_input_to_list(idf_object_name)
-            if obj.Name in idf_object_name_list:
-                obj[field_name] = value
-        else:
+        if obj.Name == idf_object_name:
             obj[field_name] = value
 
 

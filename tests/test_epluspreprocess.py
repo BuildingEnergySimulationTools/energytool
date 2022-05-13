@@ -121,14 +121,14 @@ class TestEplusPreProcess:
 
         assert to_test == ref
 
-    def test_set_object_field_value(self, toy_idf):
+    def test_set_objects_field_values(self, toy_idf):
         zone_list = toy_idf.idfobjects["Zone"]
 
-        pr.set_object_field_value(
+        pr.set_objects_field_values(
             idf=toy_idf,
             idf_object="Zone",
             field_name="Floor_Area",
-            value=42
+            values=42
         )
 
         to_test = [z.Floor_Area for z in zone_list]
@@ -137,12 +137,12 @@ class TestEplusPreProcess:
         assert to_test == [42] * 10
 
         # Test by object with a single Name
-        pr.set_object_field_value(
+        pr.set_objects_field_values(
             idf=toy_idf,
             idf_object="Zone",
-            idf_object_name="Zone_0",
+            idf_object_names="Zone_0",
             field_name="Floor_Area",
-            value=4.2
+            values=4.2
         )
 
         to_test = [z.Floor_Area for z in zone_list]
@@ -150,17 +150,30 @@ class TestEplusPreProcess:
         assert to_test == [4.2] + [42] * 9
 
         # Test by object with multiple Names
-        pr.set_object_field_value(
+        pr.set_objects_field_values(
             idf=toy_idf,
             idf_object="Zone",
-            idf_object_name=["Zone_0", "Zone_1"],
+            idf_object_names=["Zone_0", "Zone_1"],
             field_name="Floor_Area",
-            value=4.2
+            values=4.2
         )
 
         to_test = [z.Floor_Area for z in zone_list]
 
         assert to_test == [4.2, 4.2] + [42] * 8
+
+        # Test by object with multiple Names multiple values
+        pr.set_objects_field_values(
+            idf=toy_idf,
+            idf_object="Zone",
+            idf_object_names=["Zone_0", "Zone_1"],
+            field_name="Floor_Area",
+            values=[33, 33]
+        )
+
+        to_test = [z.Floor_Area for z in zone_list]
+
+        assert to_test == [33, 33] + [42] * 8
 
     def test_get_number_of_people(self, toy_idf):
         configurations = [

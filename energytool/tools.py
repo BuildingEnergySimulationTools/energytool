@@ -11,12 +11,13 @@ def format_input_to_list(f_input):
     :param f_input:
     :return: list
     """
-    if isinstance(f_input, str):
+    if isinstance(f_input, (str, int, float)):
         return [f_input]
     elif isinstance(f_input, list):
         return f_input
     else:
-        raise ValueError("Input must be a string or a list of string")
+        raise ValueError("Input must be a string an interger a "
+                         "float or a list")
 
 
 def select_by_strings(items_list, select_by):

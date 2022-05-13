@@ -118,12 +118,12 @@ class AirHandlingUnit:
             }
 
             for field, value in mod_fields.items():
-                pr.set_object_field_value(
+                pr.set_objects_field_values(
                     idf=self.building.idf,
                     idf_object="DesignSpecification:OutdoorAir",
-                    idf_object_name=obj_name_arg,
+                    idf_object_names=obj_name_arg,
                     field_name=field,
-                    value=value
+                    values=value
                 )
 
         # Modify Heat Recovery if necessary
@@ -139,12 +139,12 @@ class AirHandlingUnit:
                 "Latent_Heat_Recovery_Effectiveness": self.heat_recovery_efficiency,
             }
             for field, value in mod_fields.items():
-                pr.set_object_field_value(
+                pr.set_objects_field_values(
                     idf=self.building.idf,
                     idf_object="ZoneHVAC:IdealLoadsAirSystem",
-                    idf_object_name=obj_name_arg,
+                    idf_object_names=obj_name_arg,
                     field_name=field,
-                    value=value
+                    values=value
                 )
 
     def post_process(self):
@@ -250,12 +250,12 @@ class ArtificialLightingSimple:
         )
 
         for field, value in config.items():
-            pr.set_object_field_value(
+            pr.set_objects_field_values(
                 idf=self.building.idf,
                 idf_object="Lights",
-                idf_object_name=obj_name_arg,
+                idf_object_names=obj_name_arg,
                 field_name=field,
-                value=value
+                values=value
             )
 
     def post_process(self):
@@ -327,12 +327,12 @@ class AHUControl:
             select_by=self.zones
         )
 
-        pr.set_object_field_value(
+        pr.set_objects_field_values(
             idf=self.building.idf,
             idf_object="DesignSpecification:OutdoorAir",
-            idf_object_name=obj_name_arg,
+            idf_object_names=obj_name_arg,
             field_name="Outdoor_Air_Schedule_Name",
-            value=schedule_name
+            values=schedule_name
         )
 
     def post_process(self):
