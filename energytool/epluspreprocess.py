@@ -60,7 +60,7 @@ def is_value_in_object_fieldnames(idf, idf_object, field_name, values):
 
 def set_objects_field_values(
         idf, idf_object, field_name, values, idf_object_names=None):
-    if idf_object_names is None:
+    if idf_object_names is None or idf_object_names == '*':
         idf_object_names_list = get_objects_name_list(idf, idf_object)
     else:
         idf_object_names_list = tl.format_input_to_list(idf_object_names)
@@ -95,7 +95,7 @@ def set_object_name_field_value(
 
 def get_objects_field_values(
         idf, idf_object, field_name, idf_object_names=None):
-    if idf_object_names is not None:
+    if idf_object_names is not None and idf_object_names != '*':
         idf_object_names_list = tl.format_input_to_list(idf_object_names)
         return [get_object_name_field_value(
             idf, idf_object, obj_name, field_name)
