@@ -10,10 +10,6 @@ RESOURCES_PATH = Path(__file__).parent / "resources"
 
 Building.set_idd(RESOURCES_PATH)
 
-RESOURCES_PATH = Path(__file__).parent / "resources"
-
-Building.set_idd(RESOURCES_PATH)
-
 
 class TestParameter:
     def test_uncertain_parameter(self):

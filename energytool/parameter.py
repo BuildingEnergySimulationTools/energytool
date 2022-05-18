@@ -4,8 +4,8 @@ import energytool.epluspreprocess as pr
 class UncertainParameter:
     def __init__(self,
                  name,
-                 building,
                  bounds,
+                 building=None,
                  idf_parameters=None,
                  building_parameters=None,
                  absolute=False):
