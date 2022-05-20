@@ -1,5 +1,6 @@
 import numpy as np
 import datetime as dt
+import plotly.graph_objects as go
 
 from copy import deepcopy
 
@@ -134,3 +135,27 @@ class SAnalysis:
             Y=y_array,
             **arguments
         )
+
+
+def plot_sobol_st_bar(salib_res):
+
+    sobol_ind = salib_res.to_df()[0]
+    sobol_ind.sort_values(by="ST", ascending=True, inplace=True)
+
+    figure = go.Figure()
+    figure.add_trace(go.Bar(
+        x=sobol_ind.index,
+        y=sobol_ind.ST,
+        name="Sobol Total Indices",
+        marker_color='orange',
+        error_y=dict(type="data", array=sobol_ind.ST_conf.to_numpy()),
+        yaxis="y1"
+    ))
+
+    figure.update_layout(
+        title='Sobol Total indices',
+        xaxis_title='Parameters',
+        yaxis_title='Sobol total index value [0-1]'
+    )
+
+    figure.show()

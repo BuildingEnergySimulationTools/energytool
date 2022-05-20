@@ -5,3 +5,5 @@ eppy~=0.5.57
 pytest~=7.1.1
 fastprogress~=1.0.2
 contextvars~=2.4
+plotly~=5.8.0
+SALib~=1.4.5
