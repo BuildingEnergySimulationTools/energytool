@@ -17,8 +17,12 @@ def eplus_date_parser(timestamp):
             time += -dt.timedelta(hours=1)
 
         except ValueError:
-            time = timestamp.replace('24', '23')
-            time = dt.datetime.strptime(time, ' %m/%d %H:%M:%S')
+            try:
+                time = timestamp.replace('24', '23')
+                time = dt.datetime.strptime(time, ' %m/%d %H:%M:%S')
+            except ValueError:
+                time = timestamp.replace('24', '23')
+                time = dt.datetime.strptime(time, '%m/%d %H:%M:%S')
 
     return time
 
