@@ -130,15 +130,23 @@ class SAnalysis:
 
         analyser = self.method_map[self.sensitivity_method]["method"]
 
-        self.sensitivity_results = analyser.analyze(
-            problem=self.salib_problem,
-            Y=y_array,
-            **arguments
-        )
+        if self.sensitivity_method == "Sobol":
+            self.sensitivity_results = analyser.analyze(
+                problem=self.salib_problem,
+                Y=y_array,
+                **arguments
+            )
+
+        elif self.sensitivity_method == "Morris":
+            self.sensitivity_results = analyser.analyze(
+                problem=self.salib_problem,
+                X=self.sample,
+                Y=y_array,
+                **arguments
+            )
 
 
 def plot_sobol_st_bar(salib_res):
-
     sobol_ind = salib_res.to_df()[0]
     sobol_ind.sort_values(by="ST", ascending=True, inplace=True)
 
