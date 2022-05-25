@@ -62,15 +62,15 @@ class Building:
     def pre_process(self):
         self.energyplus_results = pd.DataFrame()
 
-        system_dict = (
-                self.heating_system |
-                self.cooling_system |
-                self.ventilation_system |
-                self.artificial_lighting_system |
-                self.dwh_system |
-                self.pv_production |
-                self.other
-        )
+        system_dict = {
+                **self.heating_system,
+                **self.cooling_system,
+                **self.ventilation_system,
+                **self.artificial_lighting_system,
+                **self.dwh_system,
+                **self.pv_production,
+                **self.other
+        }
 
         for build_sys in system_dict.values():
             build_sys.pre_process()
@@ -79,15 +79,15 @@ class Building:
         self.building_results = pd.DataFrame()
         self.building_results.index = self.energyplus_results.index
 
-        system_dict = (
-                self.heating_system |
-                self.cooling_system |
-                self.ventilation_system |
-                self.artificial_lighting_system |
-                self.dwh_system |
-                self.pv_production |
-                self.other
-        )
+        system_dict = {
+                **self.heating_system,
+                **self.cooling_system,
+                **self.ventilation_system,
+                **self.artificial_lighting_system,
+                **self.dwh_system,
+                **self.pv_production,
+                **self.other
+        }
 
         for build_sys in system_dict.values():
             build_sys.post_process()
