@@ -12,6 +12,7 @@ class Building:
         self.idf = IDF(str(idf_path))
         if clean_output_variable:
             self.idf.idfobjects["Output:Variable"].clear()
+            self.idf.idfobjects["Output:Meter"].clear()
 
         self.heating_system = {}
         self.cooling_system = {}
