@@ -1,3 +1,5 @@
+import re
+
 import pandas as pd
 import numpy as np
 import datetime as dt
@@ -53,7 +55,7 @@ def contains_regex(elmt_list):
     return ''.join(tempo)[:-1]
 
 
-def get_output_zone_variable(eplus_res, zones, variables):
+def get_output_zone_variable(eplus_res, zones, variables, drop_suffix=True):
 
     if zones == '*':
         zone_mask = np.full((1, eplus_res.shape[1]), True).flatten()
@@ -69,4 +71,11 @@ def get_output_zone_variable(eplus_res, zones, variables):
 
     mask = np.logical_and(zone_mask, variable_mask)
 
-    return eplus_res.loc[:, mask]
+    results = eplus_res.loc[:, mask]
+
+    if drop_suffix:
+        new_columns = [re.sub(f':{variables}.+', '', col)
+                       for col in results.columns]
+        results.columns = new_columns
+
+    return results
