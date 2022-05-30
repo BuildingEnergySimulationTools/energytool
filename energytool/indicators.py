@@ -1,5 +1,6 @@
 import energytool.epluspreprocess as pr
 import energytool.epluspostprocess as po
+import energytool.tools as tl
 import numpy as np
 
 
@@ -38,12 +39,12 @@ class SummerPercentageDiscomfort:
 
         zones_top = po.get_output_zone_variable(
             self.building.energyplus_results,
-            '*',
+            self.zones,
             "Zone Operative Temperature")
 
         zones_occupation = po.get_output_zone_variable(
             self.building.energyplus_results,
-            '*',
+            self.zones,
             "Zone People Occupant Count")
 
         zones_top = zones_top.loc[begin_loc:end_loc, :]
@@ -52,23 +53,12 @@ class SummerPercentageDiscomfort:
         zones_top_hot = zones_top > 28
         zones_is_someone = zones_occupation > 0
 
-        # A bit too much. Check if results for TOP and occupant are in the
-        # same order
-        if not np.array([True if zn.upper() in zn_top and zn.upper() in zn_occ
-                         else False
-                         for zn, zn_top, zn_occ in zip(
-                            self.building.zone_name_list,
-                            zones_top_hot.columns,
-                            zones_occupation.columns
-                        )]).all():
-            raise ValueError("Cannot compute thermal comfort indicator."
-                             "Results are not properly ordered")
-
-        zones_top_hot.columns = self.building.zone_name_list
-        zones_is_someone.columns = self.building.zone_name_list
+        shared_zones = list(set(zones_top_hot) & set(zones_is_someone))
 
         zone_hot_and_someone = np.logical_and(
-            zones_top_hot, zones_is_someone)
+            zones_top_hot[shared_zones],
+            zones_is_someone[shared_zones]
+        )
 
         self.building.thermal_comfort = (
                 zone_hot_and_someone.sum() / zones_is_someone.sum()) * 100

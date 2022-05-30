@@ -55,7 +55,8 @@ def contains_regex(elmt_list):
     return ''.join(tempo)[:-1]
 
 
-def get_output_zone_variable(eplus_res, zones, variables, drop_suffix=True):
+def get_output_zone_variable(
+        eplus_res, variables, zones='*', drop_suffix=True):
 
     if zones == '*':
         zone_mask = np.full((1, eplus_res.shape[1]), True).flatten()
