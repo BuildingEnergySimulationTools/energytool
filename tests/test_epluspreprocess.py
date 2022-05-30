@@ -241,8 +241,8 @@ class TestEplusPreProcess:
 
         output = po.get_output_zone_variable(
             simu.building.energyplus_results,
+            "Schedule Value",
             list(data_frame.columns),
-            "Schedule Value"
         )
 
         np.testing.assert_equal(output.to_numpy(), data_frame.to_numpy())

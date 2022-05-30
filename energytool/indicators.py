@@ -39,13 +39,15 @@ class SummerPercentageDiscomfort:
 
         zones_top = po.get_output_zone_variable(
             self.building.energyplus_results,
+            "Zone Operative Temperature",
             self.zones,
-            "Zone Operative Temperature")
+        )
 
         zones_occupation = po.get_output_zone_variable(
             self.building.energyplus_results,
+            "Zone People Occupant Count",
             self.zones,
-            "Zone People Occupant Count")
+        )
 
         zones_top = zones_top.loc[begin_loc:end_loc, :]
         zones_occupation = zones_occupation.loc[begin_loc:end_loc, :]
