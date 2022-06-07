@@ -22,10 +22,6 @@ class Building:
         self.pv_production = {}
         self.other = {}
 
-        self.zone_name_list = pr.get_objects_name_list(self.idf, 'Zone')
-        self.surface = sum(z.Floor_Area for z in self.idf.idfobjects['Zone'])
-        self.volume = sum(z.Volume for z in self.idf.idfobjects['Zone'])
-
         self.energyplus_results = pd.DataFrame()
         self.building_results = pd.DataFrame()
         self.thermal_comfort = pd.DataFrame()
@@ -36,6 +32,18 @@ class Building:
             IDF.setiddname(root_eplus / "Energy+.idd")
         except eppy.modeleditor.IDDAlreadySetError:
             pass
+
+    @property
+    def zone_name_list(self):
+        return pr.get_objects_name_list(self.idf, 'Zone')
+
+    @property
+    def surface(self):
+        return sum(z.Floor_Area for z in self.idf.idfobjects['Zone'])
+
+    @property
+    def volume(self):
+        return sum(z.Volume for z in self.idf.idfobjects['Zone'])
 
     def infos(self):
         nb_occupant = pr.get_number_of_people(self.idf)
