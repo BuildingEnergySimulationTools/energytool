@@ -97,13 +97,12 @@ def get_objects_field_values(
         idf, idf_object, field_name, idf_object_names=None):
     if idf_object_names is not None and idf_object_names != '*':
         idf_object_names_list = tl.format_input_to_list(idf_object_names)
-        return [get_object_name_field_value(
-            idf, idf_object, obj_name, field_name)
-            for obj_name in idf_object_names_list]
     else:
-        return [get_object_name_field_value(
-            idf, idf_object, obj_name, field_name)
-            for obj_name in get_objects_name_list(idf, idf_object)]
+        idf_object_names_list = get_objects_name_list(idf, idf_object)
+
+    return [get_object_name_field_value(
+        idf, idf_object, obj_name, field_name)
+        for obj_name in idf_object_names_list]
 
 
 def get_object_name_field_value(idf, idf_object, idf_object_name, field_name):
@@ -182,6 +181,8 @@ def del_output_variable(idf, variables):
     to_delete = is_value_in_object_fieldnames(
         idf, "Output:Variable", "Variable_Name", variables)
 
+    # new_list = [obj for obj, trig in zip(output_list, to_delete) if trig]
+
     if np.any(to_delete):
         indices_to_remove = [i for i, trig in enumerate(to_delete) if trig]
 
@@ -194,15 +195,15 @@ def add_output_variable(idf, key_values, variables,
     key_values_list = tl.format_input_to_list(key_values)
     variables_list = tl.format_input_to_list(variables)
 
-    for zne in key_values_list:
+    for zone in key_values_list:
         for var in variables_list:
-            if not np.any(output_zone_variable_present(idf, zne, var)):
-                if zne == "*":
+            if not np.any(output_zone_variable_present(idf, zone, var)):
+                if zone == "*":
                     del_output_variable(idf, var)
 
                 idf.newidfobject(
                     "OUTPUT:VARIABLE",
-                    Key_Value=zne,
+                    Key_Value=zone,
                     Variable_Name=var,
                     Reporting_Frequency=reporting_frequency
                 )
@@ -225,16 +226,16 @@ def get_number_of_people(idf, zones="*"):
             )
         except StopIteration:
             continue
-        else:
-            people_method = people.Number_of_People_Calculation_Method
-            if people_method == "People/Area":
-                occupation += (
-                        people.People_per_Zone_Floor_Area * zone.Floor_Area)
-            elif people_method == "People":
-                occupation += people.Number_of_People
-            elif people_method == "Area/Person":
-                occupation += (
-                        zone.Floor_Area / people.Zone_Floor_Area_per_Person)
+
+        people_method = people.Number_of_People_Calculation_Method
+        if people_method == "People/Area":
+            occupation += (
+                    people.People_per_Zone_Floor_Area * zone.Floor_Area)
+        elif people_method == "People":
+            occupation += people.Number_of_People
+        elif people_method == "Area/Person":
+            occupation += (
+                    zone.Floor_Area / people.Zone_Floor_Area_per_Person)
     return occupation
 
 
