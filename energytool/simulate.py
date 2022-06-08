@@ -14,9 +14,7 @@ from energytool.epluspostprocess import read_eplus_res
 from energytool.epluspreprocess import set_run_period
 from energytool.epluspreprocess import set_timestep
 
-from fastprogress.fastprogress import master_bar, progress_bar
 from fastprogress.fastprogress import force_console_behavior
-
 master_bar, progress_bar = force_console_behavior()
 
 try:
@@ -169,11 +167,12 @@ class SimulationsRunner:
                 )
 
             # 2nd run EnergyPlus
+            # TODO create context manager (David)
             token = RUN_WORK_DIRPATH.set(self.run_dir)
             try:
                 errf.runIDFs(runs, self.nb_cpus)
-            except Exception as exc:
-                raise exc
+            except Exception:
+                raise
             finally:
                 RUN_WORK_DIRPATH.reset(token)
 
@@ -189,3 +188,8 @@ class SimulationsRunner:
                 current_simu.building.post_process()
 
                 current_simu.results = current_simu.building.building_results
+
+        try:
+            self.run_dir.rmdir()
+        except OSError as e:
+            print("Error: %s : %s" % (self.run_dir, e.strerror))
