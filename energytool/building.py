@@ -57,46 +57,48 @@ class Building:
             f"\n"
             f"==HVAC systems==\n"
             f"\n"
-            f"Heating systems : {[n for n in self.heating_system.keys()]}\n"
-            f"Cooling systems : {[n for n in self.cooling_system.keys()]}\n"
+            f"Heating systems : {list(self.heating_system.keys())}\n"
+            f"Cooling systems : {list(self.cooling_system.keys())}\n"
             f"Ventilation system : "
-            f"{[n for n in self.ventilation_system.keys()]}\n"
+            f"{list(self.ventilation_system.keys())}\n"
             f"Artificial lighting system : "
-            f"{[n for n in self.artificial_lighting_system.keys()]}\n"
-            f"DHW production : {[n for n in self.dwh_system.keys()]}\n"
-            f"PV production : {[n for n in self.pv_production.keys()]}\n"
-            f"Others : {[n for n in self.other.keys()]}"
+            f"{list(self.artificial_lighting_system.keys())}\n"
+            f"DHW production : {list(self.dwh_system.keys())}\n"
+            f"PV production : {list(self.pv_production.keys())}\n"
+            f"Others : {list(self.other.keys())}"
         )
 
     def pre_process(self):
         self.energyplus_results = pd.DataFrame()
 
-        system_dict = {
-                **self.heating_system,
-                **self.cooling_system,
-                **self.ventilation_system,
-                **self.artificial_lighting_system,
-                **self.dwh_system,
-                **self.pv_production,
-                **self.other
-        }
+        system_list = [
+                self.heating_system,
+                self.cooling_system,
+                self.ventilation_system,
+                self.artificial_lighting_system,
+                self.dwh_system,
+                self.pv_production,
+                self.other
+        ]
 
-        for build_sys in system_dict.values():
-            build_sys.pre_process()
+        for build_sys in system_list:
+            for sys in build_sys:
+                sys.pre_process()
 
     def post_process(self):
         self.building_results = pd.DataFrame()
         self.building_results.index = self.energyplus_results.index
 
-        system_dict = {
-                **self.heating_system,
-                **self.cooling_system,
-                **self.ventilation_system,
-                **self.artificial_lighting_system,
-                **self.dwh_system,
-                **self.pv_production,
-                **self.other
-        }
+        system_list = [
+                self.heating_system,
+                self.cooling_system,
+                self.ventilation_system,
+                self.artificial_lighting_system,
+                self.dwh_system,
+                self.pv_production,
+                self.other
+        ]
 
-        for build_sys in system_dict.values():
-            build_sys.post_process()
+        for build_sys in system_list:
+            for sys in build_sys:
+                sys.post_process()
