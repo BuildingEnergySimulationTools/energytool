@@ -31,12 +31,7 @@ class HeaterSimple:
         )
 
         system_out = (ideal_heating / self.cop).sum(axis=1)
-        system_out.name = f"{self.name}_Energy"
-
-        self.building.building_results = pd.concat([
-            self.building.building_results,
-            system_out
-        ], axis=1)
+        self.building.building_results[f"{self.name}_Energy"] = system_out
 
 
 class AuxiliarySimplified:
@@ -66,12 +61,7 @@ class AuxiliarySimplified:
         )
 
         system_out = (ideal_heating * self.ratio).sum(axis=1)
-        system_out.name = f"{self.name}_Energy"
-
-        self.building.building_results = pd.concat([
-            self.building.building_results,
-            system_out
-        ], axis=1)
+        self.building.building_results[f"{self.name}_Energy"] = system_out
 
 
 class AirHandlingUnit:
@@ -161,11 +151,7 @@ class AirHandlingUnit:
         ).sum(axis=1)
 
         system_out.name = f"{self.name}_Energy"
-
-        self.building.building_results = pd.concat([
-            self.building.building_results,
-            system_out
-        ], axis=1)
+        self.building.building_results[f"{self.name}_Energy"] = system_out
 
 
 class DHWIdealExternal:
@@ -266,12 +252,7 @@ class ArtificialLightingSimple:
         )
 
         lighting_out = (lighting_consumption / self.cop).sum(axis=1)
-        lighting_out.name = f"{self.name}_Energy"
-
-        self.building.building_results = pd.concat([
-            self.building.building_results,
-            lighting_out
-        ], axis=1)
+        self.building.building_results[f"{self.name}_Energy"] = lighting_out
 
 
 class AHUControl:
