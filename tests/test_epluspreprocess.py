@@ -271,3 +271,13 @@ class TestEplusPreProcess:
         )
 
         assert three_materials_test == [0.41, 1.4, 0.25]
+
+    def test_del_obj_by_names(self, toy_idf):
+        pr.del_obj_by_names(toy_idf, "Zone", ["Zone_0", "Zone_1"])
+        zone_name_list = pr.get_objects_name_list(toy_idf, "Zone")
+        assert zone_name_list == ["Zone_2", "Zone_3", "Zone_4", "Zone_5",
+                                  "Zone_6", "Zone_7", "Zone_8", "Zone_9"]
+
+        pr.del_obj_by_names(toy_idf, "Zone", "*")
+        zone_name_list = pr.get_objects_name_list(toy_idf, "Zone")
+        assert zone_name_list == []

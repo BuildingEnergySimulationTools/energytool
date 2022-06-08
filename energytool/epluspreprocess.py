@@ -165,6 +165,18 @@ def output_zone_variable_present(idf, zones, variables):
     return np.logical_and(zones_bool, variables_bool)
 
 
+def del_obj_by_names(idf, idf_object, names):
+    if names == '*':
+        idf.idfobjects[idf_object] = []
+
+    name_list = tl.format_input_to_list(names)
+    obj_to_remove = [idf.getobject(idf_object, name) for name in name_list]
+    obj_list = idf.idfobjects[idf_object]
+
+    idf.idfobjects[idf_object] = [o for o in obj_list if
+                                  o not in obj_to_remove]
+
+
 def del_output_zone_variable(idf, zones, variables):
     output_list = idf.idfobjects["OUTPUT:VARIABLE"]
     to_delete = output_zone_variable_present(idf, zones, variables)
