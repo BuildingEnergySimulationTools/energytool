@@ -25,8 +25,6 @@ class UncertainParameter:
                 )
                 for element in idf_parameters
             ]
-        else:
-            self.idf_nominal_values = []
 
         if building_parameters is not None:
             self.building_nominal_values = [
@@ -35,8 +33,6 @@ class UncertainParameter:
                     element["key"])
                 for element in building_parameters
             ]
-        else:
-            self.building_nominal_values = []
 
     def set_value(self, value):
         if self.idf_parameters is not None:
@@ -54,6 +50,7 @@ class UncertainParameter:
                     field_name=element["field"],
                     values=values_to_set
                 )
+
         if self.building_parameters is not None:
             for element, nominal_value in zip(
                     self.building_parameters, self.building_nominal_values):
