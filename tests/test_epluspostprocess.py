@@ -2,7 +2,7 @@ import pytest
 import pandas as pd
 from pathlib import Path
 
-from energytool.epluspostprocess import contains_regex
+from energytool.epluspostprocess import zone_contains_regex
 from energytool.epluspostprocess import read_eplus_res
 from energytool.epluspostprocess import get_output_zone_variable
 
@@ -19,12 +19,12 @@ def expected_res_df():
 
 
 class TestEplusPostProcess:
-    def test_contains_regex(self):
+    def test_zone_contains_regex(self):
         test_list = ["z1", "z2"]
 
-        out = contains_regex(test_list)
+        out = zone_contains_regex(test_list)
 
-        assert out == "z1.+|z2.+"
+        assert out == "z1:.+|z2:.+"
 
     def test_read_eplus_res(self, expected_res_df):
         res = read_eplus_res(
@@ -39,9 +39,12 @@ class TestEplusPostProcess:
             'ZONE1:Zone Other Equipment Total Heating Energy [J](Hourly)': [1],
             'ZONE2:Zone Other Equipment Total Heating Energy [J](Hourly)': [1],
             'ZONE3:Zone Other Equipment Total Heating Energy [J](Hourly)': [1],
+            'ZONE11:Zone Other Equipment Total Heating Energy [J](Hourly)': [1],
             'ZONE1:Zone Ideal Loads Supply Air Total Heating Energy [J](Hourly)': [1],
             'ZONE2:Zone Ideal Loads Supply Air Total Heating Energy [J](Hourly)': [1],
             'ZONE3:Zone Ideal Loads Supply Air Total Heating Energy [J](Hourly)': [1],
+            'ZONE11:Zone Ideal Loads Supply Air Total Heating Energy [J](Hourly)': [
+                1],
         })
 
         pd.testing.assert_frame_equal(
@@ -63,7 +66,7 @@ class TestEplusPostProcess:
         )
 
         pd.testing.assert_frame_equal(
-            toy_df.iloc[:, :3],
+            toy_df.iloc[:, :4],
             get_output_zone_variable(
                 eplus_res=toy_df,
                 zones="*",
@@ -72,7 +75,7 @@ class TestEplusPostProcess:
         )
 
         pd.testing.assert_frame_equal(
-            toy_df.iloc[:, [0, 3]],
+            toy_df.iloc[:, [0, 4]],
             get_output_zone_variable(
                 eplus_res=toy_df,
                 zones='Zone1',
