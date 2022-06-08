@@ -82,7 +82,7 @@ class Building:
         ]
 
         for build_sys in system_list:
-            for sys in build_sys:
+            for sys in build_sys.values():
                 sys.pre_process()
 
     def post_process(self):
@@ -100,5 +100,5 @@ class Building:
         ]
 
         for build_sys in system_list:
-            for sys in build_sys:
+            for sys in build_sys.values():
                 sys.post_process()
