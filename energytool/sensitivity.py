@@ -12,9 +12,7 @@ from SALib.analyze import sobol
 from energytool.simulate import Simulation
 from energytool.simulate import SimulationsRunner
 
-from fastprogress.fastprogress import master_bar, progress_bar
 from fastprogress.fastprogress import force_console_behavior
-
 master_bar, progress_bar = force_console_behavior()
 
 
@@ -50,16 +48,15 @@ class SAnalysis:
 
     @property
     def available_indicators(self):
-        if self.simulation_list:
-            available = list(self.simulation_list[0].results.columns)
-            available.append("Total")
-            return available
-        else:
+        if not self.simulation_list:
             raise ValueError("No simulation results available")
 
+        available = list(self.simulation_list[0].results.columns)
+        available.append("Total")
+        return available
+
     def draw_sample(self, n, arguments=None):
-        if arguments is None:
-            arguments = {}
+        arguments = arguments or {}
 
         sampler = self.method_map[self.sensitivity_method]['sampling']
         self.sample = sampler.sample(
@@ -81,8 +78,7 @@ class SAnalysis:
                 'No sample available. Generate sample using draw_sample()'
             )
 
-        if self.simulation_list:
-            self.simulation_list = []
+        self.simulation_list.clear()
 
         prog_bar = progress_bar(range(self.sample.shape[0]))
         for mb, simul in zip(prog_bar, self.sample):
@@ -114,8 +110,7 @@ class SAnalysis:
                 aggregation_method=np.sum,
                 arguments=None):
 
-        if arguments is None:
-            arguments = {}
+        arguments = arguments or {}
 
         if indicator not in self.available_indicators:
             raise ValueError('Specified indicator not in computed outputs')
