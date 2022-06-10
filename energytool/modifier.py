@@ -1,4 +1,5 @@
 import energytool.epluspreprocess as pr
+from copy import deepcopy
 
 
 class OpaqueSurfaceModifier:
@@ -48,3 +49,128 @@ class OpaqueSurfaceModifier:
 
         for surf in surf_to_modify:
             surf.Construction_Name = name
+
+
+class WindowsAndShadingModifier:
+    def __init__(self,
+                 building,
+                 name,
+                 window_variant_dict,
+                 ):
+        self.building = building
+        self.name = name
+        self.window_variant_dict = window_variant_dict
+        self.resources_idf = pr.get_resources_idf()
+        # Patch because of issue. See later in shade
+        # https://github.com/santoshphilip/eppy/issues/275
+        self.resources_idf.idfname = None
+
+    def set_variant(self, name):
+        window_variant = self.window_variant_dict[name]
+
+        # Look for duplicates
+        pr.del_obj_by_names(
+            self.building.idf,
+            "WindowMaterial:SimpleGlazingSystem",
+            window_variant["window"]["Name"]
+        )
+
+        pr.del_obj_by_names(
+            self.building.idf,
+            "Construction",
+            f"{name}_External_windows"
+        )
+
+        construction_dict = {
+            "key": "Construction",
+            "Name": f"{name}_External_windows",
+        }
+
+        self.building.idf.newidfobject(
+            key="WindowMaterial:SimpleGlazingSystem",
+            **window_variant["window"]
+        )
+
+        # Copy and edit shading from resources
+        shade = window_variant["shading"]
+        if shade:
+            # Add shading object
+            shade_template = self.resources_idf.getobject(
+                key="WINDOWMATERIAL:SHADE",
+                name="Shading_template"
+            )
+
+            shade_dict = {
+                key: value
+                for key, value in zip(
+                    shade_template.fieldnames, shade_template.fieldvalues)
+            }
+
+            shade_dict["Name"] = f'{name}_shade'
+
+            if isinstance(shade, dict):
+                for field in shade.keys():
+                    shade_dict[field] = shade[field]
+
+            pr.del_obj_by_names(self.building.idf, "WINDOWMATERIAL:SHADE",
+                                shade_dict["Name"])
+
+            self.building.idf.newidfobject(**shade_dict)
+
+            construction_dict["Outside_Layer"] = shade_dict["Name"]
+            construction_dict[
+                "Layer_2"] = window_variant["window"]["Name"]
+
+            # If schedule, copy from resources
+            if window_variant["shading_schedule"]:
+                schedule_name = window_variant["shading_schedule"]
+            else:
+                schedule_name = "ON_24h24h_FULL_YEAR"
+            schedule = self.resources_idf.getobject(
+                key="Schedule:Compact",
+                name=schedule_name)
+
+            if schedule_name not in pr.get_objects_name_list(
+                    self.building.idf, "Schedule:Compact"):
+                self.building.idf.idfobjects["Schedule:Compact"].append(
+                    schedule)
+
+        else:
+            construction_dict[
+                "Outside_Layer"] = window_variant["window"]["Name"]
+
+        # Combine elements in a construction
+        self.building.idf.newidfobject(**construction_dict)
+
+        zones_win_dict = {zone: [] for zone in self.building.zone_name_list}
+        for win in self.building.idf.idfobjects[
+            "FenestrationSurface:Detailed"]:
+            ref_surface_name = win.Building_Surface_Name
+            ref_surface = self.building.idf.getobject(
+                "BuildingSurface:Detailed", ref_surface_name)
+            if ref_surface.Outside_Boundary_Condition == "Outdoors":
+                win.Construction_Name = construction_dict["Name"]
+                zones_win_dict[ref_surface.Zone_Name].append(win.Name)
+
+        if shade:
+            zone_ctrl_list = [z_name for z_name in zones_win_dict.keys()
+                              if zones_win_dict[z_name]]
+            ctrl_template = self.resources_idf.getobject(
+                "WindowShadingControl", "Shading_ctrl_template")
+            # Use dictionary because of deepcopy issue
+            # https://github.com/santoshphilip/eppy/issues/275
+            ctrl_dict = {
+                key: value
+                for key, value in zip(
+                    ctrl_template.fieldnames, ctrl_template.fieldvalues)
+            }
+            for zone in zone_ctrl_list:
+                ctrl = deepcopy(ctrl_dict)
+                ctrl["Name"] = f'{zone}_Shading_control'
+                ctrl["Zone_Name"] = zone
+                ctrl["Construction_with_Shading_Name"] = 'External_windows'
+                for idx, win_name in enumerate(zones_win_dict[zone]):
+                    ctrl[f'Fenestration_Surface_{idx + 1}_Name'] = win_name
+                self.building.idf.newidfobject(**ctrl)
+
+
