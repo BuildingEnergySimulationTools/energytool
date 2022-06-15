@@ -51,6 +51,72 @@ class OpaqueSurfaceModifier:
             surf.Construction_Name = name
 
 
+class ExternalWindowsModifier:
+    def __init__(self,
+                 building,
+                 name,
+                 window_variant_dict,
+                 ):
+        self.building = building
+        self.name = name
+        self.window_variant_dict = window_variant_dict
+
+    @property
+    def windows(self):
+        ext_surf_name = [obj.Name for obj in
+                         self.building.idf.idfobjects[
+                             "BuildingSurface:Detailed"]
+                         if obj.Outside_Boundary_Condition == "Outdoors"]
+
+        return [obj for obj in
+                self.building.idf.idfobjects[
+                    "FenestrationSurface:Detailed"]
+                if obj.Building_Surface_Name in ext_surf_name]
+
+    @property
+    def windows_constructions(self):
+        win_cons_names = set(
+            win.Construction_Name for win in self.windows)
+        return [self.building.idf.getobject("Construction", name)
+                for name in win_cons_names]
+
+    @property
+    def windows_materials(self):
+        win_mat_list = []
+        for constructions in self.windows_constructions:
+            win_mat_list += [elmt for elmt, key in
+                             zip(constructions.fieldvalues,
+                                 constructions.fieldnames)
+                             if key not in ["key", "Name"]]
+
+        win_mat_list = [
+            elmt for elmt in win_mat_list
+            if elmt in pr.get_objects_name_list(
+                self.building.idf, "WindowMaterial:SimpleGlazingSystem"
+            )]
+
+        return [self.building.idf.getobject(
+            "WindowMaterial:SimpleGlazingSystem", name)
+            for name in set(win_mat_list)]
+
+    def set_variant(self, name):
+        new_window = self.window_variant_dict[name]
+        name_to_replace = [obj.Name for obj in self.windows_materials]
+
+        for construction in self.windows_constructions:
+            for field in construction.fieldnames:
+                if construction[field] in name_to_replace:
+                    construction[field] = new_window["Name"]
+
+        self.building.idf.idfobjects["WindowMaterial:SimpleGlazingSystem"] = [
+            win for win in self.building.idf.idfobjects[
+                "WindowMaterial:SimpleGlazingSystem"]
+            if win not in self.windows_materials]
+
+        self.building.idf.newidfobject(
+            key="WindowMaterial:SimpleGlazingSystem", **new_window)
+
+
 class WindowsAndShadingModifier:
     def __init__(self,
                  building,
@@ -172,5 +238,3 @@ class WindowsAndShadingModifier:
                 for idx, win_name in enumerate(zones_win_dict[zone]):
                     ctrl[f'Fenestration_Surface_{idx + 1}_Name'] = win_name
                 self.building.idf.newidfobject(**ctrl)
-
-
