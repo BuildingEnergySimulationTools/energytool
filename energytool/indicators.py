@@ -52,7 +52,7 @@ class SummerPercentageDiscomfort:
         zones_top = zones_top.loc[begin_loc:end_loc, :]
         zones_occupation = zones_occupation.loc[begin_loc:end_loc, :]
 
-        zones_top_hot = zones_top > 28
+        zones_top_hot = zones_top > self.temperature_threshold
         zones_is_someone = zones_occupation > 0
 
         shared_zones = list(set(zones_top_hot) & set(zones_is_someone))
