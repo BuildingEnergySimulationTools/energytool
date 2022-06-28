@@ -20,10 +20,10 @@ def eplus_date_parser(timestamp):
 
         except ValueError:
             try:
-                time = timestamp.replace('24', '23')
+                time = timestamp.replace('24:', '23:')
                 time = dt.datetime.strptime(time, ' %m/%d %H:%M:%S')
             except ValueError:
-                time = timestamp.replace('24', '23')
+                time = timestamp.replace('24:', '23:')
                 time = dt.datetime.strptime(time, '%m/%d %H:%M:%S')
 
     return time
