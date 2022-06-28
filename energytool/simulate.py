@@ -190,6 +190,7 @@ class SimulationsRunner:
                 current_simu.results = current_simu.building.building_results
 
         try:
-            self.run_dir.rmdir()
+            shutil.rmtree(self.run_dir, ignore_errors=True)
+
         except OSError as e:
             print("Error: %s : %s" % (self.run_dir, e.strerror))
