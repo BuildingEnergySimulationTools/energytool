@@ -201,11 +201,6 @@ class EnvelopeShadesModifier:
             if not any(is_list_items_in_list(obj.fieldvalues, win_names))
         ]
 
-        print([
-            obj for obj in self.shading_control
-            if not any(is_list_items_in_list(obj.fieldvalues, win_names))
-        ])
-
         if new_shade:
             # Add shading object
             shade_template = self.resources_idf.getobject(
