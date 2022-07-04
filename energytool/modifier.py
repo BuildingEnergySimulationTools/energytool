@@ -1,5 +1,51 @@
 import energytool.epluspreprocess as pr
+from energytool.tools import format_input_to_list
+from energytool.tools import is_list_items_in_list
 from copy import deepcopy
+
+
+def get_windows_by_boundary_condition(idf, boundary_condition):
+    ext_surf_name = [obj.Name for obj in
+                     idf.idfobjects[
+                         "BuildingSurface:Detailed"]
+                     if obj.Outside_Boundary_Condition == boundary_condition]
+
+    return [obj for obj in
+            idf.idfobjects[
+                "FenestrationSurface:Detailed"]
+            if obj.Building_Surface_Name in ext_surf_name]
+
+
+def get_constructions_layer_list(constructions):
+    construction_list = format_input_to_list(constructions)
+    material_name_list = []
+    for constructions in construction_list:
+        material_name_list += [elmt for elmt, key in
+                               zip(constructions.fieldvalues,
+                                   constructions.fieldnames)
+                               if key not in ["key", "Name"]]
+    return material_name_list
+
+
+def remove_layer_from_constructions(building, names):
+    names_list = format_input_to_list(names)
+
+    new_cons_list = []
+    for construction in building.idf.idfobjects["Construction"]:
+        keys = [k for k in construction.fieldnames]
+        values = [v for v in construction.fieldvalues
+                  if v not in names_list]
+
+        new_cons = {k: v for v, k in zip(values, keys)}
+
+        new_cons_list.append(new_cons)
+
+    building.idf.idfobjects["Construction"] = [
+        building.idf.newidfobject(**cons) for cons in new_cons_list]
+
+
+def idf_object_to_dict(obj):
+    return {k: v for k, v in zip(obj.fieldnames, obj.fieldvalues)}
 
 
 class OpaqueSurfaceModifier:
@@ -63,15 +109,7 @@ class ExternalWindowsModifier:
 
     @property
     def windows(self):
-        ext_surf_name = [obj.Name for obj in
-                         self.building.idf.idfobjects[
-                             "BuildingSurface:Detailed"]
-                         if obj.Outside_Boundary_Condition == "Outdoors"]
-
-        return [obj for obj in
-                self.building.idf.idfobjects[
-                    "FenestrationSurface:Detailed"]
-                if obj.Building_Surface_Name in ext_surf_name]
+        return get_windows_by_boundary_condition(self.building.idf, "Outdoors")
 
     @property
     def windows_constructions(self):
@@ -82,22 +120,14 @@ class ExternalWindowsModifier:
 
     @property
     def windows_materials(self):
-        win_mat_list = []
-        for constructions in self.windows_constructions:
-            win_mat_list += [elmt for elmt, key in
-                             zip(constructions.fieldvalues,
-                                 constructions.fieldnames)
-                             if key not in ["key", "Name"]]
-
-        win_mat_list = [
-            elmt for elmt in win_mat_list
-            if elmt in pr.get_objects_name_list(
-                self.building.idf, "WindowMaterial:SimpleGlazingSystem"
-            )]
+        win_mat_list = get_constructions_layer_list(self.windows_constructions)
 
         return [self.building.idf.getobject(
             "WindowMaterial:SimpleGlazingSystem", name)
-            for name in set(win_mat_list)]
+            for name in set(win_mat_list)
+            if self.building.idf.getobject(
+                "WindowMaterial:SimpleGlazingSystem", name) is not None
+        ]
 
     def set_variant(self, name):
         new_window = self.window_variant_dict[name]
@@ -115,6 +145,114 @@ class ExternalWindowsModifier:
 
         self.building.idf.newidfobject(
             key="WindowMaterial:SimpleGlazingSystem", **new_window)
+
+
+class EnvelopeShadesModifier:
+    def __init__(self,
+                 building,
+                 name,
+                 shade_variant_dict,
+                 ):
+        self.building = building
+        self.name = name
+        self.shade_variant_dict = shade_variant_dict
+        self.resources_idf = pr.get_resources_idf()
+
+    @property
+    def windows(self):
+        return get_windows_by_boundary_condition(self.building.idf, 'Outdoors')
+
+    @property
+    def windows_constructions(self):
+        win_cons_names = set(
+            win.Construction_Name for win in self.windows)
+        return [self.building.idf.getobject("Construction", name)
+                for name in win_cons_names]
+
+    @property
+    def shading_materials(self):
+        materials_name_list = get_constructions_layer_list(
+            self.windows_constructions)
+
+        return [self.building.idf.getobject(
+            "WindowMaterial:Shade", name)
+            for name in set(materials_name_list)
+            if self.building.idf.getobject(
+                "WindowMaterial:Shade", name) is not None
+        ]
+
+    @property
+    def shading_control(self):
+        return self.building.idf.idfobjects["WindowShadingControl"]
+
+    def set_variant(self, variant_name):
+        new_shade = self.shade_variant_dict[variant_name]["shading"]
+        shade_names_to_remove = [obj.Name for obj in self.shading_materials]
+
+        for sch in [obj.Name for obj in self.shading_materials]:
+            pr.del_obj_by_names(
+                self.building.idf, "WindowMaterial:Shade", sch)
+
+        remove_layer_from_constructions(self.building, shade_names_to_remove)
+
+        win_names = [win.Name for win in self.windows]
+        self.building.idf.idfobjects["WindowShadingControl"] = [
+            obj for obj in self.shading_control
+            if not any(is_list_items_in_list(obj.fieldvalues, win_names))
+        ]
+
+        print([
+            obj for obj in self.shading_control
+            if not any(is_list_items_in_list(obj.fieldvalues, win_names))
+        ])
+
+        if new_shade:
+            # Add shading object
+            shade_template = self.resources_idf.getobject(
+                key="WINDOWMATERIAL:SHADE",
+                name="Shading_template"
+            )
+
+            shade_dict = idf_object_to_dict(shade_template)
+
+            for k, v in new_shade.items():
+                if k in shade_dict.keys():
+                    shade_dict[k] = v
+
+            if "Name" not in new_shade.keys():
+                shade_dict["Name"] = f"{variant_name}_shade"
+
+            self.building.idf.newidfobject(**shade_dict)
+
+            for cons in self.windows_constructions:
+                keys = cons.fieldnames[2:]
+                values = cons.fieldvalues[2:]
+                values.insert(0, shade_dict["Name"])
+
+                for v, k in zip(values, keys):
+                    cons[k] = v
+
+            zone_win_dict = {}
+            for win in self.windows:
+                ref_wall = win.get_referenced_object("Building_Surface_Name")
+                ref_zone = ref_wall.get_referenced_object("Zone_Name")
+                if ref_zone.Name not in zone_win_dict.keys():
+                    zone_win_dict[ref_zone.Name] = [win.Name]
+                else:
+                    zone_win_dict[ref_zone.Name].append(win.Name)
+
+            ctrl_template = self.resources_idf.getobject(
+                "WindowShadingControl", "Shading_ctrl_template")
+            ctrl_dict = idf_object_to_dict(ctrl_template)
+
+            for zone in zone_win_dict.keys():
+                ctrl = deepcopy(ctrl_dict)
+                ctrl["Name"] = f'{zone}_Shading_control'
+                ctrl["Zone_Name"] = zone
+                ctrl["Shading_Device_Material_Name"] = shade_dict["Name"]
+                for idx, win_name in enumerate(zone_win_dict[zone]):
+                    ctrl[f'Fenestration_Surface_{idx + 1}_Name'] = win_name
+                self.building.idf.newidfobject(**ctrl)
 
 
 class WindowsAndShadingModifier:
