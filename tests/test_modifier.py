@@ -10,6 +10,7 @@ import eppy
 from eppy.modeleditor import IDF
 from energytool.building import Building
 from energytool.modifier import OpaqueSurfaceModifier
+from energytool.modifier import EnvelopeShadesModifier
 from copy import deepcopy
 
 RESOURCES_PATH = Path(__file__).parent / "resources"
@@ -42,6 +43,9 @@ def toy_building(tmp_path_factory):
             key="WindowMaterial:SimpleGlazingSystem",
             Name=win
         )
+
+    toy_idf.newidfobject(
+        "WindowMaterial:Shade", Name="Shade")
 
     toy_idf.newidfobject(
         key="Construction",
@@ -216,7 +220,7 @@ class TestModifier:
 
         assert pr.get_objects_field_values(
             loc_toy.idf, "Construction", 'Outside_Layer') == [
-            'Shade', 'Var_1', 'Int_win']
+                   'Shade', 'Var_1', 'Int_win']
 
         assert pr.get_objects_field_values(
             loc_toy.idf, "Construction", 'Layer_2') == ['Var_1', '', '']
@@ -228,7 +232,87 @@ class TestModifier:
 
         assert pr.get_objects_field_values(
             loc_toy.idf, "Construction", 'Outside_Layer') == [
-            'Shade', 'Var_2', 'Int_win']
+                   'Shade', 'Var_2', 'Int_win']
 
         assert pr.get_objects_field_values(
             loc_toy.idf, "Construction", 'Layer_2') == ['Var_2', '', '']
+
+    def test_envelope_shades_modifier(self, toy_building):
+        loc_toy = deepcopy(toy_building)
+
+        test_shade_variant_dict = {
+            "Variant_1": {
+                "shading": {
+                    "Name": "Shading",
+                    "Solar_Transmittance": 0.3
+                },
+            },
+            "Variant_2": {
+                "shading": {}
+            }
+        }
+
+        mod = EnvelopeShadesModifier(
+            building=loc_toy,
+            name="test",
+            shade_variant_dict=test_shade_variant_dict
+        )
+
+        mod.set_variant("Variant_1")
+        assert [n.Name for n in mod.windows] == [
+            'Window_0', 'Window_2', 'Window_3']
+        assert loc_toy.idf.getobject(
+            "Construction", "Construction_Ext_win_1").obj == [
+            'CONSTRUCTION', 'Construction_Ext_win_1', 'Shading', 'Ext_win_1']
+        assert loc_toy.idf.getobject(
+            "Construction", "Construction_Ext_win_2").obj == [
+            'CONSTRUCTION', 'Construction_Ext_win_2', 'Shading', 'Ext_win_2']
+        assert len(mod.shading_materials) == 1
+        assert mod.shading_materials[0].obj == [
+            'WINDOWMATERIAL:SHADE',
+            'Shading',
+            0.3,
+            0.5,
+            0.4,
+            0.5,
+            0.9,
+            0.0,
+            0.003,
+            0.1,
+            0.05,
+            1.0,
+            0.0,
+            0.0,
+            0.0,
+            0.0]
+        assert len(mod.shading_control) == 2
+        assert mod.shading_control[0].obj == [
+            'WINDOWSHADINGCONTROL',
+            'zone_0_Shading_control',
+            'zone_0',
+            '',
+            'ExteriorShade',
+            '',
+            'OnIfScheduleAllows',
+            '',
+            '',
+            'Yes',
+            'No',
+            'Shading',
+            '',
+            '',
+            '',
+            '',
+            'Group',
+            'Window_0',
+            'Window_2']
+
+        mod.set_variant("Variant_2")
+        assert loc_toy.idf.getobject(
+            "Construction", "Construction_Ext_win_1").obj == [
+            'CONSTRUCTION', 'Construction_Ext_win_1', 'Ext_win_1']
+        assert loc_toy.idf.getobject(
+            "Construction", "Construction_Ext_win_2").obj == [
+            'CONSTRUCTION', 'Construction_Ext_win_2', 'Ext_win_2']
+        assert mod.shading_materials == []
+        assert mod.shading_control == []

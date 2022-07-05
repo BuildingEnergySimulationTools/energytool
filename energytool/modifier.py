@@ -187,14 +187,15 @@ class EnvelopeShadesModifier:
 
     def set_variant(self, variant_name):
         new_shade = self.shade_variant_dict[variant_name]["shading"]
-        shade_names_to_remove = [obj.Name for obj in self.shading_materials]
 
+        # Remove Shades
+        shade_names_to_remove = [obj.Name for obj in self.shading_materials]
+        remove_layer_from_constructions(self.building, shade_names_to_remove)
         for sch in [obj.Name for obj in self.shading_materials]:
             pr.del_obj_by_names(
                 self.building.idf, "WindowMaterial:Shade", sch)
 
-        remove_layer_from_constructions(self.building, shade_names_to_remove)
-
+        # Remove control
         win_names = [win.Name for win in self.windows]
         self.building.idf.idfobjects["WindowShadingControl"] = [
             obj for obj in self.shading_control
