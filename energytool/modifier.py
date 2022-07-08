@@ -221,10 +221,10 @@ class EnvelopeShadesModifier:
         # Remove Shades
         for shd in self.shading_materials:
             self.building.idf.idfobjects["WindowMaterial:Shade"].remove(shd)
-        for ctrl in self.shading_control:
-            self.building.idf.idfobjects["WindowShadingControl"].remove(ctrl)
         for cons in self.shaded_window_constructions:
             self.building.idf.idfobjects["Construction"].remove(cons)
+        for ctrl in self.shading_control:
+            self.building.idf.idfobjects["WindowShadingControl"].remove(ctrl)
 
         if new_shade:
             # Add shading object
