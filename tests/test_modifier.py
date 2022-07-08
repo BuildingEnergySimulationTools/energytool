@@ -49,9 +49,15 @@ def toy_building(tmp_path_factory):
 
     toy_idf.newidfobject(
         key="Construction",
-        Name="Construction_Ext_win_1",
+        Name="Construction_Ext_win_1_shade",
         Outside_Layer="Shade",
         Layer_2="Ext_win_1"
+    )
+
+    toy_idf.newidfobject(
+        key="Construction",
+        Name="Construction_Ext_win_1",
+        Outside_Layer="Ext_win_1",
     )
 
     toy_idf.newidfobject(
@@ -106,8 +112,26 @@ def toy_building(tmp_path_factory):
         idf=toy_idf,
         idf_object="FenestrationSurface:Detailed",
         field_name="Construction_Name",
-        values=["Construction_Ext_win_1", "Construction_Int_win",
-                "Construction_Ext_win_2", "Construction_Ext_win_1"]
+        values=["Construction_Ext_win_2", "Construction_Int_win",
+                "Construction_Ext_win_1", "Construction_Ext_win_1"]
+    )
+
+    toy_idf.newidfobject(
+        key='WINDOWSHADINGCONTROL',
+        Name='zone_0_Shading_control',
+        Zone_Name='zone_0',
+        Shading_Type='ExteriorShade',
+        Construction_with_Shading_Name='Construction_Ext_win_1_shade',
+        Fenestration_Surface_1_Name='Window_2',
+    )
+
+    toy_idf.newidfobject(
+        key='WINDOWSHADINGCONTROL',
+        Name='zone_3_Shading_control',
+        Zone_Name='zone_3',
+        Shading_Type='ExteriorShade',
+        Construction_with_Shading_Name='Construction_Ext_win_1_shade',
+        Fenestration_Surface_1_Name='Window_3',
     )
 
     # Very dirty, instantiate a Building with and idf file
@@ -220,10 +244,10 @@ class TestModifier:
 
         assert pr.get_objects_field_values(
             loc_toy.idf, "Construction", 'Outside_Layer') == [
-                   'Shade', 'Var_1', 'Int_win']
+                   'Shade', 'Var_1', 'Var_1', 'Int_win']
 
         assert pr.get_objects_field_values(
-            loc_toy.idf, "Construction", 'Layer_2') == ['Var_1', '', '']
+            loc_toy.idf, "Construction", 'Layer_2') == ['Var_1', '', '', '']
 
         win_test.set_variant("Variant_2")
 
@@ -232,10 +256,10 @@ class TestModifier:
 
         assert pr.get_objects_field_values(
             loc_toy.idf, "Construction", 'Outside_Layer') == [
-                   'Shade', 'Var_2', 'Int_win']
+                   'Shade', 'Var_2', 'Var_2', 'Int_win']
 
         assert pr.get_objects_field_values(
-            loc_toy.idf, "Construction", 'Layer_2') == ['Var_2', '', '']
+            loc_toy.idf, "Construction", 'Layer_2') == ['Var_2', '', '', '']
 
     def test_envelope_shades_modifier(self, toy_building):
         loc_toy = deepcopy(toy_building)
@@ -261,12 +285,22 @@ class TestModifier:
         mod.set_variant("Variant_1")
         assert [n.Name for n in mod.windows] == [
             'Window_0', 'Window_2', 'Window_3']
-        assert loc_toy.idf.getobject(
-            "Construction", "Construction_Ext_win_1").obj == [
-            'CONSTRUCTION', 'Construction_Ext_win_1', 'Shading', 'Ext_win_1']
-        assert loc_toy.idf.getobject(
-            "Construction", "Construction_Ext_win_2").obj == [
-            'CONSTRUCTION', 'Construction_Ext_win_2', 'Shading', 'Ext_win_2']
+
+        for n in mod.window_constructions:
+            assert n.Name in [
+                "Construction_Ext_win_2", "Construction_Ext_win_1"]
+
+        for n in mod.shaded_window_constructions:
+            assert n.Name in [
+                "Construction_Ext_win_1_shaded",
+                "Construction_Ext_win_2_shaded"]
+
+        test_cons = mod.building.idf.getobject(
+            "Construction", "Construction_Ext_win_2_shaded")
+        assert test_cons.obj == [
+            'CONSTRUCTION', 'Construction_Ext_win_2_shaded', 'Shading',
+            'Ext_win_2']
+
         assert len(mod.shading_materials) == 1
         assert mod.shading_materials[0].obj == [
             'WINDOWMATERIAL:SHADE',
@@ -285,34 +319,39 @@ class TestModifier:
             0.0,
             0.0,
             0.0]
-        assert len(mod.shading_control) == 2
+        assert len(mod.shading_control) == 3
         assert mod.shading_control[0].obj == [
             'WINDOWSHADINGCONTROL',
-            'zone_0_Shading_control',
+            'zone_0_Construction_Ext_win_2_Shading_control',
             'zone_0',
             '',
             'ExteriorShade',
-            '',
+            'Construction_Ext_win_2_shaded',
             'OnIfScheduleAllows',
             '',
             '',
             'Yes',
             'No',
-            'Shading',
+            '',
             '',
             '',
             '',
             '',
             'Group',
-            'Window_0',
-            'Window_2']
+            'Window_0']
 
         mod.set_variant("Variant_2")
-        assert loc_toy.idf.getobject(
-            "Construction", "Construction_Ext_win_1").obj == [
+
+        test_cons = mod.building.idf.getobject(
+            "Construction", "Construction_Ext_win_1")
+        assert test_cons.obj == [
             'CONSTRUCTION', 'Construction_Ext_win_1', 'Ext_win_1']
-        assert loc_toy.idf.getobject(
-            "Construction", "Construction_Ext_win_2").obj == [
+
+        test_cons = mod.building.idf.getobject(
+            "Construction", "Construction_Ext_win_2")
+        assert test_cons.obj == [
             'CONSTRUCTION', 'Construction_Ext_win_2', 'Ext_win_2']
+
+        assert mod.shaded_window_constructions == []
         assert mod.shading_materials == []
         assert mod.shading_control == []
