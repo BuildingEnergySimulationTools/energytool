@@ -10,6 +10,7 @@ import eppy
 from eppy.modeleditor import IDF
 from energytool.building import Building
 from energytool.modifier import OpaqueSurfaceModifier
+from energytool.modifier import InfiltrationModifier
 from energytool.modifier import EnvelopeShadesModifier
 from copy import deepcopy
 
@@ -355,3 +356,36 @@ class TestModifier:
         assert mod.shaded_window_constructions == []
         assert mod.shading_materials == []
         assert mod.shading_control == []
+
+    def test_envelope_infiltration_modifier(self, toy_building):
+        loc_toy = deepcopy(toy_building)
+
+        var = {
+            "poor": {"ach": 0.1},
+            "good": {"q4pa": 0.1},
+            "wtf": {}
+        }
+
+        inf = InfiltrationModifier(
+            building=loc_toy,
+            name="test",
+            infiltration_variant_dict=var)
+
+        inf.set_variant("poor")
+
+        assert len(inf.infiltration_objects) == 4
+        assert inf.infiltration_objects[0].obj == [
+            'ZONEINFILTRATION:DESIGNFLOWRATE',
+            'zone_0_infiltration',
+            'zone_0',
+            'On 24/7',
+            'AirChanges/Hour',
+            '',
+            '',
+            '',
+            0.1,
+            1,
+            0,
+            0,
+            0]
+        assert inf.building.idf.getobject("Schedule:Compact", "On 24/7")

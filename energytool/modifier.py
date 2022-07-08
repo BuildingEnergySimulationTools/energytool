@@ -285,3 +285,62 @@ class EnvelopeShadesModifier:
                     for idx, win in enumerate(cons_dict[cons]):
                         ctrl[f'Fenestration_Surface_{idx + 1}_Name'] = win.Name
                     self.building.idf.newidfobject(**ctrl)
+
+
+class InfiltrationModifier:
+    def __init__(self,
+                 building,
+                 name,
+                 infiltration_variant_dict,
+                 ):
+        self.building = building
+        self.name = name
+        self.infiltration_variant_dict = infiltration_variant_dict
+
+    @property
+    def infiltration_objects(self):
+        return self.building.idf.idfobjects[
+            'ZoneInfiltration:DesignFlowRate']
+
+    def set_variant(self, variant_name):
+        inf = self.infiltration_variant_dict[variant_name]
+        self.building.idf.idfobjects['ZoneInfiltration:DesignFlowRate'] = []
+
+        if not self.building.idf.getobject("Schedule:Compact", "On 24/7"):
+            self.building.idf.newidfobject(
+                key='Schedule:Compact',
+                Name='On 24/7',
+                Schedule_Type_Limits_Name='Any Number',
+                Field_1='Through: 12/31',
+                Field_2='For: AllDays',
+                Field_3='Until: 24:00',
+                Field_4=1
+            )
+
+        try:
+            inf_ach = inf["ach"]
+        except KeyError:
+            try:
+                # TODO add computed ach
+                inf_ach = inf["q4pa"]
+            except KeyError:
+                raise ValueError("Invalid infiltration coefficient method. "
+                                 "Allowed : ach and q4pa")
+
+        for zone in self.building.idf.idfobjects["Zone"]:
+            self.building.idf.newidfobject(
+                key='ZoneInfiltration:DesignFlowRate',
+                Name=f"{zone.Name}_infiltration",
+                Zone_or_ZoneList_Name=zone.Name,
+                Schedule_Name="On 24/7",
+                Design_Flow_Rate_Calculation_Method="AirChanges/Hour",
+                Air_Changes_per_Hour=inf_ach,
+                Constant_Term_Coefficient=1,
+                Temperature_Term_Coefficient=0,
+                Velocity_Term_Coefficient=0,
+                Velocity_Squared_Term_Coefficient=0
+            )
+
+
+
+
