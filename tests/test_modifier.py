@@ -12,6 +12,7 @@ from energytool.building import Building
 from energytool.modifier import OpaqueSurfaceModifier
 from energytool.modifier import InfiltrationModifier
 from energytool.modifier import EnvelopeShadesModifier
+from energytool.modifier import LightsModifier
 from copy import deepcopy
 
 RESOURCES_PATH = Path(__file__).parent / "resources"
@@ -36,6 +37,9 @@ def toy_building(tmp_path_factory):
             key="Zone",
             Name=f"zone_{toy_zone}"
         )
+
+    for _ in toy_idf.idfobjects["Zone"]:
+        toy_idf.newidfobject("Lights")
 
     win_names = ["Ext_win_1", "Ext_win_2", "Int_win"]
 
@@ -389,3 +393,18 @@ class TestModifier:
             0,
             0]
         assert inf.building.idf.getobject("Schedule:Compact", "On 24/7")
+
+    def test_lights_modifier(self, toy_building):
+        loc_toy = deepcopy(toy_building)
+        var = {
+            "poor" : 10,
+            "good" : 4,
+        }
+        lit = LightsModifier(
+            building=loc_toy, name="test", lights_variant_dict=var)
+
+        lit.set_variant("good")
+
+        power_ratio_list = pr.get_objects_field_values(
+            loc_toy.idf, "Lights", "Watts_per_Zone_Floor_Area")
+        assert power_ratio_list == [4, 4, 4, 4]

@@ -394,8 +394,8 @@ class InfiltrationModifier:
             inf_ach = inf["ach"]
         elif "q4pa" in inf.keys():
             inf_ach = calculate_building_infiltration_ach_from_q4(
-                    self.building.idf,
-                    **inf)
+                self.building.idf,
+                **inf)
         else:
             raise ValueError("Invalid infiltration coefficient method. "
                              "Allowed : ach and q4pa")
@@ -413,3 +413,30 @@ class InfiltrationModifier:
                 Velocity_Term_Coefficient=0,
                 Velocity_Squared_Term_Coefficient=0
             )
+
+
+class LightsModifier:
+    def __init__(self,
+                 building,
+                 name,
+                 lights_variant_dict,
+                 ):
+        self.building = building
+        self.name = name
+        self.lights_variant_dict = lights_variant_dict
+
+    @property
+    def lights_objects(self):
+        return self.building.idf.idfobjects['Lights']
+
+    def set_variant(self, variant_name):
+        power = self.lights_variant_dict[variant_name]
+
+        if self.lights_objects:
+            for lig in self.lights_objects:
+                lig.Watts_per_Zone_Floor_Area = power
+        else:
+            raise ValueError("No artificial lighting is defined")
+
+
+
