@@ -34,6 +34,18 @@ def get_objects_by_names(idf, idf_object, names):
     return [obj for obj in objects_list if obj.Name in names_list]
 
 
+def get_building_surface_area(idf, outside_boundary_condition):
+    """
+    Return specific outside_boundary_condition building surface area
+    """
+
+    return sum([
+        o.area
+        for o in idf.idfobjects["BuildingSurface:Detailed"]
+        if o.Outside_Boundary_Condition == outside_boundary_condition
+    ])
+
+
 def is_value_in_object_fieldnames(idf, idf_object, field_name, values):
     """
     :param values:
