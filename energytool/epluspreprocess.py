@@ -46,6 +46,14 @@ def get_building_surface_area(idf, outside_boundary_condition):
     ])
 
 
+def get_building_volume(idf):
+    """Return volume based on zones volumes"""
+    return sum([
+        eppy.modeleditor.zonevolume(idf, zname)
+        for zname in get_objects_name_list(idf, "Zone")
+    ])
+
+
 def is_value_in_object_fieldnames(idf, idf_object, field_name, values):
     """
     :param values:
