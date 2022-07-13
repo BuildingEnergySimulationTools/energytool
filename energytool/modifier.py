@@ -1,7 +1,80 @@
+import eppy
+
 import energytool.epluspreprocess as pr
 from energytool.tools import format_input_to_list
 from energytool.tools import is_list_items_in_list
+from energytool.epluspreprocess import get_building_surface_area
+from energytool.epluspreprocess import get_building_volume
 from copy import deepcopy
+
+"""Infiltrations related functions"""
+
+
+def get_n50_from_q4(q4, heated_volume, outside_surface, n=2 / 3):
+    """
+    Outside surface correspond to building surface in contact with outside Air
+    n is flow exponent. 1 is laminar 0.5 is turbulent. Default 2/3
+    """
+    return q4 / ((4 / 50) ** n * heated_volume / outside_surface)
+
+
+def get_ach_from_n50(n50, delta_qv, wind_exposition=0.07, f=15):
+    """
+    wind_exposition : ranging from 0.1 to 0.04 default 0.07
+    f : can't remember why but default is 15
+    delta_qv = in ach , the difference between mechanically blown and extracted
+        air.
+    For extraction only  delta_qv = Qv, for crossflow ventilation delta_qv = 0
+
+    """
+    return n50 * wind_exposition / (
+            1 + f / wind_exposition * (delta_qv / n50) ** 2)
+
+
+def calculate_building_infiltration_ach_from_q4(
+        idf, q4=1.2, wind_exposition=0.07, f=15):
+    building_outdoor_surface = get_building_surface_area(
+        idf, outside_boundary_condition="Outdoors")
+    building_volume = get_building_volume(idf)
+
+    # Compute N50 from q4
+    n50 = get_n50_from_q4(
+        q4=q4,
+        heated_volume=building_volume,
+        outside_surface=building_outdoor_surface
+    )
+
+    # Get qv
+    z_ach_dict = {}
+    for siz in idf.idfobjects["Sizing:Zone"]:
+        zone = siz.get_referenced_object("Zone_or_ZoneList_Name")
+        design = siz.get_referenced_object(
+            "Design_Specification_Outdoor_Air_Object_Name")
+        if design.Outdoor_Air_Method != "AirChanges/Hour":
+            raise ValueError("Outdoor Air method other than AirChanges/Hour"
+                             " not yet implemented")
+        z_ach_dict[zone.Name] = design.Outdoor_Air_Flow_Air_Changes_per_Hour
+
+    z_hx_dict = {}
+    for connection in idf.idfobjects["ZoneHVAC:EquipmentConnections"]:
+        z_name = connection.Zone_Name
+        sys = connection.get_referenced_object(
+            "Zone_Conditioning_Equipment_List_Name").get_referenced_object(
+            "Zone_Equipment_1_Name")
+        z_hx_dict[z_name] = sys.Heat_Recovery_Type
+
+    qv = sum([
+        eppy.modeleditor.zonevolume(idf, zname) * z_ach_dict[zname]
+        for zname in z_ach_dict.keys()
+        if z_hx_dict[zname]
+    ]) / building_volume
+
+    return get_ach_from_n50(
+        n50,
+        delta_qv=qv,
+        wind_exposition=wind_exposition,
+        f=f
+    )
 
 
 def get_windows_by_boundary_condition(idf, boundary_condition):
@@ -317,15 +390,15 @@ class InfiltrationModifier:
                 Field_4=1
             )
 
-        try:
+        if "ach" in inf.keys():
             inf_ach = inf["ach"]
-        except KeyError:
-            try:
-                # TODO add computed ach
-                inf_ach = inf["q4pa"]
-            except KeyError:
-                raise ValueError("Invalid infiltration coefficient method. "
-                                 "Allowed : ach and q4pa")
+        elif "q4pa" in inf.keys():
+            inf_ach = calculate_building_infiltration_ach_from_q4(
+                    self.building.idf,
+                    **inf)
+        else:
+            raise ValueError("Invalid infiltration coefficient method. "
+                             "Allowed : ach and q4pa")
 
         for zone in self.building.idf.idfobjects["Zone"]:
             self.building.idf.newidfobject(
@@ -340,7 +413,3 @@ class InfiltrationModifier:
                 Velocity_Term_Coefficient=0,
                 Velocity_Squared_Term_Coefficient=0
             )
-
-
-
-
