@@ -32,14 +32,14 @@ def get_ach_from_n50(n50, delta_qv, wind_exposition=0.07, f=15):
 
 
 def calculate_building_infiltration_ach_from_q4(
-        idf, q4=1.2, wind_exposition=0.07, f=15):
+        idf, q4pa=1.2, wind_exposition=0.07, f=15):
     building_outdoor_surface = get_building_surface_area(
         idf, outside_boundary_condition="Outdoors")
     building_volume = get_building_volume(idf)
 
-    # Compute N50 from q4
+    # Compute N50 from q4pa
     n50 = get_n50_from_q4(
-        q4=q4,
+        q4=q4pa,
         heated_volume=building_volume,
         outside_surface=building_outdoor_surface
     )
