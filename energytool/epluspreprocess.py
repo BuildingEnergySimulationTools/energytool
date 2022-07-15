@@ -213,8 +213,6 @@ def del_output_variable(idf, variables):
     to_delete = is_value_in_object_fieldnames(
         idf, "Output:Variable", "Variable_Name", variables)
 
-    # new_list = [obj for obj, trig in zip(output_list, to_delete) if trig]
-
     if np.any(to_delete):
         indices_to_remove = [i for i, trig in enumerate(to_delete) if trig]
 
@@ -246,8 +244,7 @@ def get_number_of_people(idf, zones="*"):
     if zones == "*":
         zone_list = idf.idfobjects["Zone"]
     else:
-        zone_list = [obj for obj in idf.idfobjects["Zone"]
-                     if obj.Name in zone_name_list]
+        zone_list = [idf.getobject("Zone", zname) for zname in zone_name_list]
 
     people_list = idf.idfobjects["People"]
     occupation = 0
