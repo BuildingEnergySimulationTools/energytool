@@ -320,3 +320,28 @@ class AHUControl:
         pass
 
 
+class NaturalVentilation:
+    def __init__(self,
+                 name,
+                 building,
+                 zones='*',
+                 ach=0.7,
+                 occupancy_schedule=True,
+                 ventilation_kwargs=None):
+        self.name = name
+        self.building = building
+        self.zones = zones
+        self.ach = ach
+        self.occupancy_schedule = occupancy_schedule
+        self.ventilation_kwargs = ventilation_kwargs
+
+    def pre_process(self):
+        pr.add_natural_ventilation(
+            self.building.idf,
+            self.ach,
+            self.zones,
+            self.occupancy_schedule,
+            self.ventilation_kwargs)
+
+    def post_process(self):
+        pass
