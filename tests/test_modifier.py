@@ -2,6 +2,7 @@ from io import StringIO
 from pathlib import Path
 
 import energytool.epluspreprocess as pr
+import energytool.system as st
 import energytool.modifier as mo
 
 import pytest
@@ -13,6 +14,8 @@ from energytool.modifier import OpaqueSurfaceModifier
 from energytool.modifier import InfiltrationModifier
 from energytool.modifier import EnvelopeShadesModifier
 from energytool.modifier import LightsModifier
+from energytool.modifier import SystemModifier
+
 from copy import deepcopy
 
 RESOURCES_PATH = Path(__file__).parent / "resources"
@@ -408,3 +411,27 @@ class TestModifier:
         power_ratio_list = pr.get_objects_field_values(
             loc_toy.idf, "Lights", "Watts_per_Zone_Floor_Area")
         assert power_ratio_list == [4, 4, 4, 4]
+
+    def test_system_modifier(self, toy_building):
+        loc_toy = deepcopy(toy_building)
+
+        old_boil = st.HeaterSimple(name='Old_boiler', building=loc_toy)
+        loc_toy.heating_system["Main_boiler"] = old_boil
+
+        new_boil = st.HeaterSimple(name='New_boiler', building=loc_toy)
+
+        variant_dict = {"Variant1": new_boil}
+
+        print(loc_toy.heating_system)
+
+        system_mod = SystemModifier(
+            building=loc_toy,
+            name="sysmod",
+            category="heating_system",
+            system_name="Main_boiler",
+            variant_dict=variant_dict
+        )
+
+        system_mod.set_variant("Variant1")
+
+        assert loc_toy.heating_system["Main_boiler"].name == 'New_boiler'

@@ -438,4 +438,23 @@ class LightsModifier:
             raise ValueError("No artificial lighting is defined")
 
 
+class SystemModifier:
+    def __init__(self,
+                 building,
+                 name,
+                 category,
+                 system_name,
+                 variant_dict,
+                 ):
+        self.building = building
+        self.name = name
+        self.category = category
+        self.system_name = system_name
+        self.variant_dict = variant_dict
 
+    def set_variant(self, variant_name):
+        sys_dict = getattr(self.building, self.category)
+        if self.system_name not in sys_dict.keys():
+            raise ValueError("Unknown system")
+
+        sys_dict[self.system_name] = self.variant_dict[variant_name]
