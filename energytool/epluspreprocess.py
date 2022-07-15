@@ -338,11 +338,11 @@ def add_natural_ventilation(
         ach,
         zones="*",
         occupancy_schedule=True,
-        min_indoor_temp=22,
         kwargs=None):
 
     if kwargs is None:
-        kwargs = {}
+        kwargs = {"Minimum_Indoor_Temperature": 22,
+                  "Delta_Temperature": 0}
     if zones == "*":
         z_list = get_objects_name_list(idf, "Zone")
     else:
@@ -381,7 +381,5 @@ def add_natural_ventilation(
             Schedule_Name=zone_sched_dict[z_name],
             Design_Flow_Rate_Calculation_Method="AirChanges/Hour",
             Design_Flow_Rate=ach,
-            Minimum_Indoor_Temperature=min_indoor_temp,
-            Delta_Temperature=0,
             **kwargs
         )
