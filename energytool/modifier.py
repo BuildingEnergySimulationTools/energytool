@@ -127,16 +127,16 @@ class OpaqueSurfaceModifier:
                  name,
                  surface_type,
                  outside_boundary_condition,
-                 construction_variant_dict,
+                 variant_dict,
                  ):
         self.building = building
         self.name = name
         self.surface_type = surface_type
         self.outside_boundary_condition = outside_boundary_condition
-        self.construction_variant_dict = construction_variant_dict
+        self.variant_dict = variant_dict
 
     def set_variant(self, name):
-        construction = self.construction_variant_dict[name]
+        construction = self.variant_dict[name]
 
         for material in construction:
             if "Roughness" not in material.keys():
@@ -144,8 +144,7 @@ class OpaqueSurfaceModifier:
 
             if material["Name"] not in pr.get_objects_name_list(
                     self.building.idf, "Material"):
-                new_material = self.building.idf.newidfobject(
-                    "Material", **material)
+                self.building.idf.newidfobject("Material", **material)
 
         if name not in pr.get_objects_name_list(
                 self.building.idf, "Construction"):
@@ -156,7 +155,7 @@ class OpaqueSurfaceModifier:
                 for idx, mat in enumerate(construction[1:]):
                     construction_kwargs[f"Layer_{idx + 2}"] = mat["Name"]
 
-            new_construction = self.building.idf.newidfobject(
+            self.building.idf.newidfobject(
                 "Construction", **construction_kwargs)
 
         surface_list = self.building.idf.idfobjects["BuildingSurface:Detailed"]
@@ -174,11 +173,11 @@ class ExternalWindowsModifier:
     def __init__(self,
                  building,
                  name,
-                 window_variant_dict,
+                 variant_dict,
                  ):
         self.building = building
         self.name = name
-        self.window_variant_dict = window_variant_dict
+        self.variant_dict = variant_dict
 
     @property
     def windows(self):
@@ -217,7 +216,7 @@ class ExternalWindowsModifier:
                 for name in set_name]
 
     def set_variant(self, name):
-        new_window = self.window_variant_dict[name]
+        new_window = self.variant_dict[name]
         name_to_replace = [obj.Name for obj in self.windows_materials]
         cons_lst = self.windows_constructions + self.shaded_window_constructions
 
@@ -239,11 +238,11 @@ class EnvelopeShadesModifier:
     def __init__(self,
                  building,
                  name,
-                 shade_variant_dict,
+                 variant_dict,
                  ):
         self.building = building
         self.name = name
-        self.shade_variant_dict = shade_variant_dict
+        self.variant_dict = variant_dict
         self.resources_idf = pr.get_resources_idf()
 
     @property
@@ -289,7 +288,7 @@ class EnvelopeShadesModifier:
             if any(is_list_items_in_list(obj.fieldvalues, win_names))]
 
     def set_variant(self, variant_name):
-        new_shade = self.shade_variant_dict[variant_name]["shading"]
+        new_shade = self.variant_dict[variant_name]["shading"]
 
         # Remove Shades
         for shd in self.shading_materials:
@@ -364,11 +363,11 @@ class InfiltrationModifier:
     def __init__(self,
                  building,
                  name,
-                 infiltration_variant_dict,
+                 variant_dict,
                  ):
         self.building = building
         self.name = name
-        self.infiltration_variant_dict = infiltration_variant_dict
+        self.variant_dict = variant_dict
 
     @property
     def infiltration_objects(self):
@@ -376,7 +375,7 @@ class InfiltrationModifier:
             'ZoneInfiltration:DesignFlowRate']
 
     def set_variant(self, variant_name):
-        inf = self.infiltration_variant_dict[variant_name]
+        inf = self.variant_dict[variant_name]
         self.building.idf.idfobjects['ZoneInfiltration:DesignFlowRate'] = []
 
         if not self.building.idf.getobject("Schedule:Compact", "On 24/7"):
@@ -419,18 +418,18 @@ class LightsModifier:
     def __init__(self,
                  building,
                  name,
-                 lights_variant_dict,
+                 variant_dict,
                  ):
         self.building = building
         self.name = name
-        self.lights_variant_dict = lights_variant_dict
+        self.variant_dict = variant_dict
 
     @property
     def lights_objects(self):
         return self.building.idf.idfobjects['Lights']
 
     def set_variant(self, variant_name):
-        power = self.lights_variant_dict[variant_name]
+        power = self.variant_dict[variant_name]
 
         if self.lights_objects:
             for lig in self.lights_objects:

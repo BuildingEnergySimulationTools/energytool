@@ -151,7 +151,7 @@ class TestModifier:
     def test_opaque_surface_modifier(self, toy_building):
         loc_toy = deepcopy(toy_building)
 
-        construction_variant_dict = {
+        variant_dict = {
             "test_base": [
                 {
                     "Name": "Coating",
@@ -184,7 +184,7 @@ class TestModifier:
             name="Ext_wall_modification",
             surface_type="Wall",
             outside_boundary_condition="Outdoors",
-            construction_variant_dict=construction_variant_dict
+            variant_dict=variant_dict
         )
 
         # Test general case
@@ -239,7 +239,7 @@ class TestModifier:
         win_test = mo.ExternalWindowsModifier(
             building=loc_toy,
             name="test",
-            window_variant_dict=test_win_variant_dict
+            variant_dict=test_win_variant_dict
         )
 
         win_test.set_variant("Variant_1")
@@ -269,7 +269,7 @@ class TestModifier:
     def test_envelope_shades_modifier(self, toy_building):
         loc_toy = deepcopy(toy_building)
 
-        test_shade_variant_dict = {
+        test_variant_dict = {
             "Variant_1": {
                 "shading": {
                     "Name": "Shading",
@@ -284,7 +284,7 @@ class TestModifier:
         mod = EnvelopeShadesModifier(
             building=loc_toy,
             name="test",
-            shade_variant_dict=test_shade_variant_dict
+            variant_dict=test_variant_dict
         )
 
         mod.set_variant("Variant_1")
@@ -373,7 +373,7 @@ class TestModifier:
         inf = InfiltrationModifier(
             building=loc_toy,
             name="test",
-            infiltration_variant_dict=var)
+            variant_dict=var)
 
         inf.set_variant("poor")
 
@@ -401,7 +401,7 @@ class TestModifier:
             "good" : 4,
         }
         lit = LightsModifier(
-            building=loc_toy, name="test", lights_variant_dict=var)
+            building=loc_toy, name="test", variant_dict=var)
 
         lit.set_variant("good")
 
