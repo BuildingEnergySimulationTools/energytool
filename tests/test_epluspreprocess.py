@@ -281,3 +281,104 @@ class TestEplusPreProcess:
         pr.del_obj_by_names(toy_idf, "Zone", "*")
         zone_name_list = pr.get_objects_name_list(toy_idf, "Zone")
         assert zone_name_list == []
+
+    def test_add_add_natural_ventilation(self):
+        empty_idf = ""
+        handle = StringIO(empty_idf)
+        toy_idf = IDF(handle)
+
+        for toy_zone in range(5):
+            toy_idf.newidfobject(
+                "Zone",
+                Name=f"Zone_{toy_zone}",
+                Floor_Area=10
+            )
+
+        for _, z_name in zip(range(3), toy_idf.idfobjects["Zone"]):
+            toy_idf.newidfobject(
+                "People",
+                Zone_or_ZoneList_Name=z_name.Name,
+                Number_of_People_Schedule_Name="people_sched"
+            )
+
+        pr.add_natural_ventilation(toy_idf, ach=0.7)
+
+        # Test only occupied zone have ventilation
+        assert len(toy_idf.idfobjects["ZoneVentilation:DesignFlowrate"]) == 3
+        assert toy_idf.idfobjects["ZoneVentilation:DesignFlowrate"][0].obj == [
+                'ZONEVENTILATION:DESIGNFLOWRATE',
+                'Natvent_Zone_0',
+                'Zone_0',
+                'people_sched',
+                'AirChanges/Hour',
+                0.7,
+                '',
+                '',
+                '',
+                'Natural',
+                0.0,
+                1.0,
+                1.0,
+                0.0,
+                0.0,
+                0.0,
+                22,
+                '',
+                100.0,
+                '',
+                0,
+                '',
+                -100.0,
+                '',
+                100.0,
+                '',
+                40.0
+        ]
+
+        # Test constant ACH addition for all zones
+        pr.add_natural_ventilation(toy_idf, ach=0.7, occupancy_schedule=False)
+        assert len(toy_idf.idfobjects["ZoneVentilation:DesignFlowrate"]) == 5
+        assert toy_idf.idfobjects["Schedule:Compact"][0].obj == [
+            'SCHEDULE:COMPACT',
+            'On 24/7',
+            'Any Number',
+            'Through: 12/31',
+            'For: AllDays',
+            'Until: 24:00',
+            1]
+
+        # Check ventilation and schedule do not duplicate
+        pr.add_natural_ventilation(toy_idf, ach=0.7, occupancy_schedule=False)
+        assert len(toy_idf.idfobjects["ZoneVentilation:DesignFlowrate"]) == 5
+        assert toy_idf.idfobjects["Schedule:Compact"][0].obj == [
+            'SCHEDULE:COMPACT',
+            'On 24/7',
+            'Any Number',
+            'Through: 12/31',
+            'For: AllDays',
+            'Until: 24:00',
+            1]
+
+        # Check kwargs
+        pr.add_natural_ventilation(
+            toy_idf,
+            ach=0.7,
+            occupancy_schedule=False,
+            kwargs={"Fan_Pressure_Rise": 10}
+        )
+
+        assert pr.get_objects_field_values(
+            toy_idf,
+            "ZoneVentilation:DesignFlowrate",
+            "Fan_Pressure_Rise") == [10] * 5
+
+        # Check one zone modification
+        pr.add_natural_ventilation(
+            toy_idf,
+            zones="zone_0",
+            ach=0.8,
+            occupancy_schedule=False
+        )
+
+        assert toy_idf.idfobjects["ZoneVentilation:DesignFlowrate"][
+                   -1].Design_Flow_Rate == 0.8
