@@ -56,6 +56,8 @@ def zone_contains_regex(elmt_list):
 
 
 def variable_contains_regex(elmt_list):
+    if not elmt_list:
+        return None
     tempo = [elmt + ".+|" for elmt in elmt_list]
     return ''.join(tempo)[:-1]
 

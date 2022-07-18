@@ -31,7 +31,8 @@ class HeaterSimple:
         )
 
         system_out = (ideal_heating / self.cop).sum(axis=1)
-        self.building.building_results[f"{self.name}_Energy"] = system_out
+        self.building.building_results[
+            f"{self.name}_Energy"] = system_out
 
 
 class AuxiliarySimplified:
@@ -195,14 +196,9 @@ class DHWIdealExternal:
                 daily_cons_per_occupant * nb_days * nb_people / self.cop
         )
 
-        self.building.building_results = pd.concat([
-            self.building.building_results,
-            pd.Series(
-                name="DHW_energy",
-                data=np.ones(nb_entry) * dhw_consumption / nb_entry,
-                index=self.building.building_results.index
-            )
-        ], axis=1)
+        self.building.building_results[f"{self.name}_Energy"] = (
+            np.ones(nb_entry) * dhw_consumption / nb_entry
+        )
 
 
 class ArtificialLightingSimple:

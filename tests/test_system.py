@@ -93,7 +93,7 @@ class TestSystems:
         runner = SimulationsRunner([simu])
         runner.run()
 
-        assert simu.results.DHW_energy.sum() == 8430408987.330694
+        assert simu.results.DHW_prod_Energy.sum() == 8430408987.330694
 
     def test_ahu_control(self, building):
         ahu_control = sys.AHUControl(
