@@ -4,6 +4,7 @@ import eppy
 from eppy.modeleditor import IDF
 
 import energytool.epluspreprocess as pr
+from energytool.epluspostprocess import variable_contains_regex
 
 
 class Building:
@@ -32,6 +33,34 @@ class Building:
             IDF.setiddname(root_eplus / "Energy+.idd")
         except eppy.modeleditor.IDDAlreadySetError:
             pass
+
+    @property
+    def system_energy_results(self):
+        system_dict = {
+            "Heating": self.heating_system,
+            "Cooling": self.cooling_system,
+            "Ventilation": self.ventilation_system,
+            "Lighting": self.artificial_lighting_system,
+            "DHW": self.dwh_system,
+            "Local_production": self.pv_production,
+        }
+
+        sys_nrj_res = pd.DataFrame()
+
+        for header, systems in system_dict.items():
+            if systems:
+                to_find = variable_contains_regex(
+                    [sys.name for sys in systems.values()])
+                mask = self.building_results.columns.str.contains(
+                    to_find)
+                res = self.building_results.loc[:, mask]
+                sys_nrj_res[header] = res.sum(axis=1)
+            else:
+                sys_nrj_res[header] = pd.Series(
+                    self.building_results.shape[0] * [0.0],
+                    index=self.building_results.index
+                )
+        return sys_nrj_res
 
     @property
     def zone_name_list(self):
@@ -72,13 +101,13 @@ class Building:
         self.energyplus_results = pd.DataFrame()
 
         system_list = [
-                self.heating_system,
-                self.cooling_system,
-                self.ventilation_system,
-                self.artificial_lighting_system,
-                self.dwh_system,
-                self.pv_production,
-                self.other
+            self.heating_system,
+            self.cooling_system,
+            self.ventilation_system,
+            self.artificial_lighting_system,
+            self.dwh_system,
+            self.pv_production,
+            self.other
         ]
 
         for build_sys in system_list:
@@ -90,13 +119,13 @@ class Building:
         self.building_results.index = self.energyplus_results.index
 
         system_list = [
-                self.heating_system,
-                self.cooling_system,
-                self.ventilation_system,
-                self.artificial_lighting_system,
-                self.dwh_system,
-                self.pv_production,
-                self.other
+            self.heating_system,
+            self.cooling_system,
+            self.ventilation_system,
+            self.artificial_lighting_system,
+            self.dwh_system,
+            self.pv_production,
+            self.other
         ]
 
         for build_sys in system_list:
