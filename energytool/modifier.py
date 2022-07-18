@@ -123,14 +123,14 @@ def idf_object_to_dict(obj):
 
 class OpaqueSurfaceModifier:
     def __init__(self,
-                 building,
                  name,
+                 building,
                  surface_type,
                  outside_boundary_condition,
                  variant_dict,
                  ):
-        self.building = building
         self.name = name
+        self.building = building
         self.surface_type = surface_type
         self.outside_boundary_condition = outside_boundary_condition
         self.variant_dict = variant_dict
@@ -171,12 +171,12 @@ class OpaqueSurfaceModifier:
 
 class ExternalWindowsModifier:
     def __init__(self,
-                 building,
                  name,
+                 building,
                  variant_dict,
                  ):
-        self.building = building
         self.name = name
+        self.building = building
         self.variant_dict = variant_dict
 
     @property
@@ -236,12 +236,12 @@ class ExternalWindowsModifier:
 
 class EnvelopeShadesModifier:
     def __init__(self,
-                 building,
                  name,
+                 building,
                  variant_dict,
                  ):
-        self.building = building
         self.name = name
+        self.building = building
         self.variant_dict = variant_dict
         self.resources_idf = pr.get_resources_idf()
 
@@ -361,12 +361,12 @@ class EnvelopeShadesModifier:
 
 class InfiltrationModifier:
     def __init__(self,
-                 building,
                  name,
+                 building,
                  variant_dict,
                  ):
-        self.building = building
         self.name = name
+        self.building = building
         self.variant_dict = variant_dict
 
     @property
@@ -416,12 +416,12 @@ class InfiltrationModifier:
 
 class LightsModifier:
     def __init__(self,
-                 building,
                  name,
+                 building,
                  variant_dict,
                  ):
-        self.building = building
         self.name = name
+        self.building = building
         self.variant_dict = variant_dict
 
     @property
@@ -440,14 +440,14 @@ class LightsModifier:
 
 class SystemModifier:
     def __init__(self,
-                 building,
                  name,
+                 building,
                  category,
                  system_name,
                  variant_dict,
                  ):
-        self.building = building
         self.name = name
+        self.building = building
         self.category = category
         self.system_name = system_name
         self.variant_dict = variant_dict
