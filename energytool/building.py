@@ -60,6 +60,7 @@ class Building:
                     self.building_results.shape[0] * [0.0],
                     index=self.building_results.index
                 )
+        sys_nrj_res["Total"] = sys_nrj_res.sum(axis=1)
         return sys_nrj_res
 
     @property

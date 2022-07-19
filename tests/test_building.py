@@ -58,8 +58,8 @@ class TestBuilding:
 
     def test_system_energy_results(self, building):
         ref = pd.DataFrame(
-            [14628390.37626, 0.0, 0.0, 0.0, 1.864405e+06, 0.0],
+            [14628390.37626, 0.0, 0.0, 0.0, 1.864405e+06, 0.0, 16492794.75750751],
             index=['Heating', 'Cooling', 'Ventilation', 'Lighting', 'DHW',
-                   'Local_production']).T
+                   'Local_production', "Total"]).T
 
         pd.testing.assert_frame_equal(ref, building.system_energy_results)
