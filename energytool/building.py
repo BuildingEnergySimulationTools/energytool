@@ -35,6 +35,24 @@ class Building:
             pass
 
     @property
+    def process_objects_list(self):
+        system_list = [
+            self.heating_system,
+            self.cooling_system,
+            self.ventilation_system,
+            self.artificial_lighting_system,
+            self.dwh_system,
+            self.pv_production,
+            self.other]
+
+        proc_list = []
+        for build_sys in system_list:
+            for sys in build_sys.values():
+                proc_list.append(sys)
+
+        return proc_list
+
+    @property
     def system_energy_results(self):
         system_dict = {
             "Heating": self.heating_system,
@@ -101,34 +119,13 @@ class Building:
     def pre_process(self):
         self.energyplus_results = pd.DataFrame()
 
-        system_list = [
-            self.heating_system,
-            self.cooling_system,
-            self.ventilation_system,
-            self.artificial_lighting_system,
-            self.dwh_system,
-            self.pv_production,
-            self.other
-        ]
-
-        for build_sys in system_list:
-            for sys in build_sys.values():
-                sys.pre_process()
+        for sys in self.process_objects_list:
+            sys.pre_process()
 
     def post_process(self):
         self.building_results = pd.DataFrame()
         self.building_results.index = self.energyplus_results.index
 
-        system_list = [
-            self.heating_system,
-            self.cooling_system,
-            self.ventilation_system,
-            self.artificial_lighting_system,
-            self.dwh_system,
-            self.pv_production,
-            self.other
-        ]
+        for sys in self.process_objects_list:
+            sys.post_process()
 
-        for build_sys in system_list:
-            for sys in build_sys.values():
-                sys.post_process()
