@@ -7,7 +7,7 @@ import energytool.tools as tl
 
 
 class HeaterSimple:
-    def __init__(self, name, building, zones="*", cop=0.86, energy="gaz",
+    def __init__(self, name, building=None, zones="*", cop=0.86, energy="gaz",
                  cost=0):
         self.name = name
         self.building = building
@@ -41,7 +41,7 @@ class AuxiliarySimplified:
     multiply ideal heat need by a constant. Default 5%
     """
 
-    def __init__(self, name, building, zones="*", ratio=0.05):
+    def __init__(self, name, building=None, zones="*", ratio=0.05):
         self.name = name
         self.building = building
         self.zones = zones
@@ -74,7 +74,7 @@ class AirHandlingUnit:
 
     def __init__(self,
                  name,
-                 building,
+                 building=None,
                  zones='*',
                  fan_energy_coefficient=0.23,  # Wh/m3
                  heat_recovery_efficiency=None,
@@ -158,7 +158,7 @@ class AirHandlingUnit:
 class DHWIdealExternal:
     def __init__(self,
                  name,
-                 building,
+                 building=None,
                  zones='*',
                  cop=0.95,  # Wh/m3
                  t_dwh_set_point=60,
@@ -204,7 +204,7 @@ class DHWIdealExternal:
 class ArtificialLightingSimple:
     def __init__(self,
                  name,
-                 building,
+                 building=None,
                  zones='*',
                  power_ratio=3,  # W/m²
                  cop=1):
@@ -254,7 +254,7 @@ class ArtificialLightingSimple:
 class AHUControl:
     def __init__(self,
                  name,
-                 building,
+                 building=None,
                  zones='*',
                  control_strategy="Schedule",
                  schedule_name="ON_24h24h_FULL_YEAR",
@@ -319,7 +319,7 @@ class AHUControl:
 class NaturalVentilation:
     def __init__(self,
                  name,
-                 building,
+                 building=None,
                  zones='*',
                  ach=0.7,
                  occupancy_schedule=True,
