@@ -1,11 +1,20 @@
 import eppy
+import itertools
+import datetime as dt
+import pandas as pd
 
 import energytool.epluspreprocess as pr
 from energytool.tools import format_input_to_list
 from energytool.tools import is_list_items_in_list
 from energytool.epluspreprocess import get_building_surface_area
 from energytool.epluspreprocess import get_building_volume
+from energytool.simulate import Simulation
+from energytool.simulate import SimulationsRunner
+
 from copy import deepcopy
+from fastprogress.fastprogress import force_console_behavior
+
+master_bar, progress_bar = force_console_behavior()
 
 """Infiltrations related functions"""
 
@@ -124,10 +133,10 @@ def idf_object_to_dict(obj):
 class OpaqueSurfaceModifier:
     def __init__(self,
                  name,
-                 building,
-                 surface_type,
-                 outside_boundary_condition,
-                 variant_dict,
+                 building=None,
+                 surface_type=None,
+                 outside_boundary_condition=None,
+                 variant_dict=None,
                  ):
         self.name = name
         self.building = building
@@ -172,8 +181,8 @@ class OpaqueSurfaceModifier:
 class ExternalWindowsModifier:
     def __init__(self,
                  name,
-                 building,
-                 variant_dict,
+                 building=None,
+                 variant_dict=None,
                  ):
         self.name = name
         self.building = building
@@ -237,8 +246,8 @@ class ExternalWindowsModifier:
 class EnvelopeShadesModifier:
     def __init__(self,
                  name,
-                 building,
-                 variant_dict,
+                 building=None,
+                 variant_dict=None,
                  ):
         self.name = name
         self.building = building
@@ -362,8 +371,8 @@ class EnvelopeShadesModifier:
 class InfiltrationModifier:
     def __init__(self,
                  name,
-                 building,
-                 variant_dict,
+                 building=None,
+                 variant_dict=None,
                  ):
         self.name = name
         self.building = building
@@ -417,8 +426,8 @@ class InfiltrationModifier:
 class LightsModifier:
     def __init__(self,
                  name,
-                 building,
-                 variant_dict,
+                 building=None,
+                 variant_dict=None,
                  ):
         self.name = name
         self.building = building
@@ -441,10 +450,10 @@ class LightsModifier:
 class SystemModifier:
     def __init__(self,
                  name,
-                 building,
-                 category,
-                 system_name,
-                 variant_dict,
+                 building=None,
+                 category=None,
+                 system_name=None,
+                 variant_dict=None,
                  ):
         self.name = name
         self.building = building
@@ -457,4 +466,78 @@ class SystemModifier:
         if self.system_name not in sys_dict.keys():
             raise ValueError("Unknown system")
 
-        sys_dict[self.system_name] = self.variant_dict[variant_name]
+        new_sys = self.variant_dict[variant_name]
+        new_sys.building = self.building
+        sys_dict[self.system_name] = new_sys
+
+
+class Combiner:
+    def __init__(self,
+                 building,
+                 modifier_list=None):
+        if modifier_list is None:
+            modifier_list = []
+        self.modifier_list = modifier_list
+        self.building = building
+        self.simulation_list = []
+        self.simulation_runner = SimulationsRunner(self.simulation_list)
+
+    @property
+    def modifier_name_list(self):
+        return [mod.name for mod in self.modifier_list]
+
+    @property
+    def combination_list(self):
+        var_list = [["Existing"] + list(mod.variant_dict.keys())
+                    for mod in self.modifier_list]
+        return list(itertools.product(*var_list))
+
+    def run(self,
+            epw_file_path,
+            simulation_start=dt.datetime(2009, 1, 1, 0, 0, 0),
+            simulation_stop=dt.datetime(2009, 12, 31, 23, 0, 0),
+            timestep_per_hour=6,
+            run_directory=None,
+            nb_cpus=-1,
+            nb_simu_per_batch=5
+            ):
+
+        prog_bar = progress_bar(range(len(self.combination_list)))
+        for mb, combine in zip(prog_bar, self.combination_list):
+            simu_building = deepcopy(self.building)
+            for mod, var in zip(self.modifier_list, combine):
+                if var != "Existing":
+                    combine_mod = deepcopy(mod)
+                    setattr(combine_mod, 'building', simu_building)
+                    combine_mod.set_variant(var)
+
+            self.simulation_list.append(Simulation(
+                building=simu_building,
+                epw_file_path=epw_file_path,
+                simulation_start=simulation_start,
+                simulation_stop=simulation_stop,
+                timestep_per_hour=timestep_per_hour
+            ))
+
+        self.simulation_runner = SimulationsRunner(
+            simu_list=self.simulation_list,
+            run_dir=run_directory,
+            nb_cpus=nb_cpus,
+            nb_simu_per_batch=nb_simu_per_batch
+        )
+
+        self.simulation_runner.run()
+
+    def get_annual_system_results(self):
+        combine_columns = pd.DataFrame(
+            self.combination_list,
+            columns=self.modifier_name_list)
+
+        calc_res = pd.DataFrame()
+
+        for i, sim in enumerate(self.simulation_list):
+            sim_res = sim.building.system_energy_results.sum().to_frame().T
+            sim_res.index = [i]
+            calc_res = pd.concat([calc_res, sim_res])
+
+        return pd.concat([combine_columns, calc_res], axis=1)

@@ -7,6 +7,7 @@ import energytool.modifier as mo
 
 import pytest
 import eppy
+import math
 
 from eppy.modeleditor import IDF
 from energytool.building import Building
@@ -400,8 +401,8 @@ class TestModifier:
     def test_lights_modifier(self, toy_building):
         loc_toy = deepcopy(toy_building)
         var = {
-            "poor" : 10,
-            "good" : 4,
+            "poor": 10,
+            "good": 4,
         }
         lit = LightsModifier(
             building=loc_toy, name="test", variant_dict=var)
@@ -418,20 +419,66 @@ class TestModifier:
         old_boil = st.HeaterSimple(name='Old_boiler', building=loc_toy)
         loc_toy.heating_system["Main_boiler"] = old_boil
 
-        new_boil = st.HeaterSimple(name='New_boiler', building=loc_toy)
+        new_boil = st.HeaterSimple(name='New_boiler', building=toy_building)
 
         variant_dict = {"Variant1": new_boil}
 
-        print(loc_toy.heating_system)
-
         system_mod = SystemModifier(
-            building=loc_toy,
+            building=toy_building,
             name="sysmod",
             category="heating_system",
             system_name="Main_boiler",
             variant_dict=variant_dict
         )
 
+        system_mod.building = loc_toy
         system_mod.set_variant("Variant1")
 
         assert loc_toy.heating_system["Main_boiler"].name == 'New_boiler'
+        assert loc_toy == loc_toy.heating_system["Main_boiler"].building
+
+    def test_combiner(self):
+        building = Building(idf_path=RESOURCES_PATH / "test.idf")
+        building.heating_system = {
+            "Main_heater": st.HeaterSimple(
+                name="Old_boiler",
+                building=building,
+                cop=1)
+        }
+
+        modifier_list = []
+
+        infiltration_variant_dict = {
+            "good": {"q4pa": 0.5},
+        }
+
+        modifier_list.append(mo.InfiltrationModifier(
+            name="Infiltration",
+            variant_dict=infiltration_variant_dict))
+
+        boiler_variant_dict = {
+            "PAC": st.HeaterSimple(
+                name="PAC",
+                cop=3)
+        }
+
+        modifier_list.append(mo.SystemModifier(
+            name="heater_modifier",
+            category="heating_system",
+            system_name="Main_heater",
+            variant_dict=boiler_variant_dict
+        ))
+
+        combiner = mo.Combiner(building, modifier_list=modifier_list)
+
+        combiner.run(
+            epw_file_path=RESOURCES_PATH / "Paris_2020.epw",
+            timestep_per_hour=1)
+
+        to_test = combiner.get_annual_system_results()
+
+        assert math.floor(to_test.loc[1, "Heating"]) == math.floor(
+            to_test.loc[0, "Heating"] / 3)
+        assert to_test.loc[0, "Heating"] > to_test.loc[2, "Heating"]
+        assert math.floor(to_test.loc[3, "Heating"]) == math.floor(
+            to_test.loc[2, "Heating"] / 3)
