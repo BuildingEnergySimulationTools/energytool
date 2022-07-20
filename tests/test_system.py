@@ -58,6 +58,11 @@ class TestSystems:
         ilas_list = building.idf.idfobjects["ZoneHVAC:IdealLoadsAirSystem"]
 
         assert [
+                   ilas.Heat_Recovery_Type
+                   for ilas in ilas_list
+               ] == ['Sensible', 'Sensible', 'None', 'None']
+
+        assert [
                    ilas.Sensible_Heat_Recovery_Effectiveness
                    for ilas in ilas_list
                ] == [0.8, 0.8, '', '']

@@ -126,6 +126,7 @@ class AirHandlingUnit:
             )
 
             mod_fields = {
+                "Heat_Recovery_Type": "Sensible",
                 "Sensible_Heat_Recovery_Effectiveness": self.heat_recovery_efficiency,
                 "Latent_Heat_Recovery_Effectiveness": self.heat_recovery_efficiency,
             }
