@@ -47,38 +47,38 @@ class TestEplusPreProcess:
         assert to_test == [f"Zone_{i}" for i in range(10)]
 
     def test_add_output_zone_variable(self, toy_idf):
-        pr.add_output_variable(toy_idf, key_values='Z1', variables="Conso")
+        pr.add_output_variable(toy_idf, key_values='Zone_1', variables="Conso")
 
         to_test = [elmt['obj'] for elmt in
                    toy_idf.idfobjects["Output:Variable"]]
-        ref = [['OUTPUT:VARIABLE', 'Z1', 'Conso', 'Hourly']]
+        ref = [['OUTPUT:VARIABLE', 'Zone_1', 'Conso', 'Hourly']]
         assert to_test == ref
 
         pr.add_output_variable(
-            toy_idf, key_values=['Z1', 'Z2'], variables="Conso")
+            toy_idf, key_values=['Zone_1', 'Zone_2'], variables="Conso")
 
         to_test = [elmt['obj'] for elmt in
                    toy_idf.idfobjects["Output:Variable"]]
-        ref = [['OUTPUT:VARIABLE', 'Z1', 'Conso', 'Hourly'],
-               ['OUTPUT:VARIABLE', 'Z2', 'Conso', 'Hourly']]
+        ref = [['OUTPUT:VARIABLE', 'Zone_1', 'Conso', 'Hourly'],
+               ['OUTPUT:VARIABLE', 'Zone_2', 'Conso', 'Hourly']]
         assert to_test == ref
 
         pr.add_output_variable(
-            toy_idf, key_values='Z3', variables=["Conso", "Elec"])
+            toy_idf, key_values='Zone_3', variables=["Conso", "Elec"])
 
         to_test = [elmt['obj'] for elmt in
                    toy_idf.idfobjects["Output:Variable"]]
-        ref = [['OUTPUT:VARIABLE', 'Z1', 'Conso', 'Hourly'],
-               ['OUTPUT:VARIABLE', 'Z2', 'Conso', 'Hourly'],
-               ['OUTPUT:VARIABLE', 'Z3', 'Conso', 'Hourly'],
-               ['OUTPUT:VARIABLE', 'Z3', 'Elec', 'Hourly']]
+        ref = [['OUTPUT:VARIABLE', 'Zone_1', 'Conso', 'Hourly'],
+               ['OUTPUT:VARIABLE', 'Zone_2', 'Conso', 'Hourly'],
+               ['OUTPUT:VARIABLE', 'Zone_3', 'Conso', 'Hourly'],
+               ['OUTPUT:VARIABLE', 'Zone_3', 'Elec', 'Hourly']]
         assert to_test == ref
 
         pr.add_output_variable(toy_idf, key_values='*', variables="Conso")
 
         to_test = [elmt['obj'] for elmt in
                    toy_idf.idfobjects["Output:Variable"]]
-        ref = [['OUTPUT:VARIABLE', 'Z3', 'Elec', 'Hourly'],
+        ref = [['OUTPUT:VARIABLE', 'Zone_3', 'Elec', 'Hourly'],
                ['OUTPUT:VARIABLE', '*', 'Conso', 'Hourly']]
         assert to_test == ref
 
