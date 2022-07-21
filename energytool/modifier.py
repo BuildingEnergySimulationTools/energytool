@@ -75,7 +75,7 @@ def calculate_building_infiltration_ach_from_q4(
     qv = sum([
         eppy.modeleditor.zonevolume(idf, zname) * z_ach_dict[zname]
         for zname in z_ach_dict.keys()
-        if z_hx_dict[zname]
+        if z_hx_dict[zname] == 'None'
     ]) / building_volume
 
     return get_ach_from_n50(
@@ -469,6 +469,8 @@ class SystemModifier:
         new_sys = self.variant_dict[variant_name]
         new_sys.building = self.building
         sys_dict[self.system_name] = new_sys
+
+        new_sys.pre_process()
 
 
 class Combiner:
