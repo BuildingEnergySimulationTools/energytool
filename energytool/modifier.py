@@ -2,6 +2,8 @@ import eppy
 import itertools
 import datetime as dt
 import pandas as pd
+import numpy as np
+import plotly.express as px
 
 import energytool.epluspreprocess as pr
 from energytool.tools import format_input_to_list
@@ -550,3 +552,23 @@ class Combiner:
             calc_res = calc_res / self.building.surface
 
         return pd.concat([combine_columns, calc_res], axis=1)
+
+    def plot_consumption_stacked_bar(self, per_square_meter=False):
+        df = self.get_annual_system_results(per_square_meter)
+        if per_square_meter:
+            unit = "[kWh/m²]"
+        else:
+            unit = "[kWh]"
+
+        df["Variant_index"] = df.index
+        df = df.sort_values(by='Total', ascending=False)
+        df.index = np.arange(df.shape[0])
+        fig = px.bar(df, y=self.building.system_energy_results.columns)
+
+        fig.update_layout(
+            title="Annual HVAC system consumption",
+            yaxis_title=f"Hvac system consumption {unit}",
+            legend_title="HVAC",
+        )
+
+        fig.show()
