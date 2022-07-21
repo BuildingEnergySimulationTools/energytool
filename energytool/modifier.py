@@ -530,7 +530,9 @@ class Combiner:
 
         self.simulation_runner.run()
 
-    def get_annual_system_results(self):
+    def get_annual_system_results(self, per_square_meter=False):
+        if not self.simulation_list:
+            raise ValueError("No simulation results to get")
         combine_columns = pd.DataFrame(
             self.combination_list,
             columns=self.modifier_name_list)
@@ -541,5 +543,10 @@ class Combiner:
             sim_res = sim.building.system_energy_results.sum().to_frame().T
             sim_res.index = [i]
             calc_res = pd.concat([calc_res, sim_res])
+
+        calc_res = calc_res / 3600 / 1000
+
+        if per_square_meter:
+            calc_res = calc_res / self.building.surface
 
         return pd.concat([combine_columns, calc_res], axis=1)
