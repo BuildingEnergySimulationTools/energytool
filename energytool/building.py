@@ -63,7 +63,9 @@ class Building:
             "Local_production": self.pv_production,
         }
 
-        sys_nrj_res = pd.DataFrame()
+        sys_nrj_res = pd.DataFrame(columns=system_dict.keys())
+        if self.building_results.empty:
+            return sys_nrj_res
 
         for header, systems in system_dict.items():
             if systems:
