@@ -51,7 +51,8 @@ class SAnalysis:
         if not self.simulation_list:
             raise ValueError("No simulation results available")
 
-        available = list(self.simulation_list[0].results.columns)
+        available = list(
+            self.simulation_list[0].building.building_results.columns)
         available.append("Total")
         return available
 
@@ -116,9 +117,9 @@ class SAnalysis:
             raise ValueError('Specified indicator not in computed outputs')
 
         y_array = np.array(
-            [aggregation_method(simu.results[indicator])
+            [aggregation_method(simu.building.building_results[indicator])
              if indicator != "Total" else
-             aggregation_method(simu.results.sum(axis=1))
+             aggregation_method(simu.building.building_results.sum(axis=1))
              for simu in self.simulation_list
              ]
         )

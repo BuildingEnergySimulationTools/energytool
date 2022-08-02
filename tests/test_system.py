@@ -80,7 +80,8 @@ class TestSystems:
                ] == [0.7, 0.7, 3., 3.]
 
         # Post Process tests
-        assert simu.results.AHU_Energy.sum() == 634902466.3027192
+        result = simu.building.building_results.AHU_Energy.sum()
+        assert result == 634902466.3027192
 
     def test_dhw_ideal_external(self, building):
         dhw = sys.DHWIdealExternal(
@@ -98,7 +99,9 @@ class TestSystems:
         runner = SimulationsRunner([simu])
         runner.run()
 
-        assert simu.results.DHW_prod_Energy.sum() == 8430408987.330694
+        result = simu.building.building_results.DHW_prod_Energy.sum()
+
+        assert result == 8430408987.330694
 
     def test_ahu_control(self, building):
         ahu_control = sys.AHUControl(

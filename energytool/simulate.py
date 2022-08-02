@@ -78,7 +78,6 @@ class Simulation:
         self.simulation_start = simulation_start
         self.simulation_stop = simulation_stop
         self.timestep_per_hour = timestep_per_hour
-        self.results = pd.DataFrame()
 
         set_run_period(building.idf, simulation_start, simulation_stop)
         building.idf.epw = str(epw_file_path)
@@ -186,9 +185,6 @@ class SimulationsRunner:
 
                 # 3rd Apply system post-processing
                 current_simu.building.post_process()
-
-                current_simu.results = current_simu.building.building_results
-
         try:
             shutil.rmtree(self.run_dir, ignore_errors=True)
 

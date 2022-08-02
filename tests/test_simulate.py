@@ -30,7 +30,7 @@ class TestSimulate:
 
         simu_runner.run()
 
-        to_test = simu.results.sum().to_numpy()[0]
+        to_test = simu.building.building_results.sum().to_numpy()[0]
 
         # Single run
         assert np.floor(to_test) == np.floor(124267494239.)
@@ -52,11 +52,8 @@ class TestSimulate:
 
         simu_runner.run()
 
-        to_test1 = simu.results.sum().to_numpy()[0]
-        to_test2 = simu2.results.sum().to_numpy()[0]
+        to_test1 = simu.building.building_results.sum().to_numpy()[0]
+        to_test2 = simu2.building.building_results.sum().to_numpy()[0]
 
         assert np.floor(to_test1) == np.floor(124267494239.)
         assert np.floor(to_test2) == np.floor(62133747119.00)
-
-
-
