@@ -3,18 +3,30 @@ import pandas as pd
 import eppy
 from eppy.modeleditor import IDF
 
+import numpy as np
+
 import energytool.epluspreprocess as pr
+import energytool.epluspostprocess as po
 from energytool.epluspostprocess import variable_contains_regex
 
 
 class Building:
-    def __init__(self, idf_path, clean_output_variable=True):
+    def __init__(
+            self,
+            idf_path,
+            month_summer_begins=5,
+            month_summer_ends=8,
+            summer_comfort_top=28,
+            clean_output_variable=True):
 
         self.idf = IDF(str(idf_path))
         if clean_output_variable:
             self.idf.idfobjects["Output:Variable"].clear()
             self.idf.idfobjects["Output:Meter"].clear()
 
+        self.month_summer_begins = month_summer_begins
+        self.month_summer_ends = month_summer_ends
+        self.summer_comfort_top = summer_comfort_top
         self.heating_system = {}
         self.cooling_system = {}
         self.ventilation_system = {}
@@ -25,7 +37,6 @@ class Building:
 
         self.energyplus_results = pd.DataFrame()
         self.building_results = pd.DataFrame()
-        self.thermal_comfort = pd.DataFrame()
 
     @staticmethod
     def set_idd(root_eplus):
@@ -84,6 +95,42 @@ class Building:
         return sys_nrj_res
 
     @property
+    def overshoot_thermal_comfort(self):
+        if self.energyplus_results.empty:
+            raise ValueError("No energyplus results available")
+
+        year = self.building_results.index[0].year
+        begin_loc = f"{year}-{self.month_summer_begins}"
+        end_loc = f"{year}-{self.month_summer_ends}"
+
+        zones_top = po.get_output_zone_variable(
+            self.energyplus_results,
+            "Zone Operative Temperature",
+            self.zone_name_list,
+        )
+
+        zones_occupation = po.get_output_zone_variable(
+            self.energyplus_results,
+            "Zone People Occupant Count",
+            self.zone_name_list,
+        )
+
+        zones_top = zones_top.loc[begin_loc:end_loc, :]
+        zones_occupation = zones_occupation.loc[begin_loc:end_loc, :]
+
+        zones_top_hot = zones_top > self.summer_comfort_top
+        zones_is_someone = zones_occupation > 0
+
+        shared_zones = list(set(zones_top_hot) & set(zones_is_someone))
+
+        zone_hot_and_someone = np.logical_and(
+            zones_top_hot[shared_zones],
+            zones_is_someone[shared_zones]
+        )
+
+        return (zone_hot_and_someone.sum() / zones_is_someone.sum()) * 100
+
+    @property
     def zone_name_list(self):
         return pr.get_objects_name_list(self.idf, 'Zone')
 
@@ -130,4 +177,3 @@ class Building:
 
         for sys in self.process_objects_list:
             sys.post_process()
-
