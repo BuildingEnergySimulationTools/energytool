@@ -136,11 +136,13 @@ class Building:
 
     @property
     def surface(self):
-        return sum(z.Floor_Area for z in self.idf.idfobjects['Zone'])
+        return sum(eppy.modeleditor.zonearea(self.idf, z.Name)
+                   for z in self.idf.idfobjects['Zone'])
 
     @property
     def volume(self):
-        return sum(z.Volume for z in self.idf.idfobjects['Zone'])
+        return sum(eppy.modeleditor.zonevolume(self.idf, z.Name)
+                   for z in self.idf.idfobjects['Zone'])
 
     def infos(self):
         nb_occupant = pr.get_number_of_people(self.idf)
