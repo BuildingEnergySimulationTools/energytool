@@ -11,11 +11,15 @@ RESOURCES_PATH = Path(__file__).parent / "resources"
 
 @pytest.fixture()
 def expected_res_df():
-    return pd.read_csv(
+    to_return = pd.read_csv(
         RESOURCES_PATH / "expected_res.csv",
         index_col=0,
-        parse_dates=True
+        parse_dates=True,
     )
+
+    to_return.index.freq = "H"
+
+    return to_return
 
 
 class TestEplusPostProcess:
@@ -31,6 +35,7 @@ class TestEplusPostProcess:
             RESOURCES_PATH / "test_res.csv",
             ref_year=2022
         )
+        res.to_csv(Path(r'C:\Users\bdurandestebe\PycharmProjects\energytool\tests\resources\expected_res2.csv'))
 
         pd.testing.assert_frame_equal(res, expected_res_df)
 

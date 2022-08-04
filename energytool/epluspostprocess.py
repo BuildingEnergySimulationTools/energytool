@@ -42,10 +42,17 @@ def read_eplus_res(file_path, ref_year=None):
               "Empty DataFrame is returned")
         return pd.DataFrame()
 
-    # Careful here, not sure what will happen with leap years
-    if ref_year is not None:
-        results.index = results.index.map(
-            lambda t: t.replace(year=int(ref_year)))
+    if not ref_year:
+        ref_year = dt.datetime.today().year
+
+    timestep = results.index[1] - results.index[0]
+    dt_range = pd.date_range(
+        results.index[0].replace(year=int(ref_year)),
+        periods=results.shape[0],
+        freq=timestep
+    )
+    dt_range.name = 'Date/Time'
+    results.index = dt_range
 
     return results
 
