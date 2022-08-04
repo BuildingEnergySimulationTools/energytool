@@ -109,20 +109,25 @@ class SAnalysis:
     def analyze(self,
                 indicator='Total',
                 aggregation_method=np.sum,
+                custom_indicator=None,
                 arguments=None):
 
         arguments = arguments or {}
 
-        if indicator not in self.available_indicators:
-            raise ValueError('Specified indicator not in computed outputs')
+        if not custom_indicator:
+            if indicator not in self.available_indicators:
+                raise ValueError('Specified indicator not in computed outputs')
 
-        y_array = np.array(
-            [aggregation_method(simu.building.building_results[indicator])
-             if indicator != "Total" else
-             aggregation_method(simu.building.building_results.sum(axis=1))
-             for simu in self.simulation_list
-             ]
-        )
+            y_array = np.array(
+                [aggregation_method(simu.building.building_results[indicator])
+                 if indicator != "Total" else
+                 aggregation_method(simu.building.building_results.sum(axis=1))
+                 for simu in self.simulation_list
+                 ]
+            )
+
+        else:
+            y_array = custom_indicator
 
         analyser = self.method_map[self.sensitivity_method]["method"]
 
