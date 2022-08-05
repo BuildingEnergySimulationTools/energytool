@@ -114,7 +114,7 @@ class SAnalysis:
 
         arguments = arguments or {}
 
-        if not custom_indicator:
+        if custom_indicator is None:
             if indicator not in self.available_indicators:
                 raise ValueError('Specified indicator not in computed outputs')
 
