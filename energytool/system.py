@@ -198,7 +198,7 @@ class DHWIdealExternal:
         )
 
         self.building.building_results[f"{self.name}_Energy"] = (
-            np.ones(nb_entry) * dhw_consumption / nb_entry
+                np.ones(nb_entry) * dhw_consumption / nb_entry
         )
 
 
@@ -339,6 +339,96 @@ class NaturalVentilation:
             self.zones,
             self.occupancy_schedule,
             self.ventilation_kwargs)
+
+    def post_process(self):
+        pass
+
+
+# Dirty class. Not tested
+class OtherEquipment:
+    def __init__(self,
+                 name,
+                 building=None,
+                 zones='*',
+                 design_level_power=None,
+                 schedule_name=None,
+                 add_output_variables=False):
+        self.name = name
+        self.building = building
+        if zones == '*':
+            self.zones = self.building.zone_name_list
+        else:
+            self.zones = tl.format_input_to_list(zones)
+        self.design_level_power = design_level_power
+        self.schedule_name = schedule_name
+        self.add_output_variables = add_output_variables
+        self.resources_idf = pr.get_resources_idf()
+
+    def pre_process(self):
+        existing_equipments = self.building.idf.idfobjects["OtherEquipment"]
+        zone_equipped = [
+            equip.get_referenced_object("Zone_or_ZoneList_Name").Name
+            for equip in existing_equipments
+        ]
+        zone_not_zone_equipped = [zone for zone in self.zones
+                                  if zone not in zone_equipped]
+
+        # Already existing equipments
+        for equip in existing_equipments:
+            if self.schedule_name:
+                # Get schedule in resources file
+                schedule_to_copy = self.resources_idf.getobject(
+                    "Schedule:Compact", self.schedule_name)
+
+                # Copy in building idf if not already present
+                idf_schedules = self.building.idf.idfobjects[
+                    'Schedule:Compact']
+                if schedule_to_copy.Name not in pr.get_objects_name_list(
+                        self.building.idf, 'Schedule:Compact'):
+                    idf_schedules.append(schedule_to_copy)
+
+                equip.Schedule_Name = self.schedule_name
+
+            if self.design_level_power:
+                equip.Design_Level = self.design_level_power
+
+        # New equipments
+        for zone in zone_not_zone_equipped:
+            if not self.schedule_name:
+                tempo_schedule_name = "ON_24h24h_FULL_YEAR"
+            else:
+                tempo_schedule_name = self.schedule_name
+
+            if not self.design_level_power:
+                tempo_design = 0
+            else:
+                tempo_design = self.design_level_power
+
+            # Get schedule in resources file
+            schedule_to_copy = self.resources_idf.getobject(
+                "Schedule:Compact", tempo_schedule_name)
+
+            # Copy in building idf if not already present
+            idf_schedules = self.building.idf.idfobjects['Schedule:Compact']
+            if schedule_to_copy.Name not in pr.get_objects_name_list(
+                    self.building.idf, 'Schedule:Compact'):
+                idf_schedules.append(schedule_to_copy)
+
+            self.building.idf.newidfobject(
+                "OtherEquipment",
+                Name=f'{zone}_equipment',
+                Zone_or_ZoneList_Name=zone,
+                Schedule_Name=tempo_schedule_name,
+                Design_Level_Calculation_Method="EquipmentLevel",
+                Design_Level=tempo_design,
+            )
+
+        if self.add_output_variables:
+            pr.add_output_variable(
+                self.building.idf,
+                key_values=self.zones,
+                variables="Zone Other Equipment Total Heating Energy"
+            )
 
     def post_process(self):
         pass
