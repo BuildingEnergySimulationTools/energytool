@@ -15,7 +15,12 @@ class UncertainParameter:
         self.idf_parameters = idf_parameters
         self.building_parameters = building_parameters
         self.absolute = absolute
-        if idf_parameters is not None:
+        self.idf_nominal_values = None
+        self.building_nominal_values = None
+        self.get_nominal_values()
+
+    def get_nominal_values(self):
+        if self.idf_parameters is not None:
             self.idf_nominal_values = [
                 pr.get_objects_field_values(
                     idf=self.building.idf,
@@ -23,15 +28,15 @@ class UncertainParameter:
                     idf_object_names=element["names"],
                     field_name=element["field"]
                 )
-                for element in idf_parameters
+                for element in self.idf_parameters
             ]
 
-        if building_parameters is not None:
+        if self.building_parameters is not None:
             self.building_nominal_values = [
                 getattr(
-                    getattr(building, element['category'])[element["element_name"]],
+                    getattr(self.building, element['category'])[element["element_name"]],
                     element["key"])
-                for element in building_parameters
+                for element in self.building_parameters
             ]
 
     def set_value(self, value):
