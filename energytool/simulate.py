@@ -89,11 +89,13 @@ class SimulationsRunner:
                  simu_list,
                  run_dir=None,
                  nb_cpus=-1,
-                 nb_simu_per_batch=10):
+                 nb_simu_per_batch=10,
+                 rm_run_dir=True):
 
         self.simu_list = simu_list
         self.nb_simu_per_batch = nb_simu_per_batch
         self.nb_cpus = nb_cpus
+        self.rm_run_dir = rm_run_dir
 
         if run_dir is None:
             run_dir = tempfile.mkdtemp()
@@ -185,8 +187,10 @@ class SimulationsRunner:
 
                 # 3rd Apply system post-processing
                 current_simu.building.post_process()
-        try:
-            shutil.rmtree(self.run_dir, ignore_errors=True)
 
-        except OSError as e:
-            print("Error: %s : %s" % (self.run_dir, e.strerror))
+        if self.rm_run_dir:
+            try:
+                shutil.rmtree(self.run_dir, ignore_errors=True)
+
+            except OSError as e:
+                print("Error: %s : %s" % (self.run_dir, e.strerror))
