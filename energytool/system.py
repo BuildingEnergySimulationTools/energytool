@@ -344,38 +344,30 @@ class NaturalVentilation:
         pass
 
 
-# Dirty class. Not tested
 class OtherEquipment:
     def __init__(self,
                  name,
                  building=None,
                  zones='*',
                  design_level_power=None,
-                 schedule_name=None,
+                 compact_schedule_name=None,
+                 series_schedule=None,
                  add_output_variables=False):
         self.name = name
         self.building = building
+        self.design_level_power = design_level_power
+        self.add_output_variables = add_output_variables
+        self.resources_idf = pr.get_resources_idf()
+
         if zones == '*':
             self.zones = self.building.zone_name_list
         else:
             self.zones = tl.format_input_to_list(zones)
-        self.design_level_power = design_level_power
-        self.schedule_name = schedule_name
-        self.add_output_variables = add_output_variables
-        self.resources_idf = pr.get_resources_idf()
 
-    def pre_process(self):
-        existing_equipments = self.building.idf.idfobjects["OtherEquipment"]
-        zone_equipped = [
-            equip.get_referenced_object("Zone_or_ZoneList_Name").Name
-            for equip in existing_equipments
-        ]
-        zone_not_zone_equipped = [zone for zone in self.zones
-                                  if zone not in zone_equipped]
+        if series_schedule is None:
+            if compact_schedule_name is None:
+                self.schedule_name = "ON_24h24h_FULL_YEAR"
 
-        # Already existing equipments
-        for equip in existing_equipments:
-            if self.schedule_name:
                 # Get schedule in resources file
                 schedule_to_copy = self.resources_idf.getobject(
                     "Schedule:Compact", self.schedule_name)
@@ -387,47 +379,49 @@ class OtherEquipment:
                         self.building.idf, 'Schedule:Compact'):
                     idf_schedules.append(schedule_to_copy)
 
-                equip.Schedule_Name = self.schedule_name
-
-            if self.design_level_power:
-                equip.Design_Level = self.design_level_power
-
-        # New equipments
-        for zone in zone_not_zone_equipped:
-            if not self.schedule_name:
-                tempo_schedule_name = "ON_24h24h_FULL_YEAR"
+            elif not self.building.idf.getobject(
+                    'Schedule:Compact', compact_schedule_name):
+                raise ValueError(f"{compact_schedule_name} not found in"
+                                 f"Schedule:Compact objects")
             else:
-                tempo_schedule_name = self.schedule_name
+                self.schedule_name = compact_schedule_name
+        else:
+            if compact_schedule_name:
+                raise ValueError("Both schedule name and series schedule "
+                                 "can not be specified")
 
-            if not self.design_level_power:
-                tempo_design = 0
-            else:
-                tempo_design = self.design_level_power
+            if not isinstance(series_schedule, pd.Series):
+                raise ValueError("series_schedule must be a Pandas Series")
 
-            # Get schedule in resources file
-            schedule_to_copy = self.resources_idf.getobject(
-                "Schedule:Compact", tempo_schedule_name)
+            pr.del_obj_by_names(
+                self.building.idf, "Schedule:File", series_schedule.name)
 
-            # Copy in building idf if not already present
-            idf_schedules = self.building.idf.idfobjects['Schedule:Compact']
-            if schedule_to_copy.Name not in pr.get_objects_name_list(
-                    self.building.idf, 'Schedule:Compact'):
-                idf_schedules.append(schedule_to_copy)
+            pr.add_hourly_schedules_from_df(
+                idf=building.idf, data=series_schedule)
+            self.schedule_name = series_schedule.name
+
+    def pre_process(self):
+        equipment_name_list = []
+        for zone in self.zones:
+            equipment_name = f'{zone}_{self.name}_equipment'
+            equipment_name_list.append(equipment_name)
+            pr.del_obj_by_names(
+                self.building.idf, "OtherEquipment", equipment_name)
 
             self.building.idf.newidfobject(
                 "OtherEquipment",
-                Name=f'{zone}_equipment',
+                Name=equipment_name,
                 Zone_or_ZoneList_Name=zone,
-                Schedule_Name=tempo_schedule_name,
+                Schedule_Name=self.schedule_name,
                 Design_Level_Calculation_Method="EquipmentLevel",
-                Design_Level=tempo_design,
+                Design_Level=self.design_level_power,
             )
 
         if self.add_output_variables:
             pr.add_output_variable(
                 self.building.idf,
-                key_values=self.zones,
-                variables="Zone Other Equipment Total Heating Energy"
+                key_values=equipment_name_list,
+                variables="Other Equipment Total Heating Energy"
             )
 
     def post_process(self):

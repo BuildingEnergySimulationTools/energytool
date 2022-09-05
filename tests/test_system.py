@@ -1,5 +1,6 @@
 from pathlib import Path
 import numpy as np
+import pandas as pd
 
 import pytest
 
@@ -122,3 +123,50 @@ class TestSystems:
 
         assert "ON_24h24h_FULL_YEAR" in schedules_name_list
         assert design_list == ["ON_24h24h_FULL_YEAR"] * len(design_list)
+
+    def test_other_equipments(self, building):
+        building.other["Other_test"] = sys.OtherEquipment(
+            name="test_other",
+            building=building,
+            zones=['Block1:ApptX1W', 'Block1:ApptX1E'],
+            design_level_power=10,
+            add_output_variables=True
+        )
+
+        building.pre_process()
+        to_test = pr.get_objects_field_values(
+            building.idf, "OtherEquipment", field_name="Design_Level")
+        assert to_test == ['', '', '', '', 10, 10]
+        assert building.idf.getobject("Schedule:Compact", "ON_24h24h_FULL_YEAR")
+
+        building.other["Other_test"] = sys.OtherEquipment(
+            name="test_other",
+            building=building,
+            zones="*",
+            design_level_power=20,
+            compact_schedule_name="On",
+            add_output_variables=True
+        )
+
+        building.pre_process()
+        to_test = pr.get_objects_field_values(
+            building.idf, "OtherEquipment", field_name="Design_Level")
+        assert to_test == ['', '', '', '', 20, 20, 20, 20]
+
+        df_sched = pd.Series(
+            name="test_df",
+            data=np.array([1] * 8760),
+            index=pd.date_range("01-01-2022", periods=8760, freq="H")
+        )
+
+        building.other["Other_test"] = sys.OtherEquipment(
+            name="test_other",
+            building=building,
+            zones="*",
+            design_level_power=20,
+            series_schedule=df_sched,
+            add_output_variables=True
+        )
+
+        building.pre_process()
+        assert building.idf.getobject("Schedule:File", "test_df")
