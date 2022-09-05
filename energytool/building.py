@@ -37,6 +37,7 @@ class Building:
 
         self.energyplus_results = pd.DataFrame()
         self.building_results = pd.DataFrame()
+        self.custom_results = pd.DataFrame()
 
     @staticmethod
     def set_idd(root_eplus):
