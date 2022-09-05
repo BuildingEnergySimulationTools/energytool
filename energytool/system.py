@@ -349,11 +349,13 @@ class OtherEquipment:
                  name,
                  building=None,
                  zones='*',
+                 cop=1,
                  design_level_power=None,
                  compact_schedule_name=None,
                  series_schedule=None,
                  add_output_variables=False):
         self.name = name
+        self.cop = cop
         self.building = building
         self.design_level_power = design_level_power
         self.add_output_variables = add_output_variables
@@ -414,7 +416,7 @@ class OtherEquipment:
                 Zone_or_ZoneList_Name=zone,
                 Schedule_Name=self.schedule_name,
                 Design_Level_Calculation_Method="EquipmentLevel",
-                Design_Level=self.design_level_power,
+                Design_Level=self.design_level_power * self.cop,
             )
 
         if self.add_output_variables:
