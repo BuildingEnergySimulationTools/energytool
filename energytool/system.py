@@ -1,3 +1,4 @@
+import eppy.modeleditor
 import numpy as np
 import pandas as pd
 
@@ -349,6 +350,7 @@ class OtherEquipment:
                  name,
                  building=None,
                  zones='*',
+                 distribute_load=False,
                  cop=1,
                  design_level_power=None,
                  compact_schedule_name=None,
@@ -360,6 +362,7 @@ class OtherEquipment:
         self.design_level_power = design_level_power
         self.add_output_variables = add_output_variables
         self.resources_idf = pr.get_resources_idf()
+        self.distribute_load = distribute_load
 
         if zones == '*':
             self.zones = self.building.zone_name_list
@@ -404,7 +407,15 @@ class OtherEquipment:
 
     def pre_process(self):
         equipment_name_list = []
-        for zone in self.zones:
+        if self.distribute_load:
+            surf_arr = np.array([
+                eppy.modeleditor.zonearea(self.building.idf, z)
+                for z in self.zones])
+            surf_ratio = surf_arr / np.sum(surf_arr)
+        else:
+            surf_ratio = np.array([1] * len(self.zones))
+
+        for i, zone in enumerate(self.zones):
             equipment_name = f'{zone}_{self.name}_equipment'
             equipment_name_list.append(equipment_name)
             pr.del_obj_by_names(
@@ -416,7 +427,7 @@ class OtherEquipment:
                 Zone_or_ZoneList_Name=zone,
                 Schedule_Name=self.schedule_name,
                 Design_Level_Calculation_Method="EquipmentLevel",
-                Design_Level=self.design_level_power * self.cop,
+                Design_Level=surf_ratio[i] * self.design_level_power * self.cop,
             )
 
         if self.add_output_variables:

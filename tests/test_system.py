@@ -174,3 +174,21 @@ class TestSystems:
             building.idf, "OtherEquipment", field_name="Design_Level")
         assert to_test == ['', '', '', '', 40, 40, 40, 40]
         assert building.idf.getobject("Schedule:File", "test_df")
+
+        building.other["Other_test"] = sys.OtherEquipment(
+            name="test_other",
+            building=building,
+            zones="*",
+            cop=2,
+            design_level_power=20,
+            distribute_load=True,
+            series_schedule=df_sched,
+            add_output_variables=True
+        )
+
+        building.pre_process()
+        to_test = pr.get_objects_field_values(
+            building.idf, "OtherEquipment", field_name="Design_Level")
+        assert to_test == ['', '', '', '',  9.999999999999996,
+                           10.000000000000002, 10.000000000000002, 10.0]
+        assert building.idf.getobject("Schedule:File", "test_df")
