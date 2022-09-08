@@ -353,6 +353,7 @@ class OtherEquipment:
                  distribute_load=False,
                  cop=1,
                  design_level_power=None,
+                 fraction_radiant=0.2,
                  compact_schedule_name=None,
                  series_schedule=None,
                  add_output_variables=False):
@@ -363,6 +364,7 @@ class OtherEquipment:
         self.add_output_variables = add_output_variables
         self.resources_idf = pr.get_resources_idf()
         self.distribute_load = distribute_load
+        self.fraction_radiant = fraction_radiant
 
         if zones == '*':
             self.zones = self.building.zone_name_list
@@ -405,6 +407,8 @@ class OtherEquipment:
                 idf=building.idf, data=series_schedule)
             self.schedule_name = series_schedule.name
 
+        self.pre_process()
+
     def pre_process(self):
         equipment_name_list = []
         if self.distribute_load:
@@ -428,6 +432,7 @@ class OtherEquipment:
                 Schedule_Name=self.schedule_name,
                 Design_Level_Calculation_Method="EquipmentLevel",
                 Design_Level=surf_ratio[i] * self.design_level_power * self.cop,
+                Fraction_Radiant=self.fraction_radiant
             )
 
         if self.add_output_variables:
