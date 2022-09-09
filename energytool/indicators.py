@@ -7,10 +7,10 @@ class AddOutputVariables:
                  name,
                  building,
                  variables,
-                 zones='*'):
+                 key_value='*'):
         self.name = name
         self.building = building
-        self.zones = zones
+        self.key_value = key_value
         self.variables = variables
 
     def pre_process(self):
@@ -18,7 +18,7 @@ class AddOutputVariables:
         for var in vars_to_add:
             pr.add_output_variable(
                 idf=self.building.idf,
-                key_values=self.zones,
+                key_values=self.key_value,
                 variables=var
             )
 
