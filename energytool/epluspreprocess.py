@@ -282,7 +282,7 @@ def add_hourly_schedules_from_df(
     eplus_ref = ["Dimensionless", "Temperature", "DeltaTemperature",
                  "PrecipitationRate", "Angle", "Convection" "Coefficient",
                  "Activity" "Level", "Velocity", "Capacity", "Power",
-                 "Availability", "Percent", "Control", "Mode"
+                 "Availability", "Percent", "Control", "Mode","Fraction"
                  ]
 
     schedule_type_list = tl.format_input_to_list(schedule_type)
