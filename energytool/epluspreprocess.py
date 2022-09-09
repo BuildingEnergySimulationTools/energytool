@@ -383,3 +383,54 @@ def add_natural_ventilation(
             Design_Flow_Rate=ach,
             **kwargs
         )
+
+def add_natural_ventilation(
+        idf,
+        ach,
+        zones="*",
+        occupancy_schedule=True,
+        kwargs=None):
+
+    if kwargs is None:
+        kwargs = {"Minimum_Indoor_Temperature": 22,
+                  "Delta_Temperature": 0}
+    if zones == "*":
+        z_list = get_objects_name_list(idf, "Zone")
+    else:
+        z_list = tl.format_input_to_list(zones)
+
+    if occupancy_schedule:
+        zone_sched_dict = {}
+        for ppl in idf.idfobjects["People"]:
+            z_name = ppl.get_referenced_object("Zone_or_ZoneList_Name").Name
+            if z_name in z_list:
+                zone_sched_dict[z_name] = ppl.Number_of_People_Schedule_Name
+    else:
+        if not idf.getobject("Schedule:Compact", "On 24/7"):
+            idf.newidfobject(
+                key='Schedule:Compact',
+                Name='On 24/7',
+                Schedule_Type_Limits_Name='Any Number',
+                Field_1='Through: 12/31',
+                Field_2='For: AllDays',
+                Field_3='Until: 24:00',
+                Field_4=1
+            )
+        zone_sched_dict = {z_name: 'On 24/7' for z_name in z_list}
+
+    for z_name in zone_sched_dict.keys():
+        vnat = idf.getobject(
+            "ZoneVentilation:DesignFlowrate", f"Natvent_{z_name}")
+
+        if vnat:
+            idf.idfobjects["ZoneVentilation:DesignFlowrate"].remove(vnat)
+
+        idf.newidfobject(
+            "ZoneVentilation:DesignFlowrate",
+            Name=f"Natvent_{z_name}",
+            Zone_or_ZoneList_Name=z_name,
+            Schedule_Name=zone_sched_dict[z_name],
+            Design_Flow_Rate_Calculation_Method="AirChanges/Hour",
+            Design_Flow_Rate=ach,
+            **kwargs
+        )
