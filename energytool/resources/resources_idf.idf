@@ -92,3 +92,399 @@ WINDOWSHADINGCONTROL,
     ,                         !- Setpoint 2
     ,                         !- Daylighting Control Object Name
     Group;                    !- Multiple Surface Control Type
+
+
+!- profile attribution ======================================
+
+!- ============ profile 1 - Standard profile ================
+!- Couple Worker
+
+SCHEDULE:COMPACT,
+    Occupancy_Schedule_day_profile_1,    !- Name
+    Fraction,                 !- Schedule Type Limits Name
+    Through: 31 Dec,          !- Field 1
+    For: Weekdays SummerDesignDay,    !- Field 2
+    Until: 16:00,             !- Field 3
+    0,                        !- Field 4
+    Until: 18:00,             !- Field 5
+    0.5,                      !- Field 6
+    Until: 22:00,             !- Field 7
+    1,                        !- Field 8
+    Until: 23:00,             !- Field 9
+    0.66667,                  !- Field 10
+    Until: 24:00,             !- Field 11
+    0,                        !- Field 12
+    For: Weekends,            !- Field 13
+    Until: 16:00,             !- Field 14
+    0,                        !- Field 15
+    Until: 18:00,             !- Field 16
+    0.5,                      !- Field 17
+    Until: 22:00,             !- Field 18
+    1,                        !- Field 19
+    Until: 23:00,             !- Field 20
+    0.66667,                  !- Field 21
+    Until: 24:00,             !- Field 22
+    0,                        !- Field 23
+    For: Holidays,            !- Field 24
+    Until: 16:00,             !- Field 25
+    0,                        !- Field 26
+    Until: 18:00,             !- Field 27
+    0.5,                      !- Field 28
+    Until: 22:00,             !- Field 29
+    1,                        !- Field 30
+    Until: 23:00,             !- Field 31
+    0.66667,                  !- Field 32
+    Until: 24:00,             !- Field 33
+    0,                        !- Field 34
+    For: WinterDesignDay AllOtherDays,    !- Field 35
+    Until: 24:00,             !- Field 36
+    0;                        !- Field 37
+
+SCHEDULE:COMPACT,
+    Occupancy_Schedule_night_profile_1,    !- Name
+    Fraction,                 !- Schedule Type Limits Name
+    Through: 31 Dec,          !- Field 1
+    For: Weekdays SummerDesignDay,    !- Field 2
+    Until: 07:00,             !- Field 3
+    1,                        !- Field 4
+    Until: 08:00,             !- Field 5
+    0.5,                      !- Field 6
+    Until: 09:00,             !- Field 7
+    0.25,                     !- Field 8
+    Until: 22:00,             !- Field 9
+    0,                        !- Field 10
+    Until: 23:00,             !- Field 11
+    0.25,                     !- Field 12
+    Until: 24:00,             !- Field 13
+    0.75,                     !- Field 14
+    For: Weekends,            !- Field 15
+    Until: 07:00,             !- Field 16
+    1,                        !- Field 17
+    Until: 08:00,             !- Field 18
+    0.5,                      !- Field 19
+    Until: 09:00,             !- Field 20
+    0.25,                     !- Field 21
+    Until: 22:00,             !- Field 22
+    0,                        !- Field 23
+    Until: 23:00,             !- Field 24
+    0.25,                     !- Field 25
+    Until: 24:00,             !- Field 26
+    0.75,                     !- Field 27
+    For: Holidays,            !- Field 28
+    Until: 07:00,             !- Field 29
+    1,                        !- Field 30
+    Until: 08:00,             !- Field 31
+    0.5,                      !- Field 32
+    Until: 09:00,             !- Field 33
+    0.25,                     !- Field 34
+    Until: 22:00,             !- Field 35
+    0,                        !- Field 36
+    Until: 23:00,             !- Field 37
+    0.25,                     !- Field 38
+    Until: 24:00,             !- Field 39
+    0.75,                     !- Field 40
+    For: WinterDesignDay AllOtherDays,    !- Field 41
+    Until: 24:00,             !- Field 42
+    0;                        !- Field 43
+
+!- ============ profile 2 - Retirees profile ================
+!- Retirees 
+
+SCHEDULE:COMPACT,
+    Occupancy_Schedule_day_profile_2,    !- Name
+    Fraction,                 !- Schedule Type Limits Name
+    Through: 31 Dec,          !- Field 1
+    For: Weekdays SummerDesignDay,    !- Field 2
+    Until: 11:00,             !- Field 3
+    0,                        !- Field 4
+    Until: 12:00,             !- Field 5
+    0.5,                      !- Field 6
+    Until: 14:00,             !- Field 7
+    1,                        !- Field 8
+    Until: 15:00,             !- Field 9
+    0.5,                      !- Field 10
+    Until: 19:00,             !- Field 11
+    0,                        !- Field 12
+    Until: 21:00,             !- Field 13
+    1,                        !- Field 14
+    Until: 24:00,             !- Field 15
+    0,                        !- Field 16
+    For: Weekends,            !- Field 13
+    Until: 11:00,             !- Field 14
+    0,                        !- Field 15
+    Until: 12:00,             !- Field 16
+    0.5,                      !- Field 17
+    Until: 14:00,             !- Field 18
+    1,                        !- Field 19
+    Until: 15:00,             !- Field 20
+    0.5,                      !- Field 21
+    Until: 19:00,             !- Field 22
+    0,                        !- Field 23
+    Until: 21:00,             !- Field 24
+    1,                        !- Field 25
+    Until: 24:00,             !- Field 26
+    0,                        !- Field 27
+    For: Holidays,            !- Field 28
+    Until: 11:00,             !- Field 29
+    0,                        !- Field 30
+    Until: 12:00,             !- Field 31
+    0.5,                      !- Field 32
+    Until: 14:00,             !- Field 33
+    1,                        !- Field 34
+    Until: 15:00,             !- Field 35
+    0.5,                      !- Field 36
+    Until: 19:00,             !- Field 37
+    0,                        !- Field 38
+    Until: 21:00,             !- Field 39
+    1,                        !- Field 40
+    Until: 24:00,             !- Field 41
+    0, 			      !- Field 42
+    For: WinterDesignDay AllOtherDays,    !- Field 43
+    Until: 24:00,             !- Field 44
+    0;                        !- Field 45
+
+SCHEDULE:COMPACT,
+    Occupancy_Schedule_night_profile_2,    !- Name
+    Fraction,                 !- Schedule Type Limits Name
+    Through: 31 Dec,          !- Field 1
+    For: Weekdays SummerDesignDay,    !- Field 2
+    Until: 07:00,             !- Field 3
+    1,                        !- Field 4
+    Until: 08:00,             !- Field 5
+    0.5,                      !- Field 6
+    Until: 09:00,             !- Field 7
+    0,                        !- Field 8
+    Until: 22:00,             !- Field 9
+    0,                        !- Field 10
+    Until: 23:00,             !- Field 11
+    1,                        !- Field 12
+    Until: 24:00,             !- Field 13
+    1,                        !- Field 14
+    For: Weekends,            !- Field 15
+    Until: 07:00,             !- Field 16
+    1,                        !- Field 17
+    Until: 08:00,             !- Field 18
+    0.5,                      !- Field 19
+    Until: 09:00,             !- Field 20
+    0,                        !- Field 21
+    Until: 22:00,             !- Field 22
+    0,                        !- Field 23
+    Until: 23:00,             !- Field 24
+    1,                        !- Field 25
+    Until: 24:00,             !- Field 26
+    1,                        !- Field 27
+    For: Holidays,            !- Field 28
+    Until: 07:00,             !- Field 29
+    1,                        !- Field 30
+    Until: 08:00,             !- Field 31
+    0.5,                      !- Field 32
+    Until: 09:00,             !- Field 33
+    0,                        !- Field 34
+    Until: 22:00,             !- Field 35
+    0,                        !- Field 36
+    Until: 23:00,             !- Field 37
+    1,                        !- Field 38
+    Until: 24:00,             !- Field 39
+    1,                        !- Field 40
+    For: WinterDesignDay AllOtherDays,    !- Field 41
+    Until: 24:00,             !- Field 42
+    0;                        !- Field 43
+
+!- ============ profile 3 - Family profile ================
+!- Family 1 child
+
+SCHEDULE:COMPACT,
+    Occupancy_Schedule_day_profile_3,    !- Name
+    Fraction,                 !- Schedule Type Limits Name
+    Through: 31 Dec,          !- Field 1
+    For: Weekdays SummerDesignDay,    !- Field 2
+    Until: 11:00,             !- Field 3
+    0,                        !- Field 4
+    Until: 12:00,             !- Field 5
+    0,                        !- Field 6
+    Until: 16:00,             !- Field 7
+    0,                        !- Field 8
+    Until: 19:00,             !- Field 9
+    0.666,                    !- Field 10
+    Until: 21:00,             !- Field 11
+    1,                        !- Field 12
+    Until: 23:00,             !- Field 13
+    0.666,                    !- Field 14
+    Until: 24:00,             !- Field 15
+    0,                        !- Field 16
+    For: Weekends,            !- Field 13
+    Until: 11:00,             !- Field 14
+    0,                        !- Field 15
+    Until: 12:00,             !- Field 16
+    0,                        !- Field 17
+    Until: 16:00,             !- Field 18
+    0,                        !- Field 19
+    Until: 19:00,             !- Field 20
+    0.666,                    !- Field 21
+    Until: 21:00,             !- Field 22
+    0,                        !- Field 23
+    Until: 23:00,             !- Field 24
+    0.666,                    !- Field 25
+    Until: 24:00,             !- Field 26
+    0,                        !- Field 27
+    For: Holidays,            !- Field 28
+    Until: 11:00,             !- Field 29
+    0,                        !- Field 30
+    Until: 12:00,             !- Field 31
+    0,                        !- Field 32
+    Until: 16:00,             !- Field 33
+    0,                        !- Field 34
+    Until: 19:00,             !- Field 35
+    0.666,                    !- Field 36
+    Until: 21:00,             !- Field 37
+    0,                        !- Field 38
+    Until: 23:00,             !- Field 39
+    0.666,                    !- Field 40
+    Until: 24:00,             !- Field 41
+    0,                        !- Field 42
+    For: WinterDesignDay AllOtherDays,    !- Field 43
+    Until: 24:00,             !- Field 44
+    0;                        !- Field 45
+
+SCHEDULE:COMPACT,
+    Occupancy_Schedule_night_profile_3,    !- Name
+    Fraction,                 !- Schedule Type Limits Name
+    Through: 31 Dec,          !- Field 1
+    For: Weekdays SummerDesignDay,    !- Field 2
+    Until: 07:00,             !- Field 3
+    1,                        !- Field 4
+    Until: 08:00,             !- Field 5
+    0.333,                    !- Field 6
+    Until: 20:00,             !- Field 7
+    0,                        !- Field 8
+    Until: 21:00,             !- Field 9
+    0,                        !- Field 10
+    Until: 23:00,             !- Field 11
+    0.333,                    !- Field 12
+    Until: 24:00,             !- Field 13
+    1,                        !- Field 14
+    For: Weekends,            !- Field 15
+    Until: 07:00,             !- Field 16
+    1,                        !- Field 17
+    Until: 08:00,             !- Field 18
+    0.333,                    !- Field 19
+    Until: 20:00,             !- Field 20
+    0,                        !- Field 21
+    Until: 21:00,             !- Field 22
+    0,                        !- Field 23
+    Until: 23:00,             !- Field 24
+    0.333,                    !- Field 25
+    Until: 24:00,             !- Field 26
+    1,                        !- Field 27
+    For: Holidays,            !- Field 28
+    Until: 07:00,             !- Field 29
+    1,                        !- Field 30
+    Until: 08:00,             !- Field 31
+    0.333,                    !- Field 32
+    Until: 20:00,             !- Field 33
+    0,                        !- Field 34
+    Until: 21:00,             !- Field 35
+    0,                        !- Field 36
+    Until: 23:00,             !- Field 37
+    0.333,                    !- Field 38
+    Until: 24:00,             !- Field 39
+    1,                        !- Field 40
+    For: WinterDesignDay AllOtherDays,    !- Field 41
+    Until: 24:00,             !- Field 42
+    0;                        !- Field 43
+
+!- ============ profile 4 - Solo Worker ================
+!- Solo Worker
+
+SCHEDULE:COMPACT,
+    Occupancy_Schedule_day_profile_4,    !- Name
+    Fraction,                 !- Schedule Type Limits Name
+    Through: 31 Dec,          !- Field 1
+    For: Weekdays SummerDesignDay,    !- Field 2
+    Until: 16:00,             !- Field 3
+    0,                        !- Field 4
+    Until: 18:00,             !- Field 5
+    1,                        !- Field 6
+    Until: 22:00,             !- Field 7
+    1,                        !- Field 8
+    Until: 23:00,             !- Field 9
+    1,                        !- Field 10
+    Until: 24:00,             !- Field 11
+    0,                        !- Field 12
+    For: Weekends,            !- Field 13
+    Until: 16:00,             !- Field 14
+    0,                        !- Field 15
+    Until: 18:00,             !- Field 16
+    1,                        !- Field 17
+    Until: 22:00,             !- Field 18
+    1,                        !- Field 19
+    Until: 23:00,             !- Field 20
+    1,                        !- Field 21
+    Until: 24:00,             !- Field 22
+    0,                        !- Field 23
+    For: Holidays,            !- Field 24
+    Until: 16:00,             !- Field 25
+    0,                        !- Field 26
+    Until: 18:00,             !- Field 27
+    1,                        !- Field 28
+    Until: 22:00,             !- Field 29
+    1,                        !- Field 30
+    Until: 23:00,             !- Field 31
+    1,                        !- Field 32
+    Until: 24:00,             !- Field 33
+    0,                        !- Field 34
+    For: WinterDesignDay AllOtherDays,    !- Field 35
+    Until: 24:00,             !- Field 36
+    0;                        !- Field 37
+
+SCHEDULE:COMPACT,
+    Occupancy_Schedule_night_profile_4,    !- Name
+    Fraction,                 !- Schedule Type Limits Name
+    Through: 31 Dec,          !- Field 1
+    For: Weekdays SummerDesignDay,    !- Field 2
+    Until: 07:00,             !- Field 3
+    1,                        !- Field 4
+    Until: 08:00,             !- Field 5
+    1,                        !- Field 6
+    Until: 09:00,             !- Field 7
+    0,                        !- Field 8
+    Until: 22:00,             !- Field 9
+    0,                        !- Field 10
+    Until: 23:00,             !- Field 11
+    0,                        !- Field 12
+    Until: 24:00,             !- Field 13
+    1,                        !- Field 14
+    For: Weekends,            !- Field 15
+    Until: 07:00,             !- Field 16
+    1,                        !- Field 17
+    Until: 08:00,             !- Field 18
+    1,                        !- Field 19
+    Until: 09:00,             !- Field 20
+    0,                        !- Field 21
+    Until: 22:00,             !- Field 22
+    0,                        !- Field 23
+    Until: 23:00,             !- Field 24
+    0,                        !- Field 25
+    Until: 24:00,             !- Field 26
+    1,                        !- Field 27
+    For: Holidays,            !- Field 28
+    Until: 07:00,             !- Field 29
+    1,                        !- Field 30
+    Until: 08:00,             !- Field 31
+    1,                        !- Field 32
+    Until: 09:00,             !- Field 33
+    0,                        !- Field 34
+    Until: 22:00,             !- Field 35
+    0,                        !- Field 36
+    Until: 23:00,             !- Field 37
+    0,                        !- Field 38
+    Until: 24:00,             !- Field 39
+    1,                        !- Field 40
+    For: WinterDesignDay AllOtherDays,    !- Field 41
+    Until: 24:00,             !- Field 42
+    0;                        !- Field 43
+
+
+
+
+
