@@ -25,7 +25,8 @@ Created on Mon Jul 25 17:08:27 2022
 
 import energytool.tools as tl
 import energytool.epluspreprocess as pr
-import class_modifier as cm
+import energytool.behaviourmodifier as cm
+
 
         
 class People:
