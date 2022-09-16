@@ -129,7 +129,7 @@ class Building_spliter:
                                                     "Schedule:Compact",
                                                     self.schedule_name_day
                                                           )
-            print(schedule_to_copy_day)
+            
             if schedule_to_copy_day[0].Name not in pr.get_objects_name_list(
                                                             self.building.idf,
                                                             'Schedule:Compact'
