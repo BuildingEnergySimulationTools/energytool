@@ -16,7 +16,6 @@ Created on Mon Jul 25 17:08:27 2022
 # verifier ques les autres apports interne ont les memes claendriers, pour l'instant pas de modif du schedule
 # reste à faire : DWH 
 # modifier apport interne + complexe 
-# pb dans la multi simulation --> à la main ok, mais pb qd c'est fait automatiquement 
 # toujours ajouter la condition de verif de calendrier redondant 
 #   Ventil utilise la méthode set object 
 
