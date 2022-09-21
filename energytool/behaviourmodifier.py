@@ -28,13 +28,15 @@ class Thermostat:
         
     def schedule_generation(self):
         
-        h_st_schedule_name = f"{self.housing[0]} {self.housing[2]} vituouse rate {self.virtuous_rate} heatpoint schedule" # /!\ à voir s'il ne faut pas faire 2 calendriers différents : 1 par pièce de l'appartement
+        h_st_schedule_name = f"{self.housing[0]} {self.housing[2]}"\
+                    f" vituouse rate {self.virtuous_rate} heatpoint schedule" 
         h_st_new_schedule = tl.Scheduler(
                                         name=h_st_schedule_name,
                                         year=self.year
                                         )
         
-        c_st_schedule_name = f"{self.housing[0]} {self.housing[2]} vituouse rate {self.virtuous_rate} cooltpoint schedule" # /!\ à voir s'il ne faut pas faire 2 calendriers différents : 1 par pièce de l'appartement
+        c_st_schedule_name = f"{self.housing[0]} {self.housing[2]}"\
+                    f" vituouse rate {self.virtuous_rate} cooltpoint schedule" 
         c_st_new_schedule = tl.Scheduler(
                                         name=c_st_schedule_name,
                                         year=self.year
@@ -725,6 +727,94 @@ class VentilationModifier:
         
         obj1_zone[0].Ventilation_Control_Zone_Temperature_Setpoint_Schedule_Name = name
         obj2_zone[0].Ventilation_Control_Zone_Temperature_Setpoint_Schedule_Name = name
+        
+    def post_process(self):
+        pass        
+
+#%% MechanicalVentilationModifier
+class MechanicalVentilationModifier:
+    
+    def __init__(self,
+                  building,
+                  housing,
+                  opening_window,
+                  year):
+        
+        self.building = building
+        self.idf = building.idf
+        self.housing = housing
+        self.virtuous_rate = housing[3]
+        self.domotic = housing[4]
+        self.opening_window = opening_window
+        self.year = year
                 
+    def pre_process(self):
+        
+
+        obj_name_arg_1 = tl.select_by_strings(
+            items_list=pr.get_objects_name_list(
+                                        self.idf,
+                                        "DesignSpecification:OutdoorAir"
+                                                ),
+            select_by=self.housing[0]
+                                                )
+
+        obj_name_arg_2 = tl.select_by_strings(
+            items_list=pr.get_objects_name_list(
+                                        self.idf,
+                                        "DesignSpecification:OutdoorAir"
+                                                ),
+            select_by=self.housing[1]
+                                                )
+
+        pr.set_objects_field_values(
+                    idf=self.idf,
+                    idf_object="DesignSpecification:OutdoorAir",
+                    idf_object_names=obj_name_arg_1,
+                    field_name="Outdoor_Air_Method",
+                    values="Sum"
+                                    )
+        
+        pr.set_objects_field_values(
+                    idf=self.idf,
+                    idf_object="DesignSpecification:OutdoorAir",
+                    idf_object_names=obj_name_arg_2,
+                    field_name="Outdoor_Air_Method",
+                    values="Sum"
+                                    )
+        
+        pr.set_objects_field_values(
+                    idf=self.idf,
+                    idf_object="DesignSpecification:OutdoorAir",
+                    idf_object_names=obj_name_arg_1,
+                    field_name="Outdoor_Airflow_per_person",
+                    values=0.00416
+                                    )
+        
+        pr.set_objects_field_values(
+                    idf=self.idf,
+                    idf_object="DesignSpecification:OutdoorAir",
+                    idf_object_names=obj_name_arg_2,
+                    field_name="Outdoor_Airflow_per_Person",
+                    values=0.00416
+                                    )
+        
+        pr.set_objects_field_values(
+                    idf=self.idf,
+                    idf_object="DesignSpecification:OutdoorAir",
+                    idf_object_names=obj_name_arg_1,
+                    field_name="Outdoor_Airflow_per_Zone_Floor_Area",
+                    values=0.0007
+                                    )
+        
+        pr.set_objects_field_values(
+                    idf=self.idf,
+                    idf_object="DesignSpecification:OutdoorAir",
+                    idf_object_names=obj_name_arg_2,
+                    field_name="Outdoor_Airflow_per_Zone_Floor_Area",
+                    values=0.0007
+                                    )
+
     def post_process(self):
         pass
+    
