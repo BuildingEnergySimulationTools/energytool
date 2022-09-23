@@ -16,6 +16,7 @@ from copy import deepcopy
 import pandas as pd
 import numpy as np
 import matplotlib.pyplot as plt
+import seaborn as sns
 
 import energytool.buildingspliter as bs
 import energytool.people as cp
@@ -109,6 +110,27 @@ class Settlement:
 
         self.simulation_runner.run()
         
+    def combination_catalog(self):
+        dict_temp = {
+                    "profile":[],
+                    "virtuosity":[],
+                    "domotic":[]
+                    }
+        multi_ind = [[],[]]
+         
+        for i in self.house_compo.keys():
+            for j in self.house_compo[i]:
+                multi_ind[0].append(i)
+                multi_ind[1].append(j.split()[1])
+                dict_temp["profile"].append(j.split()[2])
+                dict_temp["virtuosity"].append(j.split()[5])
+                dict_temp["domotic"].append(j.split()[7])
+                
+        self.catalog = pd.DataFrame(
+                                    dict_temp, 
+                                    index=multi_ind
+                                    )
+    
     def data_profiler(self,
                       zone="*"): #data = runner.simu_list
         
@@ -140,10 +162,11 @@ class Settlement:
                         list(i.split())[0].replace(":Zone", "", 1) 
                         for i in self.an_result.index
                       ]
-        print(list_indicator)
+        
+        
         for i in self.dict_indicator.values():
             
-            temp_mask =  self.an_result["indicator"] == i#"heating consumption [kWh]"
+            temp_mask =  self.an_result["indicator"] == i
             new_df = self.an_result[temp_mask].sum(axis = 0)
             new_df["indicator"] = i
             new_df = pd.DataFrame(new_df).transpose()
@@ -154,9 +177,39 @@ class Settlement:
     def histogramme(self,
                     indicator,
                     zone):
+        
         mask1 = self.an_result["indicator"] == indicator
         mask2 = self.an_result.index == zone
         mask = np.logical_and(mask1,mask2)
         value = self.an_result[mask].drop("indicator",axis=1).transpose()
-        list_value = value[zone].tolist()
-        plt.hist(list_value,density=True)
+        gfg = sns.histplot(data=value,
+            stat='frequency',
+            kde=True,
+            binwidth=0.5)
+
+        gfg.set(xlabel="heating consumption [kWh]")
+        gfg.plot()
+        
+    def bar_analysis(self,
+                     indicator,
+                     zone):
+ 
+        mask1 = self.an_result["indicator"] == indicator
+        mask2 = self.an_result.index == zone.upper()
+        mask = np.logical_and(mask1,mask2)
+        value = self.an_result[mask].drop("indicator",axis=1).transpose()
+        value["combination"] = [
+                    " ".join(self.catalog.loc[i,zone]) 
+                    for i in value.index
+                                ]
+        value=value.reset_index(drop=True)
+        value.set_index("combination", 
+                        inplace = True)
+        
+        value = value.sort_values(by=[zone.upper()])
+        gfg = value.plot(kind='bar',
+                         color="#8EBAD9")
+        gfg.set(ylabel=indicator)
+        gfg.plot()
+
+    
