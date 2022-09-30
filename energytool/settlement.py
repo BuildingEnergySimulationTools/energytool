@@ -92,7 +92,14 @@ class Settlement:
                 building=building_tempo,
                 variables="Zone Ideal Loads Supply Air Total Heating Energy",
                 key_value='*'
-                                                    )   
+                                                    )
+            
+            building_tempo.other["sun_test"] = ind.AddOutputVariables(
+                    name="sun",
+                    building=building_tempo,
+                    variables="Zone Windows Total Transmitted Solar Radiation Energy",
+                    key_value='*'
+                                                        )
             
             self.simulation_list.append(Simulation(
                                             building=building_tempo,
@@ -134,25 +141,61 @@ class Settlement:
     def data_profiler(self,
                       zone="*"): #data = runner.simu_list
         
-        result_list = [i.building.energyplus_results.sum() for
-                       i in self.simulation_runner.simu_list
-                       ]
+        unwant_info = [
+                "Electricity:Facility [J](Hourly)",
+                 "DistrictCooling:Facility [J](Hourly)",
+                 "DistrictHeating:Facility [J](Hourly)",
+                 "Carbon Equivalent:Facility [kg](Hourly)",
+                 "Electricity:Facility [J](Daily)",
+                 "DistrictCooling:Facility [J](Daily)",
+                 "DistrictHeating:Facility [J](Daily)",
+                 "Carbon Equivalent:Facility [kg](Daily) "
+                     ]
+# =============================================================================        
+#    creation of a dataframe with the results for each zone and each iteration
+# =============================================================================
+        time_list = [deepcopy(i.building.energyplus_results) 
+                                 for i in self.simulation_runner.simu_list]
         
+        [i.drop(unwant_info,
+                1,
+                inplace = True)
+                for i in time_list]
+        
+        for j in time_list:
+            a=[]
+            a = [
+                i.replace(k,self.dict_indicator[k],1).replace(":Zone", "", 1)
+                for i in j.columns
+                for k in (
+                    n
+                    for n in set(self.dict_indicator.keys())
+                    if n in i
+                          )
+                ]
+
+            j.columns = a
+        
+        self.time_result =  pd.concat(time_list,
+                            axis=1,
+                            keys=list(self.house_compo.keys())
+                            ) /1000  / 3600
+        
+# =============================================================================        
+#    creation of a dataframe with the annual results
+# =============================================================================
+         
+        annual_list = [i.building.energyplus_results.sum() for
+                       i in self.simulation_runner.simu_list
+                       ]                      
         # Convertion to DataFrame and convertoin in kWh
-        self.an_result = pd.concat(result_list, axis=1) / 1000 / 3600
+        self.an_result = pd.concat(annual_list, axis=1) / 1000 / 3600
         self.an_result.columns=list(self.house_compo.keys())
         
         # Suppression 
-        self.an_result.drop(["Electricity:Facility [J](Hourly)",
-                     "DistrictCooling:Facility [J](Hourly)",
-                     "DistrictHeating:Facility [J](Hourly)",
-                     "Carbon Equivalent:Facility [kg](Hourly)",
-                     "Electricity:Facility [J](Daily)",
-                     "DistrictCooling:Facility [J](Daily)",
-                     "DistrictHeating:Facility [J](Daily)",
-                     "Carbon Equivalent:Facility [kg](Daily) "],
-                      0,
-                      inplace = True)
+        self.an_result.drop(unwant_info,
+                            0,
+                            inplace = True)
         
         # creation of a column containing indicators
         list_indicator = [self.dict_indicator[" ".join(i.split()[1:])] 
@@ -211,5 +254,28 @@ class Settlement:
                          color="#8EBAD9")
         gfg.set(ylabel=indicator)
         gfg.plot()
+        
+    def time_analysis(self,
+                      indicator,
+                      zone):
+        
+        zone_name = zone
+        indicator = indicator
+        want_to_show = zone_name.upper() + " " + indicator
+        
+        for i in self.house_compo.keys():
+            gfg = sns.lineplot(x=self.time_result.index,
+                               y=self.time_result[i][want_to_show],
+                               markers=True,
+                               label=" ".join(self.catalog.loc[i,zone])
+                               )
+            gfg.set(ylabel=indicator,
+                    title=zone)
+            gfg.plot()
+                                
+                
+        
+
+
 
     
