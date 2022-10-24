@@ -431,7 +431,8 @@ class OtherEquipment:
                 Zone_or_ZoneList_Name=zone,
                 Schedule_Name=self.schedule_name,
                 Design_Level_Calculation_Method="EquipmentLevel",
-                Design_Level=surf_ratio[i] * self.design_level_power * self.cop,
+                Design_Level=surf_ratio[
+                                 i] * self.design_level_power * self.cop,
                 Fraction_Radiant=self.fraction_radiant
             )
 
@@ -440,6 +441,117 @@ class OtherEquipment:
                 self.building.idf,
                 key_values=equipment_name_list,
                 variables="Other Equipment Total Heating Energy"
+            )
+
+    def post_process(self):
+        pass
+
+
+class ZoneThermostat:
+    def __init__(self,
+                 name,
+                 building,
+                 zones,
+                 heating_compact_schedule_name=None,
+                 heating_series_schedule=None,
+                 cooling_compact_schedule_name=None,
+                 cooling_series_schedule=None,
+                 add_schedules_output_variables=False,
+                 ):
+
+        self.name = name
+        self.building = building
+        self.zones = zones
+        self.add_schedules_output_variables = add_schedules_output_variables
+        self.resources_idf = pr.get_resources_idf()
+
+        if zones == '*':
+            self.zones = self.building.zone_name_list
+        else:
+            self.zones = tl.format_input_to_list(zones)
+
+        if heating_series_schedule is None:
+            if heating_compact_schedule_name is None:
+                pr.copy_object_from_idf(
+                    self.resources_idf, building.idf, 'Schedule:Compact',
+                    '-60C_heating_setpoint')
+                self.heating_schedule_name = '-60C_heating_setpoint'
+            elif not self.building.idf.getobject(
+                    'Schedule:Compact', heating_compact_schedule_name):
+                raise ValueError(
+                    f"{heating_compact_schedule_name} not found in"
+                    f"Schedule:Compact objects")
+            else:
+                self.heating_schedule_name = heating_compact_schedule_name
+        else:
+            if heating_compact_schedule_name:
+                raise ValueError("Both schedule name and series schedule "
+                                 "can not be specified")
+            if not isinstance(heating_series_schedule, pd.Series):
+                raise ValueError("series_schedule must be a Pandas Series")
+
+            pr.del_obj_by_names(
+                self.building.idf, "Schedule:File",
+                heating_series_schedule.name)
+            pr.add_hourly_schedules_from_df(
+                idf=building.idf, data=heating_series_schedule)
+            self.heating_schedule_name = heating_series_schedule.name
+
+        if cooling_series_schedule is None:
+            if cooling_compact_schedule_name is None:
+                pr.copy_object_from_idf(
+                    self.resources_idf, building.idf, 'Schedule:Compact',
+                    '100C_cooling_setpoint')
+                self.cooling_schedule_name = "100C_cooling_setpoint"
+            elif not self.building.idf.getobject(
+                    'Schedule:Compact', cooling_compact_schedule_name):
+                raise ValueError(
+                    f"{cooling_compact_schedule_name} not found in"
+                    f"Schedule:Compact objects")
+            else:
+                self.cooling_schedule_name = cooling_compact_schedule_name
+        else:
+            if cooling_compact_schedule_name:
+                raise ValueError("Both schedule name and series schedule "
+                                 "can not be specified")
+            if not isinstance(cooling_series_schedule, pd.Series):
+                raise ValueError("series_schedule must be a Pandas Series")
+
+            pr.del_obj_by_names(
+                self.building.idf, "Schedule:File",
+                cooling_series_schedule.name)
+            pr.add_hourly_schedules_from_df(
+                idf=building.idf, data=cooling_series_schedule)
+            self.cooling_schedule_name = cooling_series_schedule.name
+
+    def pre_process(self):
+        thermos_name_list = pr.get_objects_name_list(
+            self.building.idf, "ThermostatSetpoint:DualSetpoint")
+
+        thermos_to_keep = tl.select_by_strings(thermos_name_list, self.zones)
+
+        pr.set_objects_field_values(
+            idf=self.building.idf,
+            idf_object="ThermostatSetpoint:DualSetpoint",
+            field_name="Heating_Setpoint_Temperature_Schedule_Name",
+            idf_object_names=thermos_to_keep,
+            values=self.heating_schedule_name
+        )
+
+        pr.set_objects_field_values(
+            idf=self.building.idf,
+            idf_object="ThermostatSetpoint:DualSetpoint",
+            field_name="Cooling_Setpoint_Temperature_Schedule_Name",
+            idf_object_names=thermos_to_keep,
+            values=self.cooling_schedule_name
+        )
+
+        if self.add_schedules_output_variables:
+            pr.add_output_variable(
+                self.building.idf,
+                key_values=[self.heating_schedule_name,
+                            self.cooling_schedule_name],
+                variables="Schedule Value"
             )
 
     def post_process(self):

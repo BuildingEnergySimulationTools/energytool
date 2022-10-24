@@ -339,7 +339,6 @@ def add_natural_ventilation(
         zones="*",
         occupancy_schedule=True,
         kwargs=None):
-
     if kwargs is None:
         kwargs = {"Minimum_Indoor_Temperature": 22,
                   "Delta_Temperature": 0}
@@ -383,3 +382,15 @@ def add_natural_ventilation(
             Design_Flow_Rate=ach,
             **kwargs
         )
+
+
+def copy_object_from_idf(source_idf, destination_idf, idf_object, name):
+    # Get schedule in resources file
+    obj_to_copy = source_idf.getobject(idf_object, name)
+
+    # Copy in building idf if not already present
+    destination_obj_list = destination_idf.idfobjects[idf_object]
+
+    if obj_to_copy.Name not in get_objects_name_list(
+            destination_idf, idf_object):
+        destination_obj_list.append(obj_to_copy)
