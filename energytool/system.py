@@ -8,13 +8,10 @@ import energytool.tools as tl
 
 
 class HeaterSimple:
-    def __init__(self, name, building=None, zones="*", cop=0.86, energy="gaz",
-                 cost=0):
+    def __init__(self, name, building=None, zones="*", cop=0.86):
         self.name = name
         self.building = building
         self.cop = cop
-        self.energy = energy
-        self.cost = cost
         self.zones = zones
 
     def pre_process(self):
