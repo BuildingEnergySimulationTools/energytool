@@ -225,15 +225,15 @@ def add_output_variable(idf, key_values, variables,
     key_values_list = tl.format_input_to_list(key_values)
     variables_list = tl.format_input_to_list(variables)
 
-    for zone in key_values_list:
+    for key in key_values_list:
         for var in variables_list:
-            if not np.any(output_zone_variable_present(idf, zone, var)):
-                if zone == "*":
+            if not np.any(output_zone_variable_present(idf, key, var)):
+                if key == "*":
                     del_output_variable(idf, var)
 
                 idf.newidfobject(
                     "OUTPUT:VARIABLE",
-                    Key_Value=zone,
+                    Key_Value=key,
                     Variable_Name=var,
                     Reporting_Frequency=reporting_frequency
                 )
