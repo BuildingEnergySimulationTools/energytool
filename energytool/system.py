@@ -22,9 +22,10 @@ class HeaterSimple:
         )
 
     def post_process(self):
-        ideal_heating = po.get_output_zone_variable(
+        # Warning, works only if ilas name contains zone name
+        ideal_heating = po.get_output_variable(
             eplus_res=self.building.energyplus_results,
-            zones=self.zones,
+            key_values=self.ilas_name_list,
             variables="Zone Ideal Loads Supply Air Total Heating Energy"
         )
 
@@ -53,9 +54,9 @@ class AuxiliarySimplified:
         )
 
     def post_process(self):
-        ideal_heating = po.get_output_zone_variable(
+        ideal_heating = po.get_output_variable(
             eplus_res=self.building.energyplus_results,
-            zones=self.zones,
+            key_values=self.zones,
             variables="Zone Ideal Loads Supply Air Total Heating Energy"
         )
 
@@ -138,9 +139,9 @@ class AirHandlingUnit:
                 )
 
     def post_process(self):
-        air_volume = po.get_output_zone_variable(
+        air_volume = po.get_output_variable(
             eplus_res=self.building.energyplus_results,
-            zones=self.zones,
+            key_values=self.zones,
             variables=
             "Zone Mechanical Ventilation Standard Density Volume Flow Rate"
         )
@@ -240,9 +241,9 @@ class ArtificialLightingSimple:
             )
 
     def post_process(self):
-        lighting_consumption = po.get_output_zone_variable(
+        lighting_consumption = po.get_output_variable(
             eplus_res=self.building.energyplus_results,
-            zones=self.zones,
+            key_values=self.zones,
             variables="Zone Lights Electricity Energy"
         )
 

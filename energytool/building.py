@@ -104,13 +104,13 @@ class Building:
         begin_loc = f"{year}-{self.month_summer_begins}"
         end_loc = f"{year}-{self.month_summer_ends}"
 
-        zones_top = po.get_output_zone_variable(
+        zones_top = po.get_output_variable(
             self.energyplus_results,
             "Zone Operative Temperature",
             self.zone_name_list,
         )
 
-        zones_occupation = po.get_output_zone_variable(
+        zones_occupation = po.get_output_variable(
             self.energyplus_results,
             "Zone People Occupant Count",
             self.zone_name_list,

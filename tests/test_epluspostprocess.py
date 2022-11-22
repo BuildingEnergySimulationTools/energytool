@@ -4,7 +4,7 @@ from pathlib import Path
 
 from energytool.epluspostprocess import zone_contains_regex
 from energytool.epluspostprocess import read_eplus_res
-from energytool.epluspostprocess import get_output_zone_variable
+from energytool.epluspostprocess import get_output_variable
 
 RESOURCES_PATH = Path(__file__).parent / "resources"
 
@@ -54,36 +54,36 @@ class TestEplusPostProcess:
 
         pd.testing.assert_frame_equal(
             toy_df.iloc[:, 0].to_frame(),
-            get_output_zone_variable(
+            get_output_variable(
                 eplus_res=toy_df,
-                zones='Zone1',
+                key_values='Zone1',
                 variables='Equipment Total Heating Energy'
             )
         )
 
         pd.testing.assert_frame_equal(
             toy_df.iloc[:, :2],
-            get_output_zone_variable(
+            get_output_variable(
                 eplus_res=toy_df,
-                zones=['Zone1', 'ZONE2'],
+                key_values=['Zone1', 'ZONE2'],
                 variables='Equipment Total Heating Energy'
             )
         )
 
         pd.testing.assert_frame_equal(
             toy_df.iloc[:, :4],
-            get_output_zone_variable(
+            get_output_variable(
                 eplus_res=toy_df,
-                zones="*",
+                key_values="*",
                 variables='Equipment Total Heating Energy'
             )
         )
 
         pd.testing.assert_frame_equal(
             toy_df.iloc[:, [0, 4]],
-            get_output_zone_variable(
+            get_output_variable(
                 eplus_res=toy_df,
-                zones='Zone1',
+                key_values='Zone1',
                 variables=[
                     'Equipment Total Heating Energy',
                     "Ideal Loads Supply Air Total Heating Energy"
