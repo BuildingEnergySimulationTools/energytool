@@ -8,16 +8,39 @@ import energytool.tools as tl
 
 
 class HeaterSimple:
-    def __init__(self, name, building=None, zones="*", cop=0.86):
+    def __init__(self, name, building, zones="*", cop=0.86):
         self.name = name
         self.building = building
         self.cop = cop
-        self.zones = zones
+        if zones == '*':
+            self.zones = self.building.zone_name_list
+        else:
+            self.zones = tl.format_input_to_list(zones)
+
+        # Find IdealLoadsAirSystem name list
+        self.ilas_list = []
+        for zone in self.zones:
+            equip_con = building.idf.getobject(
+                'ZONEHVAC:EQUIPMENTCONNECTIONS', zone)
+            equip_list = equip_con.get_referenced_object(
+                'Zone_Conditioning_Equipment_List_Name')
+
+            for i in range(18):
+                # 18 seem to be the max allowed (eppy)
+                hvac_obj = equip_list.get_referenced_object(
+                        f'Zone_Equipment_{i + 1}_Name')
+                if hvac_obj:
+                    if hvac_obj.key == 'ZoneHVAC:IdealLoadsAirSystem':
+                        self.ilas_list.append(hvac_obj)
+
+    @property
+    def ilas_name_list(self):
+        return [ilas.Name for ilas in self.ilas_list]
 
     def pre_process(self):
         pr.add_output_variable(
             idf=self.building.idf,
-            key_values=self.zones,
+            key_values=self.ilas_name_list,
             variables="Zone Ideal Loads Supply Air Total Heating Energy"
         )
 
