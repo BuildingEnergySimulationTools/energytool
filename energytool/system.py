@@ -22,11 +22,10 @@ class HeaterSimple:
         for zone in self.zones:
             equip_con = building.idf.getobject(
                 'ZONEHVAC:EQUIPMENTCONNECTIONS', zone)
-            equip_list = equip_con.get_referenced_object(
-                'Zone_Conditioning_Equipment_List_Name')
-
             # If zone has hvac equipments
-            if equip_list:
+            if equip_con:
+                equip_list = equip_con.get_referenced_object(
+                    'Zone_Conditioning_Equipment_List_Name')
                 for i in range(18):
                     # 18 seem to be the max allowed (eppy)
                     hvac_obj = equip_list.get_referenced_object(
