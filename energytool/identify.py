@@ -87,7 +87,7 @@ class Identificator:
         sim_runner.run()
 
         results = getattr(self.building, result).loc[:, indicator]
-        results.resample(calibration_timestep).agg(resampling_method)
+        results = results.resample(calibration_timestep).agg(resampling_method)
 
         return self.error_function(results, reference)
 
