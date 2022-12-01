@@ -49,6 +49,9 @@ class Identificator:
         # the method infer a Reference timestep assuming timestep is constant
         if calibration_timestep == 'auto':
             calibration_timestep = reference.index.to_series().diff()[1]
+        else:
+            reference = reference.resample(
+                calibration_timestep).agg(resampling_method)
 
         simu = Simulation(self.building, epw_file_path, simulation_start,
                           simulation_stop, simulation_timestep_per_hour)
