@@ -5,6 +5,32 @@ from sklearn.metrics import mean_squared_error
 from scipy.optimize import differential_evolution
 
 
+def error_func_with_gaps(results, reference, gaps_list,
+                         error_function=mean_squared_error):
+    """
+    Remove a list of gaps before returning the error.
+    The function may be used to delete the time intervals when measurement are absent
+    :param results: Pandas DataFrame or Pandas Series holding
+    simulation results
+    :param reference: Pandas DataFrame or Pandas Series
+    holding reference measurements
+    :param gaps_list: list of tuple with gap boundaries.
+    Ex. [('2021-01-10', '2021-01-12'), ('2021-01-15', '2021-01-18')]
+    :param error_function: error_function
+    to apply (default is scikit-learn mean_square_error)
+    :return: error (float)
+    """
+    holed_reference = reference.copy()
+    holed_results = results.copy()
+    for gap in gaps_list:
+        remove = holed_reference.loc[gap[0]: gap[1]]
+        holed_reference.drop(remove.index, inplace=True)
+        remove = holed_results.loc[gap[0]: gap[1]]
+        holed_results.drop(remove.index, inplace=True)
+
+    return error_function(holed_results, holed_reference)
+
+
 class Identificator:
     def __init__(self, building, parameters, error_function=None):
         self.building = building

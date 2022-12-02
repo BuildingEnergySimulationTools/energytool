@@ -8,6 +8,7 @@ import energytool.system as st
 from energytool.building import Building
 from energytool.parameter import UncertainParameter
 from energytool.identify import Identificator
+from energytool.identify import error_func_with_gaps
 
 RESOURCES_PATH = Path(__file__).parent / "resources"
 
@@ -15,6 +16,22 @@ Building.set_idd(RESOURCES_PATH)
 
 
 class TestIdentify:
+    def test_error_func_with_gaps(self):
+        reference = pd.DataFrame(
+            {"ref": [0, 1, 1, 0, 1, 1, 0, 0, 0]},
+            index=pd.date_range('2009-01-01 00:00:00', freq="H", periods=9)
+        )
+
+        results = pd.DataFrame(
+            {"ref": [0, 1, 1, 0, 1, 1, 0, 0, 0]},
+            index=pd.date_range('2009-01-01 00:00:00', freq="H", periods=9)
+        )
+
+        gaps_list = [('2009-01-01 00:00:00', '2009-01-01 01:00:00'),
+                     ('2009-01-01 06:00:00', '2009-01-01 09:00:00'),]
+
+        assert error_func_with_gaps(results, reference, gaps_list) == 0
+
     def test_identificator(self):
         reference = pd.read_csv(
             RESOURCES_PATH / "reference_calibration.csv",
