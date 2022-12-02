@@ -35,7 +35,7 @@ def error_func_with_gaps(results, reference, gaps_list,
 
 
 class Identificator:
-    def __init__(self, building, parameters, error_function=None):
+    def __init__(self, building, parameters):
         self.building = building
         self.parameters = parameters
         self.parameters_id_values = {par.name: np.nan for par in parameters}
@@ -43,11 +43,6 @@ class Identificator:
 
         for param in self.parameters:
             param.building = self.building
-
-        if error_function is None:
-            self.error_function = mean_squared_error
-        else:
-            self.error_function = error_function
 
     def fit(
             self,
@@ -60,6 +55,8 @@ class Identificator:
             simulation_stop=None,
             simulation_timestep_per_hour=6,
             result='building_results',
+            error_function=None,
+            err_func_args=None,
             convergence_tolerance=0.05,
             population_size=5):
 
@@ -71,6 +68,9 @@ class Identificator:
 
         if simulation_stop is None:
             simulation_stop = reference.index[-1]
+
+        if error_function is None:
+            error_function = mean_squared_error
 
         reference = reference.loc[simulation_start: simulation_stop]
 
@@ -94,7 +94,8 @@ class Identificator:
         res = differential_evolution(
             self._objective_function,
             args=(sim_runner, result, indicator,
-                  reference, calibration_timestep, resampling_method),
+                  reference, calibration_timestep, resampling_method,
+                  error_function, err_func_args),
             bounds=[tuple(par.bounds) for par in self.parameters],
             callback=self._optimization_callback,
             tol=convergence_tolerance,
@@ -111,7 +112,8 @@ class Identificator:
 
     def _objective_function(self, x, *args):
         (sim_runner, result, indicator, reference,
-         calibration_timestep, resampling_method) = args
+         calibration_timestep, resampling_method,
+         error_function, err_func_args) = args
 
         for idx, param in enumerate(self.parameters):
             param.set_value(x[idx])
@@ -121,7 +123,10 @@ class Identificator:
         results = getattr(self.building, result).loc[:, indicator]
         results = results.resample(calibration_timestep).agg(resampling_method)
 
-        return self.error_function(results, reference)
+        if err_func_args is None:
+            return error_function(results, reference)
+        else:
+            return error_function(results, reference, **err_func_args)
 
     def _optimization_callback(self, xk, convergence):
         print({
