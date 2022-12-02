@@ -73,9 +73,10 @@ target/
 # Jupyter Notebook
 .ipynb_checkpoints
 *.ipynb
-!CH1_Etics_Data_cleaning.ipynb
-!CH2_Physical_model_and_Sensitivity_Analysis.ipynb
-!CH3_Parameter_indentification.ipynb
+!CH1_Building.ipynb
+!CH2_Sensitivity_analisys.ipynb
+!CH3_Building_modifier.ipynb
+!CH4_Calibration.ipynb
 # pyenv
 .python-version
 

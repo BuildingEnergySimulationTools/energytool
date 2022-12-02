@@ -239,7 +239,7 @@ class TestEplusPreProcess:
         runner = SimulationsRunner([simu])
         runner.run()
 
-        output = po.get_output_zone_variable(
+        output = po.get_output_variable(
             simu.building.energyplus_results,
             "Schedule Value",
             list(data_frame.columns),

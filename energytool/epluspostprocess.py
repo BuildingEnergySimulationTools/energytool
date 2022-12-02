@@ -69,21 +69,21 @@ def variable_contains_regex(elmt_list):
     return ''.join(tempo)[:-1]
 
 
-def get_output_zone_variable(
-        eplus_res, variables, zones='*', drop_suffix=True):
-    if zones == '*':
-        zone_mask = np.full((1, eplus_res.shape[1]), True).flatten()
+def get_output_variable(
+        eplus_res, variables, key_values='*', drop_suffix=True):
+    if key_values == '*':
+        key_mask = np.full((1, eplus_res.shape[1]), True).flatten()
     else:
-        zone_list = format_input_to_list(zones)
-        zone_list_upper = [elmt.upper() for elmt in zone_list]
-        reg_zone = zone_contains_regex(zone_list_upper)
-        zone_mask = eplus_res.columns.str.contains(reg_zone)
+        key_list = format_input_to_list(key_values)
+        key_list_upper = [elmt.upper() for elmt in key_list]
+        reg_key = zone_contains_regex(key_list_upper)
+        key_mask = eplus_res.columns.str.contains(reg_key)
 
     variable_names_list = format_input_to_list(variables)
     reg_var = variable_contains_regex(variable_names_list)
     variable_mask = eplus_res.columns.str.contains(reg_var)
 
-    mask = np.logical_and(zone_mask, variable_mask)
+    mask = np.logical_and(key_mask, variable_mask)
 
     results = eplus_res.loc[:, mask]
 

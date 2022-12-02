@@ -42,6 +42,24 @@ def toy_building(tmp_path_factory):
             Name=f"zone_{toy_zone}"
         )
 
+    # IdealLoads HVAC
+    for zone in toy_idf.idfobjects["Zone"]:
+        toy_idf.newidfobject(
+            'ZONEHVAC:EQUIPMENTCONNECTIONS',
+            Zone_Name=zone.Name,
+            Zone_Conditioning_Equipment_List_Name=f'{zone.Name} Equipment'
+        )
+        toy_idf.newidfobject(
+            'ZONEHVAC:EQUIPMENTLIST',
+            Name=f'{zone.Name} Equipment',
+            Zone_Equipment_1_Name=f'{zone.Name} Ideal Loads Air'
+        )
+
+        toy_idf.newidfobject(
+            'ZoneHVAC:IdealLoadsAirSystem',
+            Name=f'{zone.Name} Ideal Loads Air',
+        )
+
     for _ in toy_idf.idfobjects["Zone"]:
         toy_idf.newidfobject("Lights")
 
@@ -459,7 +477,9 @@ class TestModifier:
         boiler_variant_dict = {
             "PAC": st.HeaterSimple(
                 name="PAC",
-                cop=3)
+                cop=3,
+                building=building
+            )
         }
 
         modifier_list.append(mo.SystemModifier(

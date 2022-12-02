@@ -225,15 +225,15 @@ def add_output_variable(idf, key_values, variables,
     key_values_list = tl.format_input_to_list(key_values)
     variables_list = tl.format_input_to_list(variables)
 
-    for zone in key_values_list:
+    for key in key_values_list:
         for var in variables_list:
-            if not np.any(output_zone_variable_present(idf, zone, var)):
-                if zone == "*":
+            if not np.any(output_zone_variable_present(idf, key, var)):
+                if key == "*":
                     del_output_variable(idf, var)
 
                 idf.newidfobject(
                     "OUTPUT:VARIABLE",
-                    Key_Value=zone,
+                    Key_Value=key,
                     Variable_Name=var,
                     Reporting_Frequency=reporting_frequency
                 )
@@ -434,3 +434,15 @@ def add_natural_ventilation(
             Design_Flow_Rate=ach,
             **kwargs
         )
+
+
+def copy_object_from_idf(source_idf, destination_idf, idf_object, name):
+    # Get schedule in resources file
+    obj_to_copy = source_idf.getobject(idf_object, name)
+
+    # Copy in building idf if not already present
+    destination_obj_list = destination_idf.idfobjects[idf_object]
+
+    if obj_to_copy.Name not in get_objects_name_list(
+            destination_idf, idf_object):
+        destination_obj_list.append(obj_to_copy)

@@ -192,3 +192,51 @@ class TestSystems:
         assert to_test == ['', '', '', '',  9.999999999999996,
                            10.000000000000002, 10.000000000000002, 10.0]
         assert building.idf.getobject("Schedule:File", "test_df")
+
+    def test_zone_thermostat(self, building):
+        building.heating_system["Thermo"] = sys.ZoneThermostat(
+            name="test_thermo",
+            building=building,
+            zones=['Block1:ApptX1W', 'Block1:ApptX1E'],
+        )
+
+        building.pre_process()
+        to_test = pr.get_objects_field_values(
+            building.idf,
+            "ThermostatSetpoint:DualSetpoint",
+            field_name="Heating_Setpoint_Temperature_Schedule_Name")
+
+        assert to_test == ['-60C_heating_setpoint',
+                           '-60C_heating_setpoint',
+                           'Block2:ApptX2W Heating Setpoint Schedule',
+                           'Block2:ApptX2E Heating Setpoint Schedule']
+        assert building.idf.getobject("Schedule:Compact",
+                                      "100C_cooling_setpoint")
+        assert building.idf.getobject("Schedule:Compact",
+                                      "-60C_heating_setpoint")
+
+        df_sched = pd.Series(
+            name="test_df",
+            data=np.array([19] * 8760),
+            index=pd.date_range("01-01-2022", periods=8760, freq="H")
+        )
+
+        building.other["Thermo"] = sys.ZoneThermostat(
+            building=building,
+            name='test_thermo',
+            zones='*',
+            heating_series_schedule=df_sched,
+        )
+
+        building.pre_process()
+        to_test = pr.get_objects_field_values(
+            building.idf,
+            "ThermostatSetpoint:DualSetpoint",
+            field_name="Heating_Setpoint_Temperature_Schedule_Name")
+        assert to_test == ['test_df'] * 4
+        assert building.idf.getobject("Schedule:File", "test_df")
+        to_test = pr.get_objects_field_values(
+            building.idf,
+            "ThermostatSetpoint:DualSetpoint",
+            field_name="Cooling_Setpoint_Temperature_Schedule_Name")
+        assert to_test == ['100C_cooling_setpoint'] * 4

@@ -19,6 +19,22 @@ SCHEDULE:COMPACT,
     1.0;                      !- Field 14
 
 SCHEDULE:COMPACT,
+    -60C_heating_setpoint,      !- Name
+    Temperature,                 !- Schedule Type Limits Name
+    Through: 31 Dec,          !- Field 1
+    For: AllDays,             !- Field 2
+    Until: 24:00,             !- Field 3
+    -60;
+
+SCHEDULE:COMPACT,
+    100C_cooling_setpoint,      !- Name
+    Temperature,                 !- Schedule Type Limits Name
+    Through: 31 Dec,          !- Field 1
+    For: AllDays,             !- Field 2
+    Until: 24:00,             !- Field 3
+    100;
+
+SCHEDULE:COMPACT,
     ON_24h24h_FULL_YEAR,      !- Name
     Fraction,                 !- Schedule Type Limits Name
     Through: 31 Dec,          !- Field 1
