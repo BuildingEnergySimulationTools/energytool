@@ -3,6 +3,15 @@ from energytool.simulate import Simulation
 from energytool.simulate import SimulationsRunner
 from sklearn.metrics import mean_squared_error
 from scipy.optimize import differential_evolution
+from modelitool.measure import time_series_control
+
+
+def remove_gaps(data, gaps_list):
+    holed_data = time_series_control(data).copy()
+    for gap in gaps_list:
+        remove = holed_data.loc[gap[0]: gap[1]]
+        holed_data.drop(remove.index, inplace=True)
+    return holed_data
 
 
 def error_func_with_gaps(results, reference, gaps_list,
@@ -20,14 +29,8 @@ def error_func_with_gaps(results, reference, gaps_list,
     to apply (default is scikit-learn mean_square_error)
     :return: error (float)
     """
-    holed_reference = reference.copy()
-    holed_results = results.copy()
-    for gap in gaps_list:
-        remove = holed_reference.loc[gap[0]: gap[1]]
-        holed_reference.drop(remove.index, inplace=True)
-        remove = holed_results.loc[gap[0]: gap[1]]
-        holed_results.drop(remove.index, inplace=True)
-
+    holed_reference = remove_gaps(reference, gaps_list)
+    holed_results = remove_gaps(results, gaps_list)
     return error_function(holed_results, holed_reference)
 
 
