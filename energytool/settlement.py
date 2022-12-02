@@ -16,7 +16,8 @@ from copy import deepcopy
 import pandas as pd
 import numpy as np
 import matplotlib.pyplot as plt
-import seaborn as sns
+
+import plotly.express as px
 
 import energytool.buildingspliter as bs
 import energytool.people as cp
@@ -29,7 +30,9 @@ class Settlement:
     def __init__(self,
                  building,
                  nb_iteration,
-                 nb_profile
+                 nb_profile,
+                 chose_profile=False,
+                 fixe_building=False
                  ):
         
         self.building = building
@@ -37,12 +40,20 @@ class Settlement:
         self.simulation_list = []
         self.nb_profile = nb_profile
         self.house_compo = {}
+        self.chose_profile=chose_profile
+        self.fixe_building=fixe_building
         
         self.dict_indicator = {
                 "Windows Total Transmitted Solar Radiation"\
                     " Energy [J](Hourly)" : "solar radiation [kWh]",
                 "IDEAL LOADS AIR:Zone Ideal Loads Supply Air Total Heating"\
-                    " Energy [J](Hourly)" : "heating consumption [kWh]"             
+                    " Energy [J](Hourly)" : "heating consumption [kWh]",
+                "IDEAL LOADS AIR:Zone Ideal Loads Supply Air Total Cooling"\
+                    " Energy [J](Hourly)" : "cooling consumption [kWh]",
+                "Zone Infiltration Volume [m3](Hourly)":"natural airflow [m3]",
+                "Operative Temperature [C](Hourly)":"operatice temperature[°C]",
+                
+                                    
                                 }
         
     
@@ -65,7 +76,10 @@ class Settlement:
         
         for i in range(self.nb_iteration):
             building_tempo = deepcopy(self.building)
-            split = bs.Building_spliter(building_tempo,4)
+            split = bs.Building_spliter(building_tempo,
+                                        self.nb_profile,
+                                        self.chose_profile,
+                                        self.fixe_building)
             split.pre_process()
             housing = split.dict_housing
             self.house_compo[f"iteration_{i+1}"] = []
@@ -94,12 +108,43 @@ class Settlement:
                 key_value='*'
                                                     )
             
+            building_tempo.other["cooler_test"] = ind.AddOutputVariables(
+                name="cooler",
+                building=building_tempo,
+                variables="Zone Ideal Loads Supply Air Total Cooling Energy",
+                key_value='*'
+                                                    )
+            
             building_tempo.other["sun_test"] = ind.AddOutputVariables(
                     name="sun",
                     building=building_tempo,
                     variables="Zone Windows Total Transmitted Solar Radiation Energy",
                     key_value='*'
                                                         )
+                                
+            building_tempo.other["nat_vent_gain"] = ind.AddOutputVariables(
+                    name="vent_vol",
+                    building=building_tempo,
+                    variables="AFN Zone Infiltration Volume",
+                    key_value='*'   
+                                                        )
+            building_tempo.other["temp_room"] = ind.AddOutputVariables(
+                    name="temp_room",
+                    building=building_tempo,
+                    variables="Zone Operative Temperature",
+                    key_value='*'   
+                                                        )
+            
+            
+            
+            # building_tempo.other["nat_vent_loss"] = ind.AddOutputVariables(
+            #         name="vent_loss",
+            #         building=building_tempo,
+            #         variables="Zone Ventilation Sensible Heat Loss Energy",
+            #         key_value='*'
+            #                                             )    
+            
+            
             
             self.simulation_list.append(Simulation(
                                             building=building_tempo,
@@ -156,16 +201,17 @@ class Settlement:
 # =============================================================================
         time_list = [deepcopy(i.building.energyplus_results) 
                                  for i in self.simulation_runner.simu_list]
+        self.time_list = time_list
         
         [i.drop(unwant_info,
-                1,
+                axis=1,
                 inplace = True)
                 for i in time_list]
         
         for j in time_list:
             a=[]
             a = [
-                i.replace(k,self.dict_indicator[k],1).replace(":Zone", "", 1)
+                i.replace(k,self.dict_indicator[k],1).replace(":Zone","", 1).replace(":AFN","", 1)
                 for i in j.columns
                 for k in (
                     n
@@ -175,11 +221,29 @@ class Settlement:
                 ]
 
             j.columns = a
-        
-        self.time_result =  pd.concat(time_list,
+            
+        # Convertion to DataFrame and convertion in kWh for Joules unit
+        temp = pd.concat(time_list,
                             axis=1,
                             keys=list(self.house_compo.keys())
-                            ) /1000  / 3600
+                            ) 
+        
+        self.time_result = pd.DataFrame(
+                                        columns=pd.MultiIndex.from_tuples(
+                                            temp.columns)
+                                        )
+        
+        for (colname,colval) in temp.iteritems():
+                
+                if "[kWh]" in colname[1]:                    
+                    self.time_result.loc[
+                                        :,(colname[0],colname[1])
+                                        ] = colval / 3600 / 1000
+                else : 
+                    self.time_result.loc[
+                                        :,(colname[0],colname[1])
+                                        ] = colval 
+
         
 # =============================================================================        
 #    creation of a dataframe with the annual results
@@ -188,13 +252,31 @@ class Settlement:
         annual_list = [i.building.energyplus_results.sum() for
                        i in self.simulation_runner.simu_list
                        ]                      
-        # Convertion to DataFrame and convertoin in kWh
-        self.an_result = pd.concat(annual_list, axis=1) / 1000 / 3600
-        self.an_result.columns=list(self.house_compo.keys())
+        # Convertion to DataFrame and convertion in kWh for Joules unit
+        temp_an = pd.concat(annual_list,
+                            axis=1)
+        temp_an.columns=list(self.house_compo.keys())
+        self.an_result = pd.DataFrame(columns=temp_an.columns)
+        
+        for name_index in temp_an.index:
+                if "[J]" in name_index:
+                    self.an_result.loc[name_index,:] = [ i/3600/1000  for i in 
+                                                       temp_an.loc[
+                                                           name_index,:
+                                                                   ]
+                                                       ] 
+                else : 
+                    self.an_result.loc[name_index,:] = [ i for i in 
+                                                       temp_an.loc[
+                                                           name_index,:
+                                                                   ]
+                                                       ] 
+                    
+
         
         # Suppression 
         self.an_result.drop(unwant_info,
-                            0,
+                            axis=0,
                             inplace = True)
         
         # creation of a column containing indicators
@@ -202,7 +284,7 @@ class Settlement:
                           for i in self.an_result.index]
         self.an_result["indicator"] = list_indicator
         self.an_result.index = [
-                        list(i.split())[0].replace(":Zone", "", 1) 
+                        list(i.split())[0].replace(":Zone","", 1).replace(":AFN","", 1)
                         for i in self.an_result.index
                       ]
         
@@ -214,8 +296,8 @@ class Settlement:
             new_df["indicator"] = i
             new_df = pd.DataFrame(new_df).transpose()
             new_df.index = ["Building"]
-            self.an_result = self.an_result.append(new_df,
-                                                   ignore_index = False)
+            pd.concat([self.an_result,new_df],
+                      ignore_index = False)
         
     def histogramme(self,
                     indicator,
@@ -225,13 +307,13 @@ class Settlement:
         mask2 = self.an_result.index == zone
         mask = np.logical_and(mask1,mask2)
         value = self.an_result[mask].drop("indicator",axis=1).transpose()
-        gfg = sns.histplot(data=value,
-            stat='frequency',
-            kde=True,
-            binwidth=0.5)
-
-        gfg.set(xlabel="heating consumption [kWh]")
-        gfg.plot()
+        fig = px.histogram(value,x=value[zone],nbins=40)
+        fig.update_layout(
+                            title=zone,
+                            xaxis_title="Combination",
+                            yaxis_title=indicator,
+                            )
+        fig.show()
         
     def bar_analysis(self,
                      indicator,
@@ -250,28 +332,48 @@ class Settlement:
                         inplace = True)
         
         value = value.sort_values(by=[zone.upper()])
-        gfg = value.plot(kind='bar',
-                         color="#8EBAD9")
-        gfg.set(ylabel=indicator)
-        gfg.plot()
+        value = value.groupby(value.index).mean()
+        
+        #value.groupby(value.index).mean()
+        self.value = value
+
+        fig = px.bar(value,x=value.index,y=value[zone.upper()])
+        fig.update_layout(
+                            title=zone,
+                            xaxis_title="Combination",
+                            yaxis_title=indicator,
+                            )
+        fig.show()
         
     def time_analysis(self,
                       indicator,
                       zone):
         
+        self.combination_catalog()
         zone_name = zone
         indicator = indicator
-        want_to_show = zone_name.upper() + " " + indicator
         
-        for i in self.house_compo.keys():
-            gfg = sns.lineplot(x=self.time_result.index,
-                               y=self.time_result[i][want_to_show],
-                               markers=True,
-                               label=" ".join(self.catalog.loc[i,zone])
-                               )
-            gfg.set(ylabel=indicator,
-                    title=zone)
-            gfg.plot()
+        
+        want_to_show = zone_name.upper() + " " + indicator
+        want_list = [i for i in  self.time_result.columns if want_to_show in i]
+        legend_list= [' '.join(list(
+            self.catalog.loc[(i[0],zone_name)]))
+                     for i in want_list]
+        df_temp = self.time_result.loc[:, want_list].reset_index(level=[0])
+        df_temp.set_index("Date/Time",inplace = True)
+        df_temp.columns = legend_list
+        df_temp = df_temp.loc[:,~df_temp.columns.duplicated()]
+        fig = px.line(df_temp)
+        
+        fig.update_layout(
+                            title=zone_name,
+                            xaxis_title="Date",
+                            yaxis_title=indicator,
+                            legend_title="Combination",
+                            )
+
+        fig.show()
+
                                 
                 
         

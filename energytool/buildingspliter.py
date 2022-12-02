@@ -14,14 +14,21 @@ class Building_spliter:
     each housing consists of {- Day zone
                               - Night zone
                               - An occupancy profile
-                              - A virtuosity coefficient}  
+                              - A virtuosity coefficient
+                              - A home automation coefficient}  
     
     """
-    def  __init__(self,building,nb_profile):
+    def  __init__(self,
+                  building,
+                  nb_profile,
+                  chose_profile=False,
+                  fixe_building=False):
         
         self.building = building
         self.nb_profile = nb_profile
         self.dict_profile = {}
+        self.chose_profile = chose_profile
+        self.fixe_building=fixe_building
         
     def spliter(self):
         
@@ -60,18 +67,38 @@ class Building_spliter:
         Returns
         -------
         a dictionary of flats grouped by zone,
-        with a randomly assigned occupancy profile.
+        with a randomly or chosen assigned occupancy profile.
 
         """
         
-        compt = 0
-        for i in range(self.nb_profile):
-            compt = compt + 1/self.nb_profile
-            self.dict_profile[round(compt,1)] = f"profile_{i+1}"
             
-        for i in self.dict_housing:
-            n = rd.choice(list(self.dict_profile.keys()))
-            self.dict_housing[i].append(self.dict_profile[n])
+        if not self.chose_profile:
+            
+            compt = 0
+            for i in range(self.nb_profile):
+                compt = compt + 1/self.nb_profile
+                self.dict_profile[round(compt,1)] = f"profile_{i+1}"
+        
+        else:
+            compt = 0
+            for i in range(self.nb_profile):
+                compt = compt + 1/self.nb_profile
+                self.dict_profile[round(compt,1)] = self.chose_profile
+            
+        if self.fixe_building:
+            for i in self.dict_housing:
+                
+                if i.upper() in self.fixe_building[0] :
+                    n = rd.choice(list(self.dict_profile.keys()))
+                    self.dict_housing[i].append(self.dict_profile[n])
+                    
+                else:
+                    self.dict_housing[i].append(self.fixe_building[1])
+                    
+        else:
+            for i in self.dict_housing:
+                n = rd.choice(list(self.dict_profile.keys()))
+                self.dict_housing[i].append(self.dict_profile[n])
             
     def virtuosity_assignation(self):
         """
@@ -83,16 +110,32 @@ class Building_spliter:
         with a randomly assigned occupancy profile and virtuosity coefficient.
 
         """
-        for i in self.dict_housing:
-            n = rd.random()
-            if n < 1/3:
-                self.dict_housing[i].append("bad")
-            
-            elif n > 2/3: 
-                self.dict_housing[i].append("good")
+        if self.fixe_building:
+            for i in self.dict_housing:
+                if i.upper() in self.fixe_building[0]:
+                    n = rd.random()
+                    if n < 1/3:
+                        self.dict_housing[i].append("bad")
+                    
+                    elif n > 2/3: 
+                        self.dict_housing[i].append("good")
+                        
+                    else:
+                        self.dict_housing[i].append("average")
+                else:
+                    self.dict_housing[i].append(self.fixe_building[2])
+        
+        else:
+            for i in self.dict_housing:
+                n = rd.random()
+                if n < 1/3:
+                    self.dict_housing[i].append("bad")
                 
-            else:
-                self.dict_housing[i].append("average")
+                elif n > 2/3: 
+                    self.dict_housing[i].append("good")
+                    
+                else:
+                    self.dict_housing[i].append("average")
     
     def domotic_assignation(self):           
         """
@@ -107,15 +150,27 @@ class Building_spliter:
             - domotic utilisation parameter (True or falsle)
 
         """
-        for i in self.dict_housing:
-            n = rd.random()
-            if n < 1/2:
-                self.dict_housing[i].append(False)
-            
-            elif n > 1/2 : 
-                self.dict_housing[i].append(True)
         
-        
+        if self.fixe_building:
+            for i in self.dict_housing:
+                if i.upper() in self.fixe_building[0]:
+                    n = rd.random()
+                    if n < 1/2:
+                        self.dict_housing[i].append(False)
+                    
+                    elif n > 1/2 : 
+                        self.dict_housing[i].append(True)
+                else:
+                    self.dict_housing[i].append(self.fixe_building[3])
+        else: 
+            for i in self.dict_housing:
+                n = rd.random()
+                if n < 1/2:
+                    self.dict_housing[i].append(False)
+                
+                elif n > 1/2 : 
+                    self.dict_housing[i].append(True)
+                    
     def pre_process(self):
 
         idf_schedules = self.building.idf.idfobjects['Schedule:Compact']

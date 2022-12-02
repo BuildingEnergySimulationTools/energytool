@@ -392,7 +392,7 @@ class StoreModifier:
 #                                 control type
 # =============================================================================
 
-        if self.housing[4]: 
+        if self.domotic: 
             # if domotic factor True ==> always available
             #                        ==> control type = OnIfHighSolarOnWindow
 
@@ -557,7 +557,7 @@ class VentilationModifier:
         
         vent_week_summer = {
                         7: self.opening_window[1],
-                        20: self.opening_window[0],
+                        17: self.opening_window[0],
                         24: self.opening_window[1],
                         }
         
@@ -659,15 +659,7 @@ class VentilationModifier:
 #         tke into account of home automation via the avaibility schedule  
 # =============================================================================
 
-                    # pr.set_objects_field_values(
-                    #     idf=self.idf,
-                    #     idf_object="WindowShadingControl",
-                    #     idf_object_names=obj_name_arg_2,
-                    #     field_name="Shading_Control_Type",
-                    #     values=self.store_control
-                    # )
-
-        if self.housing[4]:
+        if self.domotic:
             #if domotic True ==> always available
             obj1_zone[0].Venting_Availability_Schedule_Name = summer_on.name 
                                                                
