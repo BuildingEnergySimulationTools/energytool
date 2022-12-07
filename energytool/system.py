@@ -57,7 +57,7 @@ class HeaterSimple:
 
         system_out = (ideal_heating / self.cop).sum(axis=1)
         self.building.building_results[
-            f"{self.name}_Energy"] = system_out
+            f"{self.name}_Energy_[J]"] = system_out
 
 
 class AuxiliarySimplified:
@@ -87,7 +87,7 @@ class AuxiliarySimplified:
         )
 
         system_out = (ideal_heating * self.ratio).sum(axis=1)
-        self.building.building_results[f"{self.name}_Energy"] = system_out
+        self.building.building_results[f"{self.name}_Energy_[J]"] = system_out
 
 
 class AirHandlingUnit:
@@ -178,7 +178,7 @@ class AirHandlingUnit:
         ).sum(axis=1)
 
         system_out.name = f"{self.name}_Energy"
-        self.building.building_results[f"{self.name}_Energy"] = system_out
+        self.building.building_results[f"{self.name}_Energy_[J]"] = system_out
 
 
 class DHWIdealExternal:
@@ -222,7 +222,7 @@ class DHWIdealExternal:
                 daily_cons_per_occupant * nb_days * nb_people / self.cop
         )
 
-        self.building.building_results[f"{self.name}_Energy"] = (
+        self.building.building_results[f"{self.name}_Energy_[J]"] = (
                 np.ones(nb_entry) * dhw_consumption / nb_entry
         )
 
@@ -274,7 +274,8 @@ class ArtificialLightingSimple:
         )
 
         lighting_out = (lighting_consumption / self.cop).sum(axis=1)
-        self.building.building_results[f"{self.name}_Energy"] = lighting_out
+        self.building.building_results[
+            f"{self.name}_Energy_[J]"] = lighting_out
 
 
 class AHUControl:
