@@ -316,6 +316,9 @@ def add_hourly_schedules_from_df(
 
     full_path = os.path.realpath(os.path.join(directory, file_name))
 
+    # In case we have measurement over several years. Reorganise
+    data.index = [idx.replace(year=2009) for idx in data.index]
+    data.sort_index(inplace=True)
     data.to_csv(full_path, index=False, sep=",")
 
     for idx, (schedule, schedule_type) in enumerate(
