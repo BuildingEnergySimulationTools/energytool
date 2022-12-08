@@ -17,24 +17,9 @@ class HeaterSimple:
         else:
             self.zones = tl.format_input_to_list(zones)
 
-        # Find IdealLoadsAirSystem name list
-        self.ilas_list = []
-        for zone in self.zones:
-            equip_con = building.idf.getobject(
-                'ZONEHVAC:EQUIPMENTCONNECTIONS', zone)
-            # If zone has hvac equipments
-            if not equip_con:
-                raise ValueError(f"{zone} doesn't have an IdealLoadAirSystem")
-
-            equip_list = equip_con.get_referenced_object(
-                'Zone_Conditioning_Equipment_List_Name')
-            for i in range(18):
-                # 18 seem to be the max allowed (eppy)
-                hvac_obj = equip_list.get_referenced_object(
-                        f'Zone_Equipment_{i + 1}_Name')
-                if hvac_obj:
-                    if hvac_obj.key == 'ZoneHVAC:IdealLoadsAirSystem':
-                        self.ilas_list.append(hvac_obj)
+        # Find IdealLoadsAirSystem
+        self.ilas_list = pr.get_zones_idealloadsairsystem(
+            building.idf, self.zones)
 
     @property
     def ilas_name_list(self):

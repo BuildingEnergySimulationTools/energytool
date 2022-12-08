@@ -19,6 +19,32 @@ except eppy.modeleditor.IDDAlreadySetError:
     pass
 
 
+def get_zones_idealloadsairsystem(idf, zones):
+    """Returns list of required zones IdealLoadsAirSystem objects
+     - zones: zone (string) or zone list (list of strings)
+     - returns : list of eppy objects
+    """
+    zones = tl.format_input_to_list(zones)
+    ilas_list = []
+    for zone in zones:
+        equip_con = idf.getobject(
+            'ZONEHVAC:EQUIPMENTCONNECTIONS', zone)
+        # If zone has hvac equipments
+        if not equip_con:
+            raise ValueError(f"{zone} doesn't have an IdealLoadAirSystem")
+
+        equip_list = equip_con.get_referenced_object(
+            'Zone_Conditioning_Equipment_List_Name')
+        for i in range(18):
+            # 18 seem to be the max allowed (eppy)
+            hvac_obj = equip_list.get_referenced_object(
+                f'Zone_Equipment_{i + 1}_Name')
+            if hvac_obj:
+                if hvac_obj.key == 'ZoneHVAC:IdealLoadsAirSystem':
+                    ilas_list.append(hvac_obj)
+    return ilas_list
+
+
 def get_resources_idf():
     return IDF(RESOURCES_PATH / "resources_idf.idf")
 
