@@ -467,6 +467,8 @@ class ZoneThermostat:
                  cooling_compact_schedule_name=None,
                  cooling_series_schedule=None,
                  add_schedules_output_variables=False,
+                 overwrite_heating_availability=False,
+                 overwrite_cooling_availability=False,
                  ):
 
         self.name = name
@@ -474,11 +476,16 @@ class ZoneThermostat:
         self.zones = zones
         self.add_schedules_output_variables = add_schedules_output_variables
         self.resources_idf = pr.get_resources_idf()
+        self.overwrite_heating_availability = overwrite_heating_availability
+        self.overwrite_cooling_availability = overwrite_cooling_availability
 
         if zones == '*':
             self.zones = self.building.zone_name_list
         else:
             self.zones = tl.format_input_to_list(zones)
+
+        self.ilas_list = pr.get_zones_idealloadsairsystem(
+            building.idf, self.zones)
 
         if heating_series_schedule is None:
             if heating_compact_schedule_name is None:
@@ -535,6 +542,30 @@ class ZoneThermostat:
             self.cooling_schedule_name = cooling_series_schedule.name
 
     def pre_process(self):
+        if (self.overwrite_heating_availability or
+                self.overwrite_cooling_availability):
+            pr.copy_object_from_idf(
+                self.resources_idf, self.building.idf, 'Schedule:Compact',
+                'ON_24h24h_FULL_YEAR')
+
+        if self.overwrite_heating_availability:
+            pr.set_objects_field_values(
+                idf=self.building.idf,
+                idf_object="ZONEHVAC:IDEALLOADSAIRSYSTEM",
+                field_name="Heating_Availability_Schedule_Name",
+                idf_object_names=[ilas.Name for ilas in self.ilas_list],
+                values="ON_24h24h_FULL_YEAR"
+            )
+
+        if self.overwrite_cooling_availability:
+            pr.set_objects_field_values(
+                idf=self.building.idf,
+                idf_object="ZONEHVAC:IDEALLOADSAIRSYSTEM",
+                field_name="Cooling_Availability_Schedule_Name",
+                idf_object_names=[ilas.Name for ilas in self.ilas_list],
+                values="ON_24h24h_FULL_YEAR"
+            )
+
         thermos_name_list = pr.get_objects_name_list(
             self.building.idf, "ThermostatSetpoint:DualSetpoint")
 
