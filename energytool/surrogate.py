@@ -1,12 +1,26 @@
 import numpy as np
 from scipy.stats.qmc import LatinHypercube
 import datetime as dt
-
 from copy import deepcopy
-from fastprogress.fastprogress import force_console_behavior
+
+from sklearn.preprocessing import StandardScaler
+from sklearn.metrics import mean_squared_error
+from sklearn.model_selection import train_test_split
+from sklearn.model_selection import cross_val_score
+from sklearn.linear_model import LinearRegression
+from sklearn.preprocessing import PolynomialFeatures
+from sklearn.pipeline import Pipeline
+from sklearn.ensemble import RandomForestRegressor
+from sklearn.svm import SVR
+from sklearn.neural_network import MLPRegressor
 
 from energytool.simulate import Simulation
 from energytool.simulate import SimulationsRunner
+from energytool.epluspostprocess import get_aggregated_indicator
+
+from modelitool.measure import time_series_control
+
+from fastprogress.fastprogress import force_console_behavior
 
 master_bar, progress_bar = force_console_behavior()
 
@@ -81,6 +95,143 @@ class SimulationSampler:
 class SurrogateModel:
     def __init__(
             self,
-            parameter_list,
-    ):
-        pass
+            simulation_sampler):
+        self.simulation_sampler = simulation_sampler
+        self.x_scaler = StandardScaler()
+        self.y_scaler = StandardScaler()
+        self.infos = {}
+
+        self.model_dict = {
+            "Tree_regressor": RandomForestRegressor(),
+            "Random_forest": RandomForestRegressor(),
+            "Linear_regression": LinearRegression(),
+            "Linear_second_order": Pipeline([
+                ("poly", PolynomialFeatures(2)),
+                ("Line_reg", LinearRegression())
+            ]),
+            "Linear_third_order": Pipeline([
+                ("poly", PolynomialFeatures(3)),
+                ("Line_reg", LinearRegression())
+            ]),
+            "Support_Vector": SVR(),
+            "Multi_layer_perceptron": MLPRegressor(max_iter=3000),
+        }
+
+    def _get_first_building(self):
+        if not self.simulation_sampler.sample_simulation_list:
+            raise ValueError("No building and simulation results available")
+
+        return self.simulation_sampler.sample_simulation_list[0].building
+
+    @property
+    def parameters_boundaries(self):
+        return [param.bounds for param in self.simulation_sampler.parameters]
+
+    @property
+    def available_building_indicators(self):
+        first_build = self._get_first_building()
+        available = list(first_build.building_results.columns)
+        available.append("Total")
+        return available
+
+    @property
+    def available_energyplus_indicators(self):
+        first_build = self._get_first_building()
+        available = list(first_build.energyplus_results.columns)
+        return available
+
+    def add_samples(self,
+                    sample_size,
+                    seed=None,
+                    run_directory=None,
+                    nb_cpus=-1,
+                    nb_simu_per_batch=5):
+        self.simulation_sampler.add_sample(
+            sample_size, seed, run_directory, nb_cpus, nb_simu_per_batch)
+
+    def fit_sample(self,
+                   test_size=0.2,
+                   cv=10,
+                   metrics_method=mean_squared_error,
+                   indicator='Total',
+                   results_group='building_results',
+                   aggregation_method=np.sum,
+                   method_args=None,
+                   reference=None,
+                   custom_series=None,
+                   verbose=True,
+                   random_state=None,
+                   ):
+
+        if custom_series is None:
+            y_array = get_aggregated_indicator(
+                simulation_list=self.simulation_sampler.sample_simulation_list,
+                results_group=results_group,
+                indicator=indicator,
+                method=aggregation_method,
+                reference=reference,
+                method_args=method_args)
+
+        else:
+            y_array = time_series_control(custom_series)
+
+        x_scaled = self.x_scaler.fit_transform(self.simulation_sampler.sample)
+        y_scaled = self.y_scaler.fit_transform(np.reshape(y_array, (-1, 1)))
+        y_scaled = y_scaled.flatten()
+
+        xs_train, xs_test, ys_train, ys_test = train_test_split(
+            x_scaled, y_scaled, test_size=test_size, random_state=random_state)
+
+        for key, mod in self.model_dict.items():
+            mod.fit(xs_train, ys_train)
+
+        score_dict = {}
+        for key, mod in self.model_dict.items():
+            cv_scores = cross_val_score(
+                mod,
+                xs_train,
+                ys_train,
+                scoring="neg_mean_squared_error",
+                cv=cv
+            )
+
+            score_dict[key] = [np.mean(cv_scores), np.std(cv_scores)]
+        sorted_score_dict = dict(
+            sorted(score_dict.items(), key=lambda item: item[1], reverse=True))
+
+        if verbose:
+            print(f"Cross validation neg_mean_squared_error scores"
+                  f"[mean, standard deviation] of {cv} folds")
+            print(sorted_score_dict)
+
+        best_model_key = list(sorted_score_dict)[0]
+        selected_mod = self.model_dict[best_model_key]
+        ys_test_predicted = selected_mod.predict(xs_test)
+        y_test = self.y_scaler.inverse_transform(
+            np.reshape(ys_test, (-1, 1)))
+        y_test_predicted = self.y_scaler.inverse_transform(
+            np.reshape(ys_test_predicted, (-1, 1)))
+        metrics_method_results = mean_squared_error(y_test, y_test_predicted)
+
+        self.infos['best_model_key'] = best_model_key
+        self.infos['metrics_method_results'] = metrics_method_results
+        self.infos['metrics_method'] = metrics_method
+        self.infos['indicator'] = indicator
+        self.infos['results_group'] = results_group
+        self.infos['aggregation_method'] = aggregation_method
+
+        if verbose:
+            print(f"{self.infos}")
+
+    def predict(self, x_array):
+        if self.infos == {}:
+            raise ValueError("Surrogate model is not fitted yet"
+                             "perform model fitting using fit_sample() method")
+
+        if x_array.ndim == 1:
+            x_array = np.reshape(x_array, (1, -1))
+
+        xs_array = self.x_scaler.transform(x_array)
+        best_model = self.model_dict[self.infos["best_model_key"]]
+        ys_array = best_model.predict(xs_array)
+        return self.y_scaler.inverse_transform(np.reshape(ys_array, (-1, 1)))
