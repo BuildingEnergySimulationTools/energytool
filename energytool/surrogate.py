@@ -1,4 +1,5 @@
 import numpy as np
+import pandas as pd
 from scipy.stats.qmc import LatinHypercube
 import datetime as dt
 from copy import deepcopy
@@ -97,7 +98,7 @@ class SimulationSampler:
             ))
 
         simulation_runner = SimulationsRunner(
-            simu_list=self.sample_simulation_list[-sample_size:],
+            simu_list=self.sample_simulation_list[-new_sample_value.shape[0]:],
             run_dir=run_directory,
             nb_cpus=nb_cpus,
             nb_simu_per_batch=nb_simu_per_batch
@@ -106,6 +107,56 @@ class SimulationSampler:
         simulation_runner.run()
 
         self.sample = np.vstack((self.sample, new_sample_value))
+
+    def plot_sample(self, results_group="building_results",
+                    indicator="Total", reference=None, title=None,
+                    x_label=None, y_label=None, alpha=0.5):
+        if not self.sample_simulation_list:
+            raise ValueError("No simulation found, use add_sample() to "
+                             "get a sample")
+
+        y_df = pd.concat([
+            getattr(sim.building, results_group)[indicator]
+            for sim in self.sample_simulation_list
+        ])
+
+        fig = go.Figure()
+        fig.add_trace(
+            go.Scattergl(
+                name="Sample",
+                mode="markers",
+                x=y_df.index,
+                y=y_df,
+                marker=dict(
+                    color=f'rgba(135, 135, 135, {alpha})',
+                )
+            )
+        )
+
+        if reference is not None:
+            reference = time_series_control(reference).squeeze()
+            fig.add_trace(
+                go.Scattergl(
+                    name="Reference",
+                    mode='lines',
+                    x=reference.index,
+                    y=reference,
+                    line=dict(
+                        color='crimson',
+                        width=2
+                    )
+                )
+            )
+
+        if title is not None:
+            fig.update_layout(title=title)
+        if y_label is not None:
+            fig.update_layout(yaxis_title=y_label)
+
+        if x_label is not None:
+            fig.update_layout(xaxis_title=x_label)
+
+        fig.show()
 
 
 class SurrogateModel:

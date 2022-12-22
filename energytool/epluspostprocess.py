@@ -133,7 +133,3 @@ def get_aggregated_indicator(simulation_list,
             method(reference, y_df.iloc[:, i], **method_args)
             for i in range(y_df.shape[1])
         ])
-
-
-
-
