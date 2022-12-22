@@ -2,6 +2,9 @@ import numpy as np
 from scipy.stats.qmc import LatinHypercube
 import datetime as dt
 from copy import deepcopy
+import itertools
+
+import plotly.graph_objects as go
 
 from sklearn.preprocessing import StandardScaler
 from sklearn.metrics import mean_squared_error
@@ -48,6 +51,15 @@ class SimulationSampler:
         if sampling_method == 'LatinHypercube':
             self.sampling_method = LatinHypercube
 
+    def get_boundary_sample(self):
+        iter_index = list(
+            itertools.product([0, 1], repeat=len(self.parameters)))
+
+        return np.array([
+            [par.bounds[i] for par, i in zip(self.parameters, line)]
+            for line in iter_index
+        ])
+
     def add_sample(self,
                    sample_size,
                    seed=None,
@@ -64,6 +76,10 @@ class SimulationSampler:
                 [param.bounds[0] + val * (param.bounds[1] - param.bounds[0])
                  for param, val in zip(self.parameters, s)]
             ))
+
+        if self.sample.size == 0:
+            bound_sample = self.get_boundary_sample()
+            new_sample_value = np.vstack((new_sample_value, bound_sample))
 
         prog_bar = progress_bar(range(new_sample_value.shape[0]))
         for mb, simul in zip(prog_bar, new_sample_value):
