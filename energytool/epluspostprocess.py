@@ -100,7 +100,10 @@ def get_aggregated_indicator(simulation_list,
                              indicator='Total',
                              method=np.sum,
                              method_args=None,
-                             reference=None):
+                             reference=None,
+                             start=None,
+                             end=None
+                             ):
     if not simulation_list:
         raise ValueError("Empty simulation list. "
                          "Cannot perform indicator aggregation")
@@ -118,6 +121,15 @@ def get_aggregated_indicator(simulation_list,
         getattr(sim.building, results_group)[indicator]
         for sim in simulation_list
     ], axis=1)
+
+    if start is not None:
+        if end is None:
+            raise ValueError("If start is specified, "
+                             "end must also be specified")
+        else:
+            y_df = y_df.loc[start: end]
+        if reference is not None:
+            reference = reference.loc[start: end]
 
     if reference is None:
         return method(y_df).to_numpy()
