@@ -217,17 +217,19 @@ class SurrogateModel:
             sample_size, seed, run_directory, nb_cpus, nb_simu_per_batch)
 
     def fit_sample(self,
-                   test_size=0.2,
-                   cv=10,
-                   metrics_method=mean_squared_error,
                    indicator='Total',
                    results_group='building_results',
+                   start=None,
+                   end=None,
+                   metrics_method=mean_squared_error,
                    aggregation_method=np.sum,
                    method_args=None,
                    reference=None,
                    custom_series=None,
                    verbose=True,
                    random_state=None,
+                   test_size=0.2,
+                   cv=10,
                    ):
 
         if custom_series is None:
@@ -237,7 +239,10 @@ class SurrogateModel:
                 indicator=indicator,
                 method=aggregation_method,
                 reference=reference,
-                method_args=method_args)
+                method_args=method_args,
+                start=start,
+                end=end,
+            )
 
         else:
             y_array = time_series_control(custom_series)
