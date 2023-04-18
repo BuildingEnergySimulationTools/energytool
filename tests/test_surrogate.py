@@ -24,22 +24,20 @@ class TestSurrogate:
                 bounds=[0.8, 1.2],
                 absolute=False,
                 building=building,
-                idf_parameters=[dict(
-                    idf_object="Material",
-                    names='*',
-                    field="Specific_Heat"
-                )]
+                idf_parameters=[
+                    dict(idf_object="Material", names="*", field="Specific_Heat")
+                ],
             ),
             UncertainParameter(
                 name="Boiler_cop",
                 bounds=[0.7, 0.95],
                 absolute=True,
                 building=building,
-                building_parameters=[dict(
-                    category="heating_system",
-                    element_name="Main_boiler",
-                    key="cop"
-                )],
+                building_parameters=[
+                    dict(
+                        category="heating_system", element_name="Main_boiler", key="cop"
+                    )
+                ],
             ),
         ]
 
@@ -50,25 +48,25 @@ class TestSurrogate:
             simulation_start=dt.datetime(2009, 1, 1, 0, 0, 0),
             simulation_stop=dt.datetime(2009, 1, 1, 23, 0, 0),
             timestep_per_hour=1,
-            sampling_method='LatinHypercube'
+            sampling_method="LatinHypercube",
         )
 
         sim_sampler.add_sample(sample_size=3, seed=42)
         sim_sampler.add_sample(sample_size=3, seed=666)
 
-        ref = np.array([
-            [0.83014, 0.91343],
-            [1.08552, 0.80855],
-            [1.05411, 0.70203],
-            [0.80000, 0.70000],
-            [0.80000, 0.95000],
-            [1.20000, 0.70000],
-            [1.20000, 0.95000],
-            [0.83145, 0.82079],
-            [0.99437, 0.89884],
-            [1.15444, 0.75963]
-        ])
+        ref = np.array(
+            [
+                [0.83014, 0.91343],
+                [1.08552, 0.80855],
+                [1.05411, 0.70203],
+                [0.80000, 0.70000],
+                [0.80000, 0.95000],
+                [1.20000, 0.70000],
+                [1.20000, 0.95000],
+                [0.83145, 0.82079],
+                [0.99437, 0.89884],
+                [1.15444, 0.75963],
+            ]
+        )
 
         assert np.allclose(sim_sampler.sample, ref, atol=0.0001)
-
-

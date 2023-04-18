@@ -14,33 +14,32 @@ from eppy.modeleditor import IDF
 RESOURCES_PATH = Path(__file__).parent / "resources"
 
 try:
-    IDF.setiddname(RESOURCES_PATH / 'Energy+.idd')
+    IDF.setiddname(RESOURCES_PATH / "Energy+.idd")
 except eppy.modeleditor.IDDAlreadySetError:
     pass
 
 
 def get_zones_idealloadsairsystem(idf, zones):
     """Returns list of required zones IdealLoadsAirSystem objects
-     - zones: zone (string) or zone list (list of strings)
-     - returns : list of eppy objects
+    - zones: zone (string) or zone list (list of strings)
+    - returns : list of eppy objects
     """
     zones = tl.format_input_to_list(zones)
     ilas_list = []
     for zone in zones:
-        equip_con = idf.getobject(
-            'ZONEHVAC:EQUIPMENTCONNECTIONS', zone)
+        equip_con = idf.getobject("ZONEHVAC:EQUIPMENTCONNECTIONS", zone)
         # If zone has hvac equipments
         if not equip_con:
             raise ValueError(f"{zone} doesn't have an IdealLoadAirSystem")
 
         equip_list = equip_con.get_referenced_object(
-            'Zone_Conditioning_Equipment_List_Name')
+            "Zone_Conditioning_Equipment_List_Name"
+        )
         for i in range(18):
             # 18 seem to be the max allowed (eppy)
-            hvac_obj = equip_list.get_referenced_object(
-                f'Zone_Equipment_{i + 1}_Name')
+            hvac_obj = equip_list.get_referenced_object(f"Zone_Equipment_{i + 1}_Name")
             if hvac_obj:
-                if hvac_obj.key == 'ZoneHVAC:IdealLoadsAirSystem':
+                if hvac_obj.key == "ZoneHVAC:IdealLoadsAirSystem":
                     ilas_list.append(hvac_obj)
     return ilas_list
 
@@ -65,19 +64,23 @@ def get_building_surface_area(idf, outside_boundary_condition):
     Return specific outside_boundary_condition building surface area
     """
 
-    return sum([
-        o.area
-        for o in idf.idfobjects["BuildingSurface:Detailed"]
-        if o.Outside_Boundary_Condition == outside_boundary_condition
-    ])
+    return sum(
+        [
+            o.area
+            for o in idf.idfobjects["BuildingSurface:Detailed"]
+            if o.Outside_Boundary_Condition == outside_boundary_condition
+        ]
+    )
 
 
 def get_building_volume(idf):
     """Return volume based on zones volumes"""
-    return sum([
-        eppy.modeleditor.zonevolume(idf, zname)
-        for zname in get_objects_name_list(idf, "Zone")
-    ])
+    return sum(
+        [
+            eppy.modeleditor.zonevolume(idf, zname)
+            for zname in get_objects_name_list(idf, "Zone")
+        ]
+    )
 
 
 def is_value_in_object_fieldnames(idf, idf_object, field_name, values):
@@ -105,8 +108,9 @@ def is_value_in_object_fieldnames(idf, idf_object, field_name, values):
 
 
 def set_objects_field_values(
-        idf, idf_object, field_name, values, idf_object_names=None):
-    if idf_object_names is None or idf_object_names == '*':
+    idf, idf_object, field_name, values, idf_object_names=None
+):
+    if idf_object_names is None or idf_object_names == "*":
         idf_object_names_list = get_objects_name_list(idf, idf_object)
     else:
         idf_object_names_list = tl.format_input_to_list(idf_object_names)
@@ -116,16 +120,16 @@ def set_objects_field_values(
         values_list = values_list * len(idf_object_names_list)
 
     if len(idf_object_names_list) != len(values_list):
-        raise ValueError("values and idf_object_names list must be of the "
-                         "same length. Or values must be a single object")
+        raise ValueError(
+            "values and idf_object_names list must be of the "
+            "same length. Or values must be a single object"
+        )
 
     for obj_name, value in zip(idf_object_names_list, values_list):
-        set_object_name_field_value(
-            idf, idf_object, obj_name, field_name, value)
+        set_object_name_field_value(idf, idf_object, obj_name, field_name, value)
 
 
-def set_object_name_field_value(
-        idf, idf_object, idf_object_name, field_name, value):
+def set_object_name_field_value(idf, idf_object, idf_object_name, field_name, value):
     try:
         obj_list = idf.idfobjects[idf_object]
     except KeyError:
@@ -139,16 +143,16 @@ def set_object_name_field_value(
             obj[field_name] = value
 
 
-def get_objects_field_values(
-        idf, idf_object, field_name, idf_object_names=None):
-    if idf_object_names is not None and idf_object_names != '*':
+def get_objects_field_values(idf, idf_object, field_name, idf_object_names=None):
+    if idf_object_names is not None and idf_object_names != "*":
         idf_object_names_list = tl.format_input_to_list(idf_object_names)
     else:
         idf_object_names_list = get_objects_name_list(idf, idf_object)
 
-    return [get_object_name_field_value(
-        idf, idf_object, obj_name, field_name)
-        for obj_name in idf_object_names_list]
+    return [
+        get_object_name_field_value(idf, idf_object, obj_name, field_name)
+        for obj_name in idf_object_names_list
+    ]
 
 
 def get_object_name_field_value(idf, idf_object, idf_object_name, field_name):
@@ -177,50 +181,49 @@ def set_run_period(idf, simulation_start, simulation_stop):
         End_Month=simulation_stop.month,
         End_Day_of_Month=simulation_stop.day,
         End_Year=simulation_stop.year,
-        Day_of_Week_for_Start_Day=simulation_start.strftime('%A'),
+        Day_of_Week_for_Start_Day=simulation_start.strftime("%A"),
         Use_Weather_File_Holidays_and_Special_Days="No",
         Use_Weather_File_Daylight_Saving_Period="No",
         Apply_Weekend_Holiday_Rule="Yes",
         Use_Weather_File_Rain_Indicators="Yes",
         Use_Weather_File_Snow_Indicators="Yes",
-        Treat_Weather_as_Actual="No"
+        Treat_Weather_as_Actual="No",
     )
 
 
 def set_timestep(idf, nb_timestep_per_hour):
     timestep_list = idf.idfobjects["Timestep"]
     timestep_list.clear()
-    idf.newidfobject(
-        "Timestep",
-        Number_of_Timesteps_per_Hour=nb_timestep_per_hour
-    )
+    idf.newidfobject("Timestep", Number_of_Timesteps_per_Hour=nb_timestep_per_hour)
 
 
 def output_zone_variable_present(idf, zones, variables):
     zones_bool = is_value_in_object_fieldnames(
-        idf, "Output:Variable", "Key_Value", zones)
+        idf, "Output:Variable", "Key_Value", zones
+    )
 
     all_zones_bool = is_value_in_object_fieldnames(
-        idf, "Output:Variable", "Key_Value", "*")
+        idf, "Output:Variable", "Key_Value", "*"
+    )
 
     zones_bool = np.logical_or(zones_bool, all_zones_bool)
 
     variables_bool = is_value_in_object_fieldnames(
-        idf, "Output:Variable", "Variable_Name", variables)
+        idf, "Output:Variable", "Variable_Name", variables
+    )
 
     return np.logical_and(zones_bool, variables_bool)
 
 
 def del_obj_by_names(idf, idf_object, names):
-    if names == '*':
+    if names == "*":
         idf.idfobjects[idf_object] = []
 
     name_list = tl.format_input_to_list(names)
     obj_to_remove = [idf.getobject(idf_object, name) for name in name_list]
     obj_list = idf.idfobjects[idf_object]
 
-    idf.idfobjects[idf_object] = [o for o in obj_list if
-                                  o not in obj_to_remove]
+    idf.idfobjects[idf_object] = [o for o in obj_list if o not in obj_to_remove]
 
 
 def del_output_zone_variable(idf, zones, variables):
@@ -237,7 +240,8 @@ def del_output_zone_variable(idf, zones, variables):
 def del_output_variable(idf, variables):
     output_list = idf.idfobjects["OUTPUT:VARIABLE"]
     to_delete = is_value_in_object_fieldnames(
-        idf, "Output:Variable", "Variable_Name", variables)
+        idf, "Output:Variable", "Variable_Name", variables
+    )
 
     if np.any(to_delete):
         indices_to_remove = [i for i, trig in enumerate(to_delete) if trig]
@@ -246,8 +250,7 @@ def del_output_variable(idf, variables):
             del output_list[idx]
 
 
-def add_output_variable(idf, key_values, variables,
-                        reporting_frequency="Hourly"):
+def add_output_variable(idf, key_values, variables, reporting_frequency="Hourly"):
     key_values_list = tl.format_input_to_list(key_values)
     variables_list = tl.format_input_to_list(variables)
 
@@ -261,7 +264,7 @@ def add_output_variable(idf, key_values, variables,
                     "OUTPUT:VARIABLE",
                     Key_Value=key,
                     Variable_Name=var,
-                    Reporting_Frequency=reporting_frequency
+                    Reporting_Frequency=reporting_frequency,
                 )
 
 
@@ -284,55 +287,65 @@ def get_number_of_people(idf, zones="*"):
 
         people_method = people.Number_of_People_Calculation_Method
         if people_method == "People/Area":
-            occupation += (
-                    people.People_per_Zone_Floor_Area * zone.Floor_Area)
+            occupation += people.People_per_Zone_Floor_Area * zone.Floor_Area
         elif people_method == "People":
             occupation += people.Number_of_People
         elif people_method == "Area/Person":
-            occupation += (
-                    zone.Floor_Area / people.Zone_Floor_Area_per_Person)
+            occupation += zone.Floor_Area / people.Zone_Floor_Area_per_Person
     return occupation
 
 
 def add_hourly_schedules_from_df(
-        idf, data, schedule_type="Dimensionless",
-        file_name=None, directory=None):
+    idf, data, schedule_type="Dimensionless", file_name=None, directory=None
+):
     if isinstance(data, pd.Series):
         data = data.to_frame()
     if not isinstance(data, pd.DataFrame):
         raise ValueError("data must be a Pandas Series on DataFrame")
     if not (data.shape[0] == 8760 or data.shape[0] == 8760 + 24):
-        raise ValueError("Invalid DataFrame. Dimension 0 must be 8760 or "
-                         "8760 + 24")
+        raise ValueError("Invalid DataFrame. Dimension 0 must be 8760 or " "8760 + 24")
 
-    eplus_ref = ["Dimensionless", "Temperature", "DeltaTemperature",
-                 "PrecipitationRate", "Angle", "Convection" "Coefficient",
-                 "Activity" "Level", "Velocity", "Capacity", "Power",
-                 "Availability", "Percent", "Control", "Mode"
-                 ]
+    eplus_ref = [
+        "Dimensionless",
+        "Temperature",
+        "DeltaTemperature",
+        "PrecipitationRate",
+        "Angle",
+        "Convection" "Coefficient",
+        "Activity" "Level",
+        "Velocity",
+        "Capacity",
+        "Power",
+        "Availability",
+        "Percent",
+        "Control",
+        "Mode",
+    ]
 
     schedule_type_list = tl.format_input_to_list(schedule_type)
-    if not np.array(
-            tl.is_list_items_in_list(schedule_type_list, eplus_ref)).all():
-        raise ValueError(f"Invalid schedules type in schedules type list\n"
-                         f"Valid types are {eplus_ref}")
+    if not np.array(tl.is_list_items_in_list(schedule_type_list, eplus_ref)).all():
+        raise ValueError(
+            f"Invalid schedules type in schedules type list\n"
+            f"Valid types are {eplus_ref}"
+        )
 
     if len(schedule_type_list) == 1:
         schedule_type_list = schedule_type_list * len(data.columns)
     elif len(schedule_type_list) != len(data.columns):
-        raise ValueError("Invalid Schedule type list. Provide a single type"
-                         "or as many type as data columns")
+        raise ValueError(
+            "Invalid Schedule type list. Provide a single type"
+            "or as many type as data columns"
+        )
 
     already_existing = is_value_in_object_fieldnames(
-        idf,
-        idf_object="Schedule:File",
-        field_name="Name",
-        values=list(data.columns)
+        idf, idf_object="Schedule:File", field_name="Name", values=list(data.columns)
     )
 
     if np.array(already_existing).any():
-        raise ValueError(f"{list(data.columns[already_existing])} already "
-                         f"presents in Schedules:Files")
+        raise ValueError(
+            f"{list(data.columns[already_existing])} already "
+            f"presents in Schedules:Files"
+        )
 
     if file_name is None:
         file_name = str(uuid.uuid4()) + ".csv"
@@ -348,7 +361,8 @@ def add_hourly_schedules_from_df(
     data.to_csv(full_path, index=False, sep=",")
 
     for idx, (schedule, schedule_type) in enumerate(
-            zip(data.columns, schedule_type_list)):
+        zip(data.columns, schedule_type_list)
+    ):
         idf.newidfobject(
             "Schedule:File",
             Name=schedule,
@@ -357,20 +371,14 @@ def add_hourly_schedules_from_df(
             Column_Number=idx + 1,
             Rows_to_Skip_at_Top=1,
             Number_of_Hours_of_Data=8760,
-            Column_Separator='Comma',
-            Interpolate_to_Timestep='No',
+            Column_Separator="Comma",
+            Interpolate_to_Timestep="No",
         )
 
 
-def add_natural_ventilation(
-        idf,
-        ach,
-        zones="*",
-        occupancy_schedule=True,
-        kwargs=None):
+def add_natural_ventilation(idf, ach, zones="*", occupancy_schedule=True, kwargs=None):
     if kwargs is None:
-        kwargs = {"Minimum_Indoor_Temperature": 22,
-                  "Delta_Temperature": 0}
+        kwargs = {"Minimum_Indoor_Temperature": 22, "Delta_Temperature": 0}
     if zones == "*":
         z_list = get_objects_name_list(idf, "Zone")
     else:
@@ -385,19 +393,18 @@ def add_natural_ventilation(
     else:
         if not idf.getobject("Schedule:Compact", "On 24/7"):
             idf.newidfobject(
-                key='Schedule:Compact',
-                Name='On 24/7',
-                Schedule_Type_Limits_Name='Any Number',
-                Field_1='Through: 12/31',
-                Field_2='For: AllDays',
-                Field_3='Until: 24:00',
-                Field_4=1
+                key="Schedule:Compact",
+                Name="On 24/7",
+                Schedule_Type_Limits_Name="Any Number",
+                Field_1="Through: 12/31",
+                Field_2="For: AllDays",
+                Field_3="Until: 24:00",
+                Field_4=1,
             )
-        zone_sched_dict = {z_name: 'On 24/7' for z_name in z_list}
+        zone_sched_dict = {z_name: "On 24/7" for z_name in z_list}
 
     for z_name in zone_sched_dict.keys():
-        vnat = idf.getobject(
-            "ZoneVentilation:DesignFlowrate", f"Natvent_{z_name}")
+        vnat = idf.getobject("ZoneVentilation:DesignFlowrate", f"Natvent_{z_name}")
 
         if vnat:
             idf.idfobjects["ZoneVentilation:DesignFlowrate"].remove(vnat)
@@ -409,7 +416,7 @@ def add_natural_ventilation(
             Schedule_Name=zone_sched_dict[z_name],
             Design_Flow_Rate_Calculation_Method="AirChanges/Hour",
             Design_Flow_Rate=ach,
-            **kwargs
+            **kwargs,
         )
 
 
@@ -420,6 +427,5 @@ def copy_object_from_idf(source_idf, destination_idf, idf_object, name):
     # Copy in building idf if not already present
     destination_obj_list = destination_idf.idfobjects[idf_object]
 
-    if obj_to_copy.Name not in get_objects_name_list(
-            destination_idf, idf_object):
+    if obj_to_copy.Name not in get_objects_name_list(destination_idf, idf_object):
         destination_obj_list.append(obj_to_copy)

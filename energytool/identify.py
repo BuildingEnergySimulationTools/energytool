@@ -3,19 +3,20 @@ from energytool.simulate import Simulation
 from energytool.simulate import SimulationsRunner
 from sklearn.metrics import mean_squared_error
 from scipy.optimize import differential_evolution
-from modelitool.measure import time_series_control
+from modelitool.measure import _time_series_control
 
 
 def remove_gaps(data, gaps_list):
-    holed_data = time_series_control(data).copy()
+    holed_data = _time_series_control(data).copy()
     for gap in gaps_list:
-        remove = holed_data.loc[gap[0]: gap[1]]
+        remove = holed_data.loc[gap[0] : gap[1]]
         holed_data.drop(remove.index, inplace=True)
     return holed_data
 
 
-def error_func_with_gaps(results, reference, gaps_list,
-                         error_function=mean_squared_error):
+def error_func_with_gaps(
+    results, reference, gaps_list, error_function=mean_squared_error
+):
     """
     Remove a list of gaps before returning the error.
     The function may be used to delete the time intervals when measurement are absent
@@ -45,21 +46,21 @@ class Identificator:
             param.building = self.building
 
     def fit(
-            self,
-            indicator,
-            reference,
-            epw_file_path,
-            calibration_timestep='auto',
-            resampling_method=np.sum,
-            simulation_start=None,
-            simulation_stop=None,
-            simulation_timestep_per_hour=6,
-            result='building_results',
-            error_function=None,
-            err_func_args=None,
-            convergence_tolerance=0.05,
-            population_size=5):
-
+        self,
+        indicator,
+        reference,
+        epw_file_path,
+        calibration_timestep="auto",
+        resampling_method=np.sum,
+        simulation_start=None,
+        simulation_stop=None,
+        simulation_timestep_per_hour=6,
+        result="building_results",
+        error_function=None,
+        err_func_args=None,
+        convergence_tolerance=0.05,
+        population_size=5,
+    ):
         if not reference.index.inferred_type == "datetime64":
             raise ValueError("reference index dtypes must be datetime64")
 
@@ -72,37 +73,48 @@ class Identificator:
         if error_function is None:
             error_function = mean_squared_error
 
-        reference = reference.loc[simulation_start: simulation_stop]
+        reference = reference.loc[simulation_start:simulation_stop]
 
         # If calibration timestep is set to 'auto'
         # the method infer a Reference timestep assuming timestep is constant
-        if calibration_timestep == 'auto':
+        if calibration_timestep == "auto":
             calibration_timestep = reference.index.to_series().diff()[1]
         else:
-            reference = reference.resample(
-                calibration_timestep).agg(resampling_method)
+            reference = reference.resample(calibration_timestep).agg(resampling_method)
 
-        simu = Simulation(self.building, epw_file_path, simulation_start,
-                          simulation_stop, simulation_timestep_per_hour)
+        simu = Simulation(
+            self.building,
+            epw_file_path,
+            simulation_start,
+            simulation_stop,
+            simulation_timestep_per_hour,
+        )
 
         sim_runner = SimulationsRunner([simu])
 
-        print('Optimization started')
+        print("Optimization started")
         print([par.name for par in self.parameters])
         print([tuple(par.bounds) for par in self.parameters])
 
         res = differential_evolution(
             self._objective_function,
-            args=(sim_runner, result, indicator,
-                  reference, calibration_timestep, resampling_method,
-                  error_function, err_func_args),
+            args=(
+                sim_runner,
+                result,
+                indicator,
+                reference,
+                calibration_timestep,
+                resampling_method,
+                error_function,
+                err_func_args,
+            ),
             bounds=[tuple(par.bounds) for par in self.parameters],
             callback=self._optimization_callback,
             tol=convergence_tolerance,
-            popsize=population_size
+            popsize=population_size,
         )
 
-        if res['success']:
+        if res["success"]:
             print(f'Identification successful error function = {res["fun"]}')
             for key, val in zip(self.parameters_id_values.keys(), res["x"]):
                 self.parameters_id_values[key] = val
@@ -111,9 +123,16 @@ class Identificator:
             raise ValueError("Identification failed to converge")
 
     def _objective_function(self, x, *args):
-        (sim_runner, result, indicator, reference,
-         calibration_timestep, resampling_method,
-         error_function, err_func_args) = args
+        (
+            sim_runner,
+            result,
+            indicator,
+            reference,
+            calibration_timestep,
+            resampling_method,
+            error_function,
+            err_func_args,
+        ) = args
 
         for idx, param in enumerate(self.parameters):
             param.set_value(x[idx])
@@ -129,7 +148,5 @@ class Identificator:
             return error_function(results, reference, **err_func_args)
 
     def _optimization_callback(self, xk, convergence):
-        print({
-            it.name: val for it, val in zip(self.parameters, xk)
-        })
-        print(f'convergence = {convergence}')
+        print({it.name: val for it, val in zip(self.parameters, xk)})
+        print(f"convergence = {convergence}")

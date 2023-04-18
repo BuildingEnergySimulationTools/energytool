@@ -38,21 +38,20 @@ def get_ach_from_n50(n50, delta_qv, wind_exposition=0.07, f=15):
     For extraction only  delta_qv = Qv, for crossflow ventilation delta_qv = 0
 
     """
-    return n50 * wind_exposition / (
-            1 + f / wind_exposition * (delta_qv / n50) ** 2)
+    return n50 * wind_exposition / (1 + f / wind_exposition * (delta_qv / n50) ** 2)
 
 
 def calculate_building_infiltration_ach_from_q4(
-        idf, q4pa=1.2, wind_exposition=0.07, f=15):
+    idf, q4pa=1.2, wind_exposition=0.07, f=15
+):
     building_outdoor_surface = get_building_surface_area(
-        idf, outside_boundary_condition="Outdoors")
+        idf, outside_boundary_condition="Outdoors"
+    )
     building_volume = get_building_volume(idf)
 
     # Compute N50 from q4pa
     n50 = get_n50_from_q4(
-        q4=q4pa,
-        heated_volume=building_volume,
-        outside_surface=building_outdoor_surface
+        q4=q4pa, heated_volume=building_volume, outside_surface=building_outdoor_surface
     )
 
     # Get qv
@@ -60,54 +59,59 @@ def calculate_building_infiltration_ach_from_q4(
     for siz in idf.idfobjects["Sizing:Zone"]:
         zone = siz.get_referenced_object("Zone_or_ZoneList_Name")
         design = siz.get_referenced_object(
-            "Design_Specification_Outdoor_Air_Object_Name")
+            "Design_Specification_Outdoor_Air_Object_Name"
+        )
         if design.Outdoor_Air_Method != "AirChanges/Hour":
-            raise ValueError("Outdoor Air method other than AirChanges/Hour"
-                             " not yet implemented")
+            raise ValueError(
+                "Outdoor Air method other than AirChanges/Hour" " not yet implemented"
+            )
         z_ach_dict[zone.Name] = design.Outdoor_Air_Flow_Air_Changes_per_Hour
 
     z_hx_dict = {}
     for connection in idf.idfobjects["ZoneHVAC:EquipmentConnections"]:
         z_name = connection.Zone_Name
         sys = connection.get_referenced_object(
-            "Zone_Conditioning_Equipment_List_Name").get_referenced_object(
-            "Zone_Equipment_1_Name")
+            "Zone_Conditioning_Equipment_List_Name"
+        ).get_referenced_object("Zone_Equipment_1_Name")
         z_hx_dict[z_name] = sys.Heat_Recovery_Type
 
-    qv = sum([
-        eppy.modeleditor.zonevolume(idf, zname) * z_ach_dict[zname]
-        for zname in z_ach_dict.keys()
-        if z_hx_dict[zname] == 'None'
-    ]) / building_volume
-
-    return get_ach_from_n50(
-        n50,
-        delta_qv=qv,
-        wind_exposition=wind_exposition,
-        f=f
+    qv = (
+        sum(
+            [
+                eppy.modeleditor.zonevolume(idf, zname) * z_ach_dict[zname]
+                for zname in z_ach_dict.keys()
+                if z_hx_dict[zname] == "None"
+            ]
+        )
+        / building_volume
     )
+
+    return get_ach_from_n50(n50, delta_qv=qv, wind_exposition=wind_exposition, f=f)
 
 
 def get_windows_by_boundary_condition(idf, boundary_condition):
-    ext_surf_name = [obj.Name for obj in
-                     idf.idfobjects[
-                         "BuildingSurface:Detailed"]
-                     if obj.Outside_Boundary_Condition == boundary_condition]
+    ext_surf_name = [
+        obj.Name
+        for obj in idf.idfobjects["BuildingSurface:Detailed"]
+        if obj.Outside_Boundary_Condition == boundary_condition
+    ]
 
-    return [obj for obj in
-            idf.idfobjects[
-                "FenestrationSurface:Detailed"]
-            if obj.Building_Surface_Name in ext_surf_name]
+    return [
+        obj
+        for obj in idf.idfobjects["FenestrationSurface:Detailed"]
+        if obj.Building_Surface_Name in ext_surf_name
+    ]
 
 
 def get_constructions_layer_list(constructions):
     construction_list = format_input_to_list(constructions)
     material_name_list = []
     for constructions in construction_list:
-        material_name_list += [elmt for elmt, key in
-                               zip(constructions.fieldvalues,
-                                   constructions.fieldnames)
-                               if key not in ["key", "Name"]]
+        material_name_list += [
+            elmt
+            for elmt, key in zip(constructions.fieldvalues, constructions.fieldnames)
+            if key not in ["key", "Name"]
+        ]
     return material_name_list
 
 
@@ -117,15 +121,15 @@ def remove_layer_from_constructions(building, names):
     new_cons_list = []
     for construction in building.idf.idfobjects["Construction"]:
         keys = [k for k in construction.fieldnames]
-        values = [v for v in construction.fieldvalues
-                  if v not in names_list]
+        values = [v for v in construction.fieldvalues if v not in names_list]
 
         new_cons = {k: v for v, k in zip(values, keys)}
 
         new_cons_list.append(new_cons)
 
     building.idf.idfobjects["Construction"] = [
-        building.idf.newidfobject(**cons) for cons in new_cons_list]
+        building.idf.newidfobject(**cons) for cons in new_cons_list
+    ]
 
 
 def idf_object_to_dict(obj):
@@ -133,13 +137,14 @@ def idf_object_to_dict(obj):
 
 
 class OpaqueSurfaceModifier:
-    def __init__(self,
-                 name,
-                 building=None,
-                 surface_type=None,
-                 outside_boundary_condition=None,
-                 variant_dict=None,
-                 ):
+    def __init__(
+        self,
+        name,
+        building=None,
+        surface_type=None,
+        outside_boundary_condition=None,
+        variant_dict=None,
+    ):
         self.name = name
         self.building = building
         self.surface_type = surface_type
@@ -154,26 +159,28 @@ class OpaqueSurfaceModifier:
                 material["Roughness"] = "Rough"
 
             if material["Name"] not in pr.get_objects_name_list(
-                    self.building.idf, "Material"):
+                self.building.idf, "Material"
+            ):
                 self.building.idf.newidfobject("Material", **material)
 
-        if name not in pr.get_objects_name_list(
-                self.building.idf, "Construction"):
-            construction_kwargs = {"Name": name,
-                                   "Outside_Layer": construction[0]["Name"]}
+        if name not in pr.get_objects_name_list(self.building.idf, "Construction"):
+            construction_kwargs = {
+                "Name": name,
+                "Outside_Layer": construction[0]["Name"],
+            }
 
             if len(construction) > 1:
                 for idx, mat in enumerate(construction[1:]):
                     construction_kwargs[f"Layer_{idx + 2}"] = mat["Name"]
 
-            self.building.idf.newidfobject(
-                "Construction", **construction_kwargs)
+            self.building.idf.newidfobject("Construction", **construction_kwargs)
 
         surface_list = self.building.idf.idfobjects["BuildingSurface:Detailed"]
         surf_to_modify = [
-            obj for obj in surface_list
+            obj
+            for obj in surface_list
             if obj.Surface_Type == self.surface_type
-               and obj.Outside_Boundary_Condition == self.outside_boundary_condition
+            and obj.Outside_Boundary_Condition == self.outside_boundary_condition
         ]
 
         for surf in surf_to_modify:
@@ -181,11 +188,12 @@ class OpaqueSurfaceModifier:
 
 
 class ExternalWindowsModifier:
-    def __init__(self,
-                 name,
-                 building=None,
-                 variant_dict=None,
-                 ):
+    def __init__(
+        self,
+        name,
+        building=None,
+        variant_dict=None,
+    ):
         self.name = name
         self.building = building
         self.variant_dict = variant_dict
@@ -196,35 +204,38 @@ class ExternalWindowsModifier:
 
     @property
     def windows_constructions(self):
-        win_cons_names = set(
-            win.Construction_Name for win in self.windows)
-        return [self.building.idf.getobject("Construction", name)
-                for name in win_cons_names]
+        win_cons_names = set(win.Construction_Name for win in self.windows)
+        return [
+            self.building.idf.getobject("Construction", name) for name in win_cons_names
+        ]
 
     @property
     def windows_materials(self):
         win_mat_list = get_constructions_layer_list(self.windows_constructions)
 
-        return [self.building.idf.getobject(
-            "WindowMaterial:SimpleGlazingSystem", name)
+        return [
+            self.building.idf.getobject("WindowMaterial:SimpleGlazingSystem", name)
             for name in set(win_mat_list)
-            if self.building.idf.getobject(
-                "WindowMaterial:SimpleGlazingSystem", name) is not None
+            if self.building.idf.getobject("WindowMaterial:SimpleGlazingSystem", name)
+            is not None
         ]
 
     @property
     def shaded_window_constructions(self):
         win_names = [win.Name for win in self.windows]
         shading_controls = [
-            obj for obj in self.building.idf.idfobjects["WindowShadingControl"]
-            if any(is_list_items_in_list(obj.fieldvalues, win_names))]
+            obj
+            for obj in self.building.idf.idfobjects["WindowShadingControl"]
+            if any(is_list_items_in_list(obj.fieldvalues, win_names))
+        ]
 
-        obj_list = [obj.get_referenced_object("Construction_with_Shading_Name")
-                    for obj in shading_controls]
+        obj_list = [
+            obj.get_referenced_object("Construction_with_Shading_Name")
+            for obj in shading_controls
+        ]
         set_name = set([obj.Name for obj in obj_list])
 
-        return [self.building.idf.getobject("Construction", name)
-                for name in set_name]
+        return [self.building.idf.getobject("Construction", name) for name in set_name]
 
     def set_variant(self, name):
         new_window = self.variant_dict[name]
@@ -237,20 +248,25 @@ class ExternalWindowsModifier:
                     construction[field] = new_window["Name"]
 
         self.building.idf.idfobjects["WindowMaterial:SimpleGlazingSystem"] = [
-            win for win in self.building.idf.idfobjects[
-                "WindowMaterial:SimpleGlazingSystem"]
-            if win not in self.windows_materials]
+            win
+            for win in self.building.idf.idfobjects[
+                "WindowMaterial:SimpleGlazingSystem"
+            ]
+            if win not in self.windows_materials
+        ]
 
         self.building.idf.newidfobject(
-            key="WindowMaterial:SimpleGlazingSystem", **new_window)
+            key="WindowMaterial:SimpleGlazingSystem", **new_window
+        )
 
 
 class EnvelopeShadesModifier:
-    def __init__(self,
-                 name,
-                 building=None,
-                 variant_dict=None,
-                 ):
+    def __init__(
+        self,
+        name,
+        building=None,
+        variant_dict=None,
+    ):
         self.name = name
         self.building = building
         self.variant_dict = variant_dict
@@ -258,45 +274,50 @@ class EnvelopeShadesModifier:
 
     @property
     def windows(self):
-        return get_windows_by_boundary_condition(self.building.idf, 'Outdoors')
+        return get_windows_by_boundary_condition(self.building.idf, "Outdoors")
 
     @property
     def window_constructions(self):
-        win_cons_names = set(
-            win.Construction_Name for win in self.windows)
-        return [self.building.idf.getobject("Construction", name)
-                for name in win_cons_names]
+        win_cons_names = set(win.Construction_Name for win in self.windows)
+        return [
+            self.building.idf.getobject("Construction", name) for name in win_cons_names
+        ]
 
     @property
     def shaded_window_constructions(self):
-        obj_list = [obj.get_referenced_object("Construction_with_Shading_Name")
-                    for obj in self.shading_control]
+        obj_list = [
+            obj.get_referenced_object("Construction_with_Shading_Name")
+            for obj in self.shading_control
+        ]
         set_name = set([obj.Name for obj in obj_list])
 
-        return [self.building.idf.getobject("Construction", name)
-                for name in set_name]
+        return [self.building.idf.getobject("Construction", name) for name in set_name]
 
     @property
     def shading_materials(self):
-        layer_names = get_constructions_layer_list(
-            self.shaded_window_constructions)
+        layer_names = get_constructions_layer_list(self.shaded_window_constructions)
 
-        obj_list = [self.building.idf.getobject("WindowMaterial:Shade", name)
-                    for name in layer_names
-                    if
-                    self.building.idf.getobject("WindowMaterial:Shade", name)]
+        obj_list = [
+            self.building.idf.getobject("WindowMaterial:Shade", name)
+            for name in layer_names
+            if self.building.idf.getobject("WindowMaterial:Shade", name)
+        ]
 
         set_name = set([obj.Name for obj in obj_list])
 
-        return [self.building.idf.getobject("WindowMaterial:Shade", name)
-                for name in set_name]
+        return [
+            self.building.idf.getobject("WindowMaterial:Shade", name)
+            for name in set_name
+        ]
 
     @property
     def shading_control(self):
         win_names = [win.Name for win in self.windows]
         return [
-            obj for obj in self.building.idf.idfobjects["WindowShadingControl"]
-            if any(is_list_items_in_list(obj.fieldvalues, win_names))]
+            obj
+            for obj in self.building.idf.idfobjects["WindowShadingControl"]
+            if any(is_list_items_in_list(obj.fieldvalues, win_names))
+        ]
 
     def set_variant(self, variant_name):
         new_shade = self.variant_dict[variant_name]["shading"]
@@ -312,8 +333,7 @@ class EnvelopeShadesModifier:
         if new_shade:
             # Add shading object
             shade_template = self.resources_idf.getobject(
-                key="WINDOWMATERIAL:SHADE",
-                name="Shading_template"
+                key="WINDOWMATERIAL:SHADE", name="Shading_template"
             )
 
             shade_dict = idf_object_to_dict(shade_template)
@@ -348,7 +368,8 @@ class EnvelopeShadesModifier:
                     zone_win_dict[ref_zone.Name].append(win)
 
             ctrl_template = self.resources_idf.getobject(
-                "WindowShadingControl", "Shading_ctrl_template")
+                "WindowShadingControl", "Shading_ctrl_template"
+            )
             ctrl_dict = idf_object_to_dict(ctrl_template)
 
             for zone in zone_win_dict.keys():
@@ -362,57 +383,58 @@ class EnvelopeShadesModifier:
 
                 for cons in cons_dict.keys():
                     ctrl = deepcopy(ctrl_dict)
-                    ctrl["Name"] = f'{zone}_{cons}_Shading_control'
+                    ctrl["Name"] = f"{zone}_{cons}_Shading_control"
                     ctrl["Zone_Name"] = zone
                     ctrl["Construction_with_Shading_Name"] = f"{cons}_shaded"
                     for idx, win in enumerate(cons_dict[cons]):
-                        ctrl[f'Fenestration_Surface_{idx + 1}_Name'] = win.Name
+                        ctrl[f"Fenestration_Surface_{idx + 1}_Name"] = win.Name
                     self.building.idf.newidfobject(**ctrl)
 
 
 class InfiltrationModifier:
-    def __init__(self,
-                 name,
-                 building=None,
-                 variant_dict=None,
-                 ):
+    def __init__(
+        self,
+        name,
+        building=None,
+        variant_dict=None,
+    ):
         self.name = name
         self.building = building
         self.variant_dict = variant_dict
 
     @property
     def infiltration_objects(self):
-        return self.building.idf.idfobjects[
-            'ZoneInfiltration:DesignFlowRate']
+        return self.building.idf.idfobjects["ZoneInfiltration:DesignFlowRate"]
 
     def set_variant(self, variant_name):
         inf = self.variant_dict[variant_name]
-        self.building.idf.idfobjects['ZoneInfiltration:DesignFlowRate'] = []
+        self.building.idf.idfobjects["ZoneInfiltration:DesignFlowRate"] = []
 
         if not self.building.idf.getobject("Schedule:Compact", "On 24/7"):
             self.building.idf.newidfobject(
-                key='Schedule:Compact',
-                Name='On 24/7',
-                Schedule_Type_Limits_Name='Any Number',
-                Field_1='Through: 12/31',
-                Field_2='For: AllDays',
-                Field_3='Until: 24:00',
-                Field_4=1
+                key="Schedule:Compact",
+                Name="On 24/7",
+                Schedule_Type_Limits_Name="Any Number",
+                Field_1="Through: 12/31",
+                Field_2="For: AllDays",
+                Field_3="Until: 24:00",
+                Field_4=1,
             )
 
         if "ach" in inf.keys():
             inf_ach = inf["ach"]
         elif "q4pa" in inf.keys():
             inf_ach = calculate_building_infiltration_ach_from_q4(
-                self.building.idf,
-                **inf)
+                self.building.idf, **inf
+            )
         else:
-            raise ValueError("Invalid infiltration coefficient method. "
-                             "Allowed : ach and q4pa")
+            raise ValueError(
+                "Invalid infiltration coefficient method. " "Allowed : ach and q4pa"
+            )
 
         for zone in self.building.idf.idfobjects["Zone"]:
             self.building.idf.newidfobject(
-                key='ZoneInfiltration:DesignFlowRate',
+                key="ZoneInfiltration:DesignFlowRate",
                 Name=f"{zone.Name}_infiltration",
                 Zone_or_ZoneList_Name=zone.Name,
                 Schedule_Name="On 24/7",
@@ -421,23 +443,24 @@ class InfiltrationModifier:
                 Constant_Term_Coefficient=1,
                 Temperature_Term_Coefficient=0,
                 Velocity_Term_Coefficient=0,
-                Velocity_Squared_Term_Coefficient=0
+                Velocity_Squared_Term_Coefficient=0,
             )
 
 
 class LightsModifier:
-    def __init__(self,
-                 name,
-                 building=None,
-                 variant_dict=None,
-                 ):
+    def __init__(
+        self,
+        name,
+        building=None,
+        variant_dict=None,
+    ):
         self.name = name
         self.building = building
         self.variant_dict = variant_dict
 
     @property
     def lights_objects(self):
-        return self.building.idf.idfobjects['Lights']
+        return self.building.idf.idfobjects["Lights"]
 
     def set_variant(self, variant_name):
         power = self.variant_dict[variant_name]
@@ -450,13 +473,14 @@ class LightsModifier:
 
 
 class SystemModifier:
-    def __init__(self,
-                 name,
-                 building=None,
-                 category=None,
-                 system_name=None,
-                 variant_dict=None,
-                 ):
+    def __init__(
+        self,
+        name,
+        building=None,
+        category=None,
+        system_name=None,
+        variant_dict=None,
+    ):
         self.name = name
         self.building = building
         self.category = category
@@ -476,9 +500,7 @@ class SystemModifier:
 
 
 class Combiner:
-    def __init__(self,
-                 building,
-                 modifier_list=None):
+    def __init__(self, building, modifier_list=None):
         if modifier_list is None:
             modifier_list = []
         self.modifier_list = modifier_list
@@ -492,42 +514,45 @@ class Combiner:
 
     @property
     def combination_list(self):
-        var_list = [["Existing"] + list(mod.variant_dict.keys())
-                    for mod in self.modifier_list]
+        var_list = [
+            ["Existing"] + list(mod.variant_dict.keys()) for mod in self.modifier_list
+        ]
         return list(itertools.product(*var_list))
 
-    def run(self,
-            epw_file_path,
-            simulation_start=dt.datetime(2009, 1, 1, 0, 0, 0),
-            simulation_stop=dt.datetime(2009, 12, 31, 23, 0, 0),
-            timestep_per_hour=6,
-            run_directory=None,
-            nb_cpus=-1,
-            nb_simu_per_batch=5
-            ):
-
+    def run(
+        self,
+        epw_file_path,
+        simulation_start=dt.datetime(2009, 1, 1, 0, 0, 0),
+        simulation_stop=dt.datetime(2009, 12, 31, 23, 0, 0),
+        timestep_per_hour=6,
+        run_directory=None,
+        nb_cpus=-1,
+        nb_simu_per_batch=5,
+    ):
         prog_bar = progress_bar(range(len(self.combination_list)))
         for mb, combine in zip(prog_bar, self.combination_list):
             simu_building = deepcopy(self.building)
             for mod, var in zip(self.modifier_list, combine):
                 if var != "Existing":
                     combine_mod = deepcopy(mod)
-                    setattr(combine_mod, 'building', simu_building)
+                    setattr(combine_mod, "building", simu_building)
                     combine_mod.set_variant(var)
 
-            self.simulation_list.append(Simulation(
-                building=simu_building,
-                epw_file_path=epw_file_path,
-                simulation_start=simulation_start,
-                simulation_stop=simulation_stop,
-                timestep_per_hour=timestep_per_hour
-            ))
+            self.simulation_list.append(
+                Simulation(
+                    building=simu_building,
+                    epw_file_path=epw_file_path,
+                    simulation_start=simulation_start,
+                    simulation_stop=simulation_stop,
+                    timestep_per_hour=timestep_per_hour,
+                )
+            )
 
         self.simulation_runner = SimulationsRunner(
             simu_list=self.simulation_list,
             run_dir=run_directory,
             nb_cpus=nb_cpus,
-            nb_simu_per_batch=nb_simu_per_batch
+            nb_simu_per_batch=nb_simu_per_batch,
         )
 
         self.simulation_runner.run()
@@ -536,8 +561,8 @@ class Combiner:
         if not self.simulation_list:
             raise ValueError("No simulation results to get")
         combine_columns = pd.DataFrame(
-            self.combination_list,
-            columns=self.modifier_name_list)
+            self.combination_list, columns=self.modifier_name_list
+        )
 
         calc_res = pd.DataFrame()
 
@@ -561,7 +586,7 @@ class Combiner:
             unit = "[kWh]"
 
         df["Variant_index"] = df.index
-        df = df.sort_values(by='Total', ascending=False)
+        df = df.sort_values(by="Total", ascending=False)
         df.index = np.arange(df.shape[0])
         fig = px.bar(df, y=self.building.system_energy_results.columns)
 

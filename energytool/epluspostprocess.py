@@ -10,21 +10,21 @@ from energytool.tools import format_input_to_list
 def eplus_date_parser(timestamp):
     """Because EnergyPlus works with 1-24h and python with 0-23h"""
     try:
-        time = dt.datetime.strptime(timestamp, ' %m/%d %H:%M:%S')
+        time = dt.datetime.strptime(timestamp, " %m/%d %H:%M:%S")
         time += -dt.timedelta(hours=1)
 
     except ValueError:
         try:
-            time = dt.datetime.strptime(timestamp, '%m/%d %H:%M:%S')
+            time = dt.datetime.strptime(timestamp, "%m/%d %H:%M:%S")
             time += -dt.timedelta(hours=1)
 
         except ValueError:
             try:
-                time = timestamp.replace('24:', '23:')
-                time = dt.datetime.strptime(time, ' %m/%d %H:%M:%S')
+                time = timestamp.replace("24:", "23:")
+                time = dt.datetime.strptime(time, " %m/%d %H:%M:%S")
             except ValueError:
-                time = timestamp.replace('24:', '23:')
-                time = dt.datetime.strptime(time, '%m/%d %H:%M:%S')
+                time = timestamp.replace("24:", "23:")
+                time = dt.datetime.strptime(time, "%m/%d %H:%M:%S")
 
     return time
 
@@ -32,14 +32,10 @@ def eplus_date_parser(timestamp):
 def read_eplus_res(file_path, ref_year=None):
     try:
         results = pd.read_csv(
-            file_path,
-            index_col=0,
-            parse_dates=True,
-            date_parser=eplus_date_parser
+            file_path, index_col=0, parse_dates=True, date_parser=eplus_date_parser
         )
     except FileNotFoundError:
-        print("EnergyPlus output file not found, "
-              "Empty DataFrame is returned")
+        print("EnergyPlus output file not found, " "Empty DataFrame is returned")
         return pd.DataFrame()
 
     if not ref_year:
@@ -49,9 +45,9 @@ def read_eplus_res(file_path, ref_year=None):
     dt_range = pd.date_range(
         results.index[0].replace(year=int(ref_year)),
         periods=results.shape[0],
-        freq=timestep
+        freq=timestep,
     )
-    dt_range.name = 'Date/Time'
+    dt_range.name = "Date/Time"
     results.index = dt_range
 
     return results
@@ -59,19 +55,18 @@ def read_eplus_res(file_path, ref_year=None):
 
 def zone_contains_regex(elmt_list):
     tempo = [elmt + ":.+|" for elmt in elmt_list]
-    return ''.join(tempo)[:-1]
+    return "".join(tempo)[:-1]
 
 
 def variable_contains_regex(elmt_list):
     if not elmt_list:
         return None
     tempo = [elmt + ".+|" for elmt in elmt_list]
-    return ''.join(tempo)[:-1]
+    return "".join(tempo)[:-1]
 
 
-def get_output_variable(
-        eplus_res, variables, key_values='*', drop_suffix=True):
-    if key_values == '*':
+def get_output_variable(eplus_res, variables, key_values="*", drop_suffix=True):
+    if key_values == "*":
         key_mask = np.full((1, eplus_res.shape[1]), True).flatten()
     else:
         key_list = format_input_to_list(key_values)
@@ -88,25 +83,26 @@ def get_output_variable(
     results = eplus_res.loc[:, mask]
 
     if drop_suffix:
-        new_columns = [re.sub(f':{variables}.+', '', col)
-                       for col in results.columns]
+        new_columns = [re.sub(f":{variables}.+", "", col) for col in results.columns]
         results.columns = new_columns
 
     return results
 
 
-def get_aggregated_indicator(simulation_list,
-                             results_group='building_results',
-                             indicator='Total',
-                             method=np.sum,
-                             method_args=None,
-                             reference=None,
-                             start=None,
-                             end=None
-                             ):
+def get_aggregated_indicator(
+    simulation_list,
+    results_group="building_results",
+    indicator="Total",
+    method=np.sum,
+    method_args=None,
+    reference=None,
+    start=None,
+    end=None,
+):
     if not simulation_list:
-        raise ValueError("Empty simulation list. "
-                         "Cannot perform indicator aggregation")
+        raise ValueError(
+            "Empty simulation list. " "Cannot perform indicator aggregation"
+        )
 
     first_build = simulation_list[0].building
     available = list(first_build.building_results.columns)
@@ -114,34 +110,35 @@ def get_aggregated_indicator(simulation_list,
     available.append("Total")
 
     if indicator not in available:
-        raise ValueError("Indicator is not present in building_results or "
-                         "in energyplus_results")
+        raise ValueError(
+            "Indicator is not present in building_results or " "in energyplus_results"
+        )
 
-    y_df = pd.concat([
-        getattr(sim.building, results_group)[indicator]
-        for sim in simulation_list
-    ], axis=1)
+    y_df = pd.concat(
+        [getattr(sim.building, results_group)[indicator] for sim in simulation_list],
+        axis=1,
+    )
 
     if start is not None:
         if end is None:
-            raise ValueError("If start is specified, "
-                             "end must also be specified")
+            raise ValueError("If start is specified, " "end must also be specified")
         else:
-            y_df = y_df.loc[start: end]
+            y_df = y_df.loc[start:end]
         if reference is not None:
-            reference = reference.loc[start: end]
+            reference = reference.loc[start:end]
 
     if reference is None:
         return method(y_df).to_numpy()
 
     elif method_args is None:
-        return np.array([
-            method(reference, y_df.iloc[:, i])
-            for i in range(y_df.shape[1])
-        ])
+        return np.array(
+            [method(reference, y_df.iloc[:, i]) for i in range(y_df.shape[1])]
+        )
 
     else:
-        return np.array([
-            method(reference, y_df.iloc[:, i], **method_args)
-            for i in range(y_df.shape[1])
-        ])
+        return np.array(
+            [
+                method(reference, y_df.iloc[:, i], **method_args)
+                for i in range(y_df.shape[1])
+            ]
+        )

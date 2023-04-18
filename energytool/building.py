@@ -12,13 +12,13 @@ from energytool.epluspostprocess import variable_contains_regex
 
 class Building:
     def __init__(
-            self,
-            idf_path,
-            month_summer_begins=5,
-            month_summer_ends=8,
-            summer_comfort_top=28,
-            clean_output_variable=True):
-
+        self,
+        idf_path,
+        month_summer_begins=5,
+        month_summer_ends=8,
+        summer_comfort_top=28,
+        clean_output_variable=True,
+    ):
         self.idf = IDF(str(idf_path))
         if clean_output_variable:
             self.idf.idfobjects["Output:Variable"].clear()
@@ -55,7 +55,8 @@ class Building:
             self.artificial_lighting_system,
             self.dwh_system,
             self.pv_production,
-            self.other]
+            self.other,
+        ]
 
         proc_list = []
         for build_sys in system_list:
@@ -82,15 +83,15 @@ class Building:
         for header, systems in system_dict.items():
             if systems:
                 to_find = variable_contains_regex(
-                    [sys.name for sys in systems.values()])
-                mask = self.building_results.columns.str.contains(
-                    to_find)
+                    [sys.name for sys in systems.values()]
+                )
+                mask = self.building_results.columns.str.contains(to_find)
                 res = self.building_results.loc[:, mask]
                 sys_nrj_res[header] = res.sum(axis=1)
             else:
                 sys_nrj_res[header] = pd.Series(
                     self.building_results.shape[0] * [0.0],
-                    index=self.building_results.index
+                    index=self.building_results.index,
                 )
         sys_nrj_res["Total"] = sys_nrj_res.sum(axis=1)
         return sys_nrj_res
@@ -125,25 +126,28 @@ class Building:
         shared_zones = list(set(zones_top_hot) & set(zones_is_someone))
 
         zone_hot_and_someone = np.logical_and(
-            zones_top_hot[shared_zones],
-            zones_is_someone[shared_zones]
+            zones_top_hot[shared_zones], zones_is_someone[shared_zones]
         )
 
         return (zone_hot_and_someone.sum() / zones_is_someone.sum()) * 100
 
     @property
     def zone_name_list(self):
-        return pr.get_objects_name_list(self.idf, 'Zone')
+        return pr.get_objects_name_list(self.idf, "Zone")
 
     @property
     def surface(self):
-        return sum(eppy.modeleditor.zonearea(self.idf, z.Name)
-                   for z in self.idf.idfobjects['Zone'])
+        return sum(
+            eppy.modeleditor.zonearea(self.idf, z.Name)
+            for z in self.idf.idfobjects["Zone"]
+        )
 
     @property
     def volume(self):
-        return sum(eppy.modeleditor.zonevolume(self.idf, z.Name)
-                   for z in self.idf.idfobjects['Zone'])
+        return sum(
+            eppy.modeleditor.zonevolume(self.idf, z.Name)
+            for z in self.idf.idfobjects["Zone"]
+        )
 
     def infos(self):
         nb_occupant = pr.get_number_of_people(self.idf)

@@ -7,7 +7,6 @@ from pathlib import Path
 
 from contextvars import ContextVar
 
-import pandas as pd
 import eppy.runner.run_functions as errf
 
 from energytool.epluspostprocess import read_eplus_res
@@ -15,6 +14,7 @@ from energytool.epluspreprocess import set_run_period
 from energytool.epluspreprocess import set_timestep
 
 from fastprogress.fastprogress import force_console_behavior
+
 master_bar, progress_bar = force_console_behavior()
 
 try:
@@ -66,13 +66,14 @@ errf.prepare_run = prepare_run
 
 
 class Simulation:
-    def __init__(self,
-                 building,
-                 epw_file_path,
-                 simulation_start=dt.datetime(2009, 1, 1, 0, 0, 0),
-                 simulation_stop=dt.datetime(2009, 12, 31, 23, 0, 0),
-                 timestep_per_hour=6,
-                 ):
+    def __init__(
+        self,
+        building,
+        epw_file_path,
+        simulation_start=dt.datetime(2009, 1, 1, 0, 0, 0),
+        simulation_stop=dt.datetime(2009, 12, 31, 23, 0, 0),
+        timestep_per_hour=6,
+    ):
         self.building = building
         self.epw_file_path = epw_file_path
         self.simulation_start = simulation_start
@@ -85,13 +86,9 @@ class Simulation:
 
 
 class SimulationsRunner:
-    def __init__(self,
-                 simu_list,
-                 run_dir=None,
-                 nb_cpus=-1,
-                 nb_simu_per_batch=10,
-                 rm_run_dir=True):
-
+    def __init__(
+        self, simu_list, run_dir=None, nb_cpus=-1, nb_simu_per_batch=10, rm_run_dir=True
+    ):
         self.simu_list = simu_list
         self.nb_simu_per_batch = nb_simu_per_batch
         self.nb_cpus = nb_cpus
@@ -113,13 +110,9 @@ class SimulationsRunner:
             shutil.rmtree(pool_path)
         os.makedirs(pool_path)
 
-        nb_batches = math.ceil(
-            len(self.simu_list)
-            / self.nb_simu_per_batch
-        )
+        nb_batches = math.ceil(len(self.simu_list) / self.nb_simu_per_batch)
 
-        simu_iterator = (
-            (i, elmt) for i, elmt in enumerate(self.simu_list))
+        simu_iterator = ((i, elmt) for i, elmt in enumerate(self.simu_list))
 
         prog_bar = progress_bar(range(nb_batches))
 
@@ -129,7 +122,6 @@ class SimulationsRunner:
             batch_simu_list = []
 
             for _ in range(self.nb_simu_per_batch):
-
                 try:
                     simu_idx, simu = next(simu_iterator)
                 # Last batch may be shorter
@@ -162,8 +154,7 @@ class SimulationsRunner:
                             "version": False,
                             "verbose": "v",
                             "ep_version": f"{idd_ref[0]}-{idd_ref[1]}-{idd_ref[2]}",
-
-                        }
+                        },
                     )
                 )
 
@@ -182,7 +173,7 @@ class SimulationsRunner:
                 current_simu = self.simu_list[idx]
                 current_simu.building.energyplus_results = read_eplus_res(
                     file_path=simu_fold / "eplusout.csv",
-                    ref_year=current_simu.simulation_start.year
+                    ref_year=current_simu.simulation_start.year,
                 )
 
                 # 3rd Apply system post-processing

@@ -16,14 +16,13 @@ def format_input_to_list(f_input):
     elif isinstance(f_input, list):
         return f_input
     else:
-        raise ValueError("Input must be a string an interger a "
-                         "float or a list")
+        raise ValueError("Input must be a string an interger a " "float or a list")
 
 
 def select_by_strings(items_list, select_by):
     select_by_list = format_input_to_list(select_by)
 
-    if select_by == '*':
+    if select_by == "*":
         return items_list
 
     output_list = []
@@ -47,10 +46,7 @@ def hourly_lst_from_dict(hourly_dict):
 
 
 def is_list_items_in_list(tested_list, reference_list):
-    return [
-        True if elmt in reference_list
-        else False
-        for elmt in tested_list]
+    return [True if elmt in reference_list else False for elmt in tested_list]
 
 
 class Scheduler:
@@ -58,25 +54,24 @@ class Scheduler:
         self.name = name
         self.year = year
         self.series = pd.Series(
-            index=pd.date_range(
-                f'{year}-01-01 00:00:00', freq="H", periods=8760),
+            index=pd.date_range(f"{year}-01-01 00:00:00", freq="H", periods=8760),
             name=name,
-            dtype='float64'
+            dtype="float64",
         )
 
     def add_day_in_period(self, start, end, days, hourly_dict):
-        start = dt.datetime.strptime(start, '%Y-%m-%d')
-        end = dt.datetime.strptime(end, '%Y-%m-%d')
+        start = dt.datetime.strptime(start, "%Y-%m-%d")
+        end = dt.datetime.strptime(end, "%Y-%m-%d")
         end = end.replace(hour=23)
 
         if start.year != self.year or end.year != end.year:
             raise ValueError("start date or end date is out of bound ")
 
         day_list = format_input_to_list(days)
-        period = self.series.loc[start: end]
+        period = self.series.loc[start:end]
 
-        selected_timestamp = [idx for idx in period.index
-                              if idx.day_name() in day_list]
+        selected_timestamp = [idx for idx in period.index if idx.day_name() in day_list]
 
-        self.series.loc[selected_timestamp] = hourly_lst_from_dict(
-            hourly_dict) * int(len(selected_timestamp) / 24)
+        self.series.loc[selected_timestamp] = hourly_lst_from_dict(hourly_dict) * int(
+            len(selected_timestamp) / 24
+        )
