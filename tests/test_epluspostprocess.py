@@ -55,12 +55,7 @@ class TestEplusPostProcess:
 
     def test_read_eplus_res(self, expected_res_df):
         res = read_eplus_res(RESOURCES_PATH / "test_res.csv", ref_year=2022)
-        res.to_csv(
-            Path(
-                r"C:\Users\bdurandestebe\PycharmProjects\energytool\tests\
-                resources\expected_res2.csv"
-            )
-        )
+        res.to_csv(RESOURCES_PATH / "expected_res2.csv")
 
         pd.testing.assert_frame_equal(res, expected_res_df)
 

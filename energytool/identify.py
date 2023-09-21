@@ -3,13 +3,12 @@ from energytool.simulate import Simulation
 from energytool.simulate import SimulationsRunner
 from sklearn.metrics import mean_squared_error
 from scipy.optimize import differential_evolution
-from modelitool.measure import _time_series_control
 
 
 def remove_gaps(data, gaps_list):
-    holed_data = _time_series_control(data).copy()
+    holed_data = data.copy()
     for gap in gaps_list:
-        remove = holed_data.loc[gap[0] : gap[1]]
+        remove = holed_data.loc[gap[0]: gap[1]]
         holed_data.drop(remove.index, inplace=True)
     return holed_data
 
