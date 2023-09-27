@@ -1,43 +1,56 @@
-import pandas as pd
-
 import eppy
+import pandas as pd
 from eppy.modeleditor import IDF
+from corrai.base.model import Model
 
-import numpy as np
+from copy import deepcopy
+
+from pathlib import Path
+
+from eppy.runner.run_functions import run
+
+from energytool.outputs import read_eplus_res
 
 import energytool.epluspreprocess as pr
-import energytool.epluspostprocess as po
-from energytool.epluspostprocess import variable_contains_regex
+import tempfile
+import shutil
+from contextlib import contextmanager
+
+import platform
+import os
 
 
-class Building:
+@contextmanager
+def temporary_directory():
+    if platform.system() == "Windows":
+        user_home = os.path.expanduser("~")
+        temp_path = os.path.join(user_home, r"AppData\Local\Temp")
+    else:
+        temp_path = None
+    temp_dir = tempfile.mkdtemp(dir=temp_path)
+    try:
+        yield temp_dir
+
+    finally:
+        shutil.rmtree(temp_dir)
+
+
+class Building(Model):
     def __init__(
         self,
         idf_path,
-        month_summer_begins=5,
-        month_summer_ends=8,
-        summer_comfort_top=28,
-        clean_output_variable=True,
     ):
         self.idf = IDF(str(idf_path))
-        if clean_output_variable:
-            self.idf.idfobjects["Output:Variable"].clear()
-            self.idf.idfobjects["Output:Meter"].clear()
 
-        self.month_summer_begins = month_summer_begins
-        self.month_summer_ends = month_summer_ends
-        self.summer_comfort_top = summer_comfort_top
-        self.heating_system = {}
-        self.cooling_system = {}
-        self.ventilation_system = {}
-        self.artificial_lighting_system = {}
-        self.dwh_system = {}
-        self.pv_production = {}
-        self.other = {}
-
-        self.energyplus_results = pd.DataFrame()
-        self.building_results = pd.DataFrame()
-        self.custom_results = pd.DataFrame()
+        self.systems = {
+            "HEATING": [],
+            "COOLING": [],
+            "VENTILATION": [],
+            "LIGHTING": [],
+            "DHW": [],
+            "PV": [],
+            "OTHER": [],
+        }
 
     @staticmethod
     def set_idd(root_eplus):
@@ -45,91 +58,6 @@ class Building:
             IDF.setiddname(root_eplus / "Energy+.idd")
         except eppy.modeleditor.IDDAlreadySetError:
             pass
-
-    @property
-    def process_objects_list(self):
-        system_list = [
-            self.heating_system,
-            self.cooling_system,
-            self.ventilation_system,
-            self.artificial_lighting_system,
-            self.dwh_system,
-            self.pv_production,
-            self.other,
-        ]
-
-        proc_list = []
-        for build_sys in system_list:
-            for sys in build_sys.values():
-                proc_list.append(sys)
-
-        return proc_list
-
-    @property
-    def system_energy_results(self):
-        system_dict = {
-            "Heating": self.heating_system,
-            "Cooling": self.cooling_system,
-            "Ventilation": self.ventilation_system,
-            "Lighting": self.artificial_lighting_system,
-            "DHW": self.dwh_system,
-            "Local_production": self.pv_production,
-        }
-
-        sys_nrj_res = pd.DataFrame(columns=system_dict.keys())
-        if self.building_results.empty:
-            return sys_nrj_res
-
-        for header, systems in system_dict.items():
-            if systems:
-                to_find = variable_contains_regex(
-                    [sys.name for sys in systems.values()]
-                )
-                mask = self.building_results.columns.str.contains(to_find)
-                res = self.building_results.loc[:, mask]
-                sys_nrj_res[header] = res.sum(axis=1)
-            else:
-                sys_nrj_res[header] = pd.Series(
-                    self.building_results.shape[0] * [0.0],
-                    index=self.building_results.index,
-                )
-        sys_nrj_res["Total"] = sys_nrj_res.sum(axis=1)
-        return sys_nrj_res
-
-    @property
-    def overshoot_thermal_comfort(self):
-        if self.energyplus_results.empty:
-            raise ValueError("No energyplus results available")
-
-        year = self.building_results.index[0].year
-        begin_loc = f"{year}-{self.month_summer_begins}"
-        end_loc = f"{year}-{self.month_summer_ends}"
-
-        zones_top = po.get_output_variable(
-            self.energyplus_results,
-            "Zone Operative Temperature",
-            self.zone_name_list,
-        )
-
-        zones_occupation = po.get_output_variable(
-            self.energyplus_results,
-            "Zone People Occupant Count",
-            self.zone_name_list,
-        )
-
-        zones_top = zones_top.loc[begin_loc:end_loc, :]
-        zones_occupation = zones_occupation.loc[begin_loc:end_loc, :]
-
-        zones_top_hot = zones_top > self.summer_comfort_top
-        zones_is_someone = zones_occupation > 0
-
-        shared_zones = list(set(zones_top_hot) & set(zones_is_someone))
-
-        zone_hot_and_someone = np.logical_and(
-            zones_top_hot[shared_zones], zones_is_someone[shared_zones]
-        )
-
-        return (zone_hot_and_someone.sum() / zones_is_someone.sum()) * 100
 
     @property
     def zone_name_list(self):
@@ -161,26 +89,41 @@ class Building:
             f"\n"
             f"==HVAC systems==\n"
             f"\n"
-            f"Heating systems : {list(self.heating_system.keys())}\n"
-            f"Cooling systems : {list(self.cooling_system.keys())}\n"
+            f"Heating systems : {[obj.name for obj in self.systems['HEATING']]}\n"
+            f"Cooling systems : {[obj.name for obj in self.systems['COOLING']]}\n"
             f"Ventilation system : "
-            f"{list(self.ventilation_system.keys())}\n"
+            f"{[obj.name for obj in self.systems['VENTILATION']]}\n"
             f"Artificial lighting system : "
-            f"{list(self.artificial_lighting_system.keys())}\n"
-            f"DHW production : {list(self.dwh_system.keys())}\n"
-            f"PV production : {list(self.pv_production.keys())}\n"
-            f"Others : {list(self.other.keys())}"
+            f"{[obj.name for obj in self.systems['LIGHTING']]}\n"
+            f"DHW production : {[obj.name for obj in self.systems['DHW']]}\n"
+            f"PV production : {[obj.name for obj in self.systems['PV']]}\n"
+            f"Others : {[obj.name for obj in self.systems['OTHERS']]}"
         )
 
-    def pre_process(self):
-        self.energyplus_results = pd.DataFrame()
+    def simulate(
+        self, parameter_dict: dict = None, simulation_options: dict = None
+    ) -> pd.DataFrame:
+        pass
+        working_idf = deepcopy(self.idf)
+        # working_syst = deepcopy(self.systems)
+        with temporary_directory() as temp_dir:
+            working_idf.saveas((Path(temp_dir) / "in.idf").as_posix(), encoding="utf-8")
+            idd_ref = working_idf.idd_version
+            run(
+                idf=working_idf,
+                weather=parameter_dict["epw_file"],
+                output_directory=temp_dir.replace("\\", "/"),
+                annual=False,
+                design_day=False,
+                idd=None,
+                epmacro=False,
+                expandobjects=False,
+                readvars=True,
+                output_prefix=None,
+                output_suffix=None,
+                version=False,
+                verbose="v",
+                ep_version=f"{idd_ref[0]}-{idd_ref[1]}-{idd_ref[2]}",
+            )
 
-        for sys in self.process_objects_list:
-            sys.pre_process()
-
-    def post_process(self):
-        self.building_results = pd.DataFrame()
-        self.building_results.index = self.energyplus_results.index
-
-        for sys in self.process_objects_list:
-            sys.post_process()
+            return read_eplus_res(Path(temp_dir) / "eplusout.csv")
