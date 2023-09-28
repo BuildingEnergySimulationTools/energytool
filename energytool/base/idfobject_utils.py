@@ -1,3 +1,5 @@
+import datetime
+
 import numpy as np
 from pathlib import Path
 
@@ -9,7 +11,14 @@ import tempfile
 import energytool.tools as tl
 import eppy
 
+from typing import Union
+
 from eppy.modeleditor import IDF
+
+from energytool.base.idf_utils import (
+    get_objects_name_list,
+    is_value_in_objects_fieldname,
+)
 
 RESOURCES_PATH = Path(__file__).parent / "resources"
 
@@ -19,12 +28,25 @@ except eppy.modeleditor.IDDAlreadySetError:
     pass
 
 
-def get_zones_idealloadsairsystem(idf, zones):
-    """Returns list of required zones IdealLoadsAirSystem objects
-    - zones: zone (string) or zone list (list of strings)
-    - returns : list of eppy objects
+def get_zones_idealloadsairsystem(idf: IDF, zones: Union[str, list] = "*"):
     """
-    zones = tl.format_input_to_list(zones)
+    Get a list of IdealLoadsAirSystem objects for specified zones in an EnergyPlus
+    IDF file.
+
+    :param idf: An EnergyPlus IDF object.
+    :param zones: The zones for which to retrieve IdealLoadsAirSystem objects.
+    This can be a single zone (string) or a list of zone names (list of strings).
+    By default, "*" is used to retrieve IdealLoadsAirSystem objects for all zones.
+    :return: A list of IdealLoadsAirSystem objects associated with the specified zones.
+
+    The function first checks if the zones have HVAC equipment connections and then
+    searches for IdealLoadsAirSystem objects associated with those zones.
+    """
+    if zones == "*":
+        zones = get_objects_name_list(idf, "ZONE")
+    else:
+        zones = tl.to_list(zones)
+
     ilas_list = []
     for zone in zones:
         equip_con = idf.getobject("ZONEHVAC:EQUIPMENTCONNECTIONS", zone)
@@ -44,132 +66,29 @@ def get_zones_idealloadsairsystem(idf, zones):
     return ilas_list
 
 
-def get_resources_idf():
-    return IDF(RESOURCES_PATH / "resources_idf.idf")
-
-
-def get_objects_name_list(idf, idf_object):
-    return [obj.Name for obj in idf.idfobjects[idf_object]]
-
-
-def get_objects_by_names(idf, idf_object, names):
-    names_list = tl.format_input_to_list(names)
-    objects_list = idf.idfobjects[idf_object]
-
-    return [obj for obj in objects_list if obj.Name in names_list]
-
-
-def get_building_surface_area(idf, outside_boundary_condition):
-    """
-    Return specific outside_boundary_condition building surface area
-    """
-
-    return sum(
-        [
-            o.area
-            for o in idf.idfobjects["BuildingSurface:Detailed"]
-            if o.Outside_Boundary_Condition == outside_boundary_condition
-        ]
-    )
-
-
-def get_building_volume(idf):
-    """Return volume based on zones volumes"""
-    return sum(
-        [
-            eppy.modeleditor.zonevolume(idf, zname)
-            for zname in get_objects_name_list(idf, "Zone")
-        ]
-    )
-
-
-def is_value_in_object_fieldnames(idf, idf_object, field_name, values):
-    """
-    :param values:
-    :param idf:
-    :param idf_object
-    :param field_name:
-    :return: list of Boolean.
-
-    For  each instance of the idf_object in the idf.
-    Return True if specific field_name as variables value
-    """
-    idf_object = idf_object.upper()
-    values_list = tl.format_input_to_list(values)
-
-    try:
-        outputs = idf.idfobjects[idf_object]
-    except KeyError:
-        outputs = []
-
-    var_in_idf = [out[field_name] for out in outputs]
-
-    return tl.is_list_items_in_list(var_in_idf, values_list)
-
-
-def set_objects_field_values(
-    idf, idf_object, field_name, values, idf_object_names=None
+def set_run_period(
+    idf: IDF,
+    simulation_start: datetime.datetime | pd.Timestamp,
+    simulation_stop: datetime.datetime | pd.Timestamp,
 ):
-    if idf_object_names is None or idf_object_names == "*":
-        idf_object_names_list = get_objects_name_list(idf, idf_object)
-    else:
-        idf_object_names_list = tl.format_input_to_list(idf_object_names)
+    """
+    Configure the IDF run period using datetime objects.
 
-    values_list = tl.format_input_to_list(values)
-    if len(values_list) == 1:
-        values_list = values_list * len(idf_object_names_list)
+    This function allows you to set the IDF run period based on specified start and
+    stop dates.
 
-    if len(idf_object_names_list) != len(values_list):
-        raise ValueError(
-            "values and idf_object_names list must be of the "
-            "same length. Or values must be a single object"
-        )
+    :param idf: An EnergyPlus IDF object.
+    :param simulation_start: The start date and time of the simulation as a
+    datetime.datetime or pd.Timestamp object.
+    :param simulation_stop: The stop date and time of the simulation as a
+    datetime.datetime or pd.Timestamp object.
+    :return: None
 
-    for obj_name, value in zip(idf_object_names_list, values_list):
-        set_object_name_field_value(idf, idf_object, obj_name, field_name, value)
+    The function configures the IDF run period with the provided start and stop dates,
+    as well as other default settings for EnergyPlus simulation. Any existing run period
+    configurations are cleared before adding the new run period definition.
+    """
 
-
-def set_object_name_field_value(idf, idf_object, idf_object_name, field_name, value):
-    try:
-        obj_list = idf.idfobjects[idf_object]
-    except KeyError:
-        print("Unknown EnergyPlus idf_object")
-        obj_list = []
-    if not obj_list:
-        raise ValueError("No idf_object was found")
-
-    for obj in obj_list:
-        if obj.Name == idf_object_name:
-            obj[field_name] = value
-
-
-def get_objects_field_values(idf, idf_object, field_name, idf_object_names=None):
-    if idf_object_names is not None and idf_object_names != "*":
-        idf_object_names_list = tl.format_input_to_list(idf_object_names)
-    else:
-        idf_object_names_list = get_objects_name_list(idf, idf_object)
-
-    return [
-        get_object_name_field_value(idf, idf_object, obj_name, field_name)
-        for obj_name in idf_object_names_list
-    ]
-
-
-def get_object_name_field_value(idf, idf_object, idf_object_name, field_name):
-    try:
-        obj_list = idf.idfobjects[idf_object]
-    except KeyError:
-        print("Unknown EnergyPlus idf_object")
-        obj_list = []
-    if not obj_list:
-        raise ValueError("No idf_object was found")
-
-    for obj in obj_list:
-        if obj.Name == idf_object_name:
-            return obj[field_name]
-
-
-def set_run_period(idf, simulation_start, simulation_stop):
     run_period_list = idf.idfobjects["RunPeriod"]
     run_period_list.clear()
     idf.newidfobject(
@@ -191,39 +110,36 @@ def set_run_period(idf, simulation_start, simulation_stop):
     )
 
 
-def set_timestep(idf, nb_timestep_per_hour):
+def set_timestep(idf, nb_timestep_per_hour: int):
     timestep_list = idf.idfobjects["Timestep"]
     timestep_list.clear()
     idf.newidfobject("Timestep", Number_of_Timesteps_per_Hour=nb_timestep_per_hour)
 
 
-def output_zone_variable_present(idf, zones, variables):
-    zones_bool = is_value_in_object_fieldnames(
+def output_zone_variable_present(idf: IDF, zones: str, variables):
+    """
+    For the idfobject OUTPUT:VARIABLE, returns True if the required zone variable is already
+
+    :param idf:
+    :param zones:
+    :param variables:
+    :return:
+    """
+    zones_bool = is_value_in_objects_fieldname(
         idf, "Output:Variable", "Key_Value", zones
     )
 
-    all_zones_bool = is_value_in_object_fieldnames(
+    all_zones_bool = is_value_in_objects_fieldname(
         idf, "Output:Variable", "Key_Value", "*"
     )
 
     zones_bool = np.logical_or(zones_bool, all_zones_bool)
 
-    variables_bool = is_value_in_object_fieldnames(
+    variables_bool = is_value_in_objects_fieldname(
         idf, "Output:Variable", "Variable_Name", variables
     )
 
     return np.logical_and(zones_bool, variables_bool)
-
-
-def del_obj_by_names(idf, idf_object, names):
-    if names == "*":
-        idf.idfobjects[idf_object] = []
-
-    name_list = tl.format_input_to_list(names)
-    obj_to_remove = [idf.getobject(idf_object, name) for name in name_list]
-    obj_list = idf.idfobjects[idf_object]
-
-    idf.idfobjects[idf_object] = [o for o in obj_list if o not in obj_to_remove]
 
 
 def del_output_zone_variable(idf, zones, variables):
@@ -239,7 +155,7 @@ def del_output_zone_variable(idf, zones, variables):
 
 def del_output_variable(idf, variables):
     output_list = idf.idfobjects["OUTPUT:VARIABLE"]
-    to_delete = is_value_in_object_fieldnames(
+    to_delete = is_value_in_objects_fieldname(
         idf, "Output:Variable", "Variable_Name", variables
     )
 
@@ -251,8 +167,8 @@ def del_output_variable(idf, variables):
 
 
 def add_output_variable(idf, key_values, variables, reporting_frequency="Hourly"):
-    key_values_list = tl.format_input_to_list(key_values)
-    variables_list = tl.format_input_to_list(variables)
+    key_values_list = tl.to_list(key_values)
+    variables_list = tl.to_list(variables)
 
     for key in key_values_list:
         for var in variables_list:
@@ -269,7 +185,7 @@ def add_output_variable(idf, key_values, variables, reporting_frequency="Hourly"
 
 
 def get_number_of_people(idf, zones="*"):
-    zone_name_list = tl.format_input_to_list(zones)
+    zone_name_list = tl.to_list(zones)
     if zones == "*":
         zone_list = idf.idfobjects["Zone"]
     else:
@@ -322,7 +238,7 @@ def add_hourly_schedules_from_df(
         "Mode",
     ]
 
-    schedule_type_list = tl.format_input_to_list(schedule_type)
+    schedule_type_list = tl.to_list(schedule_type)
     if not np.array(tl.is_list_items_in_list(schedule_type_list, eplus_ref)).all():
         raise ValueError(
             f"Invalid schedules type in schedules type list\n"
@@ -337,7 +253,7 @@ def add_hourly_schedules_from_df(
             "or as many type as data columns"
         )
 
-    already_existing = is_value_in_object_fieldnames(
+    already_existing = is_value_in_objects_fieldname(
         idf, idf_object="Schedule:File", field_name="Name", values=list(data.columns)
     )
 
@@ -382,7 +298,7 @@ def add_natural_ventilation(idf, ach, zones="*", occupancy_schedule=True, kwargs
     if zones == "*":
         z_list = get_objects_name_list(idf, "Zone")
     else:
-        z_list = tl.format_input_to_list(zones)
+        z_list = tl.to_list(zones)
 
     if occupancy_schedule:
         zone_sched_dict = {}
@@ -420,12 +336,5 @@ def add_natural_ventilation(idf, ach, zones="*", occupancy_schedule=True, kwargs
         )
 
 
-def copy_object_from_idf(source_idf, destination_idf, idf_object, name):
-    # Get schedule in resources file
-    obj_to_copy = source_idf.getobject(idf_object, name)
-
-    # Copy in building idf if not already present
-    destination_obj_list = destination_idf.idfobjects[idf_object]
-
-    if obj_to_copy.Name not in get_objects_name_list(destination_idf, idf_object):
-        destination_obj_list.append(obj_to_copy)
+def get_resources_idf():
+    return IDF(RESOURCES_PATH / "resources_idf.idf")
