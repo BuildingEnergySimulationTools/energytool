@@ -20,7 +20,7 @@ from energytool.base.idf_utils import (
     is_value_in_objects_fieldname,
 )
 
-RESOURCES_PATH = Path(__file__).parent / "resources"
+RESOURCES_PATH = Path(__file__).parent.parent / "resources"
 
 try:
     IDF.setiddname(RESOURCES_PATH / "Energy+.idd")
@@ -68,8 +68,8 @@ def get_zones_idealloadsairsystem(idf: IDF, zones: Union[str, list] = "*"):
 
 def set_run_period(
     idf: IDF,
-    simulation_start: datetime.datetime | pd.Timestamp,
-    simulation_stop: datetime.datetime | pd.Timestamp,
+    simulation_start: Union[datetime.datetime, pd.Timestamp],
+    simulation_stop: Union[datetime.datetime, pd.Timestamp],
 ):
     """
     Configure the IDF run period using datetime objects.
@@ -166,7 +166,43 @@ def del_output_variable(idf, variables):
             del output_list[idx]
 
 
-def add_output_variable(idf, key_values, variables, reporting_frequency="Hourly"):
+def add_output_variable(
+    idf: IDF,
+    key_values: Union[str, list],
+    variables,
+    reporting_frequency: str = "Hourly",
+):
+    """
+    This function allows you to add output:variable object to an EnergyPlus IDF file.
+    You can specify key values, variables, and reporting frequency for the output
+    variables.
+
+    :param idf: An EnergyPlus IDF object.
+    :param key_values: The key values for which to add output variables.
+        This can be a single key value (string) or a list of key values
+        (list of strings).
+    :param variables: The names of the variables to output. This can be a single
+        variable name (string) or a list of variable names (list of strings).
+    :param reporting_frequency: The reporting frequency for the output
+        variables (e.g., "Hourly", "Daily", etc.). Default is "Hourly."
+    :return: None
+
+    The function iterates through the specified key values and variables, checking if
+    corresponding output variables already exist in the IDF. If not, it adds new output
+    variable definitions with the provided key values, variable names, and reporting
+    frequency.
+
+    Note: If a key value is set to "*", all existing output variables with the same
+    variable name will be removed before adding the new definition.
+
+    Example:
+    ```
+    idf = IDF("example.idf")
+    add_output_variable(idf, "Zone1", "Zone Air Temperature")
+    # Adds an output variable definition for "Zone Air Temperature" for "Zone1"
+    # with default reporting frequency ("Hourly").
+    ```
+    """
     key_values_list = tl.to_list(key_values)
     variables_list = tl.to_list(variables)
 
