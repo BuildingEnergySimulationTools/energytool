@@ -3,12 +3,13 @@ import numpy as np
 import pandas as pd
 
 import pytest
+from eppy.modeleditor import IDF
 
+import energytool.base.idf_utils
+from energytool.outputs import read_eplus_res
 from energytool.building import Building
-from energytool.epluspostprocess import read_eplus_res
 from energytool.simulate import Simulation, SimulationsRunner
 import energytool.system as sys
-import energytool.epluspreprocess as pr
 
 RESOURCES_PATH = Path(__file__).parent / "resources"
 
@@ -22,20 +23,46 @@ def building(tmp_path_factory):
     return building
 
 
+@pytest.fixture(scope="session")
+def idf(tmp_path_factory):
+    return IDF((RESOURCES_PATH / "test.idf").as_posix())
+
+
 class TestSystems:
-    def test_heater_simple(self, building):
+    def test_heater_simple(self, idf):
         gas_boiler = sys.HeaterSimple(
-            name="Main_boiler", cop=0.5, building=building, zones="*"
+            name="Main_boiler", cop=0.5, zones=["Block1:ApptX1W", "Block1:ApptX1E"]
         )
-        building.heating_system = {gas_boiler.name: gas_boiler}
+        gas_boiler.pre_process(idf)
 
-        building.energyplus_results = read_eplus_res(RESOURCES_PATH / "test_res.csv")
+        assert idf.model.dt["output:variable".upper()] == [
+            [
+                "OUTPUT:VARIABLE",
+                "*",
+                "Zone Other Equipment Total Heating Energy",
+                "Hourly",
+            ],
+            [
+                "OUTPUT:VARIABLE",
+                "Block1:ApptX1W Ideal Loads Air",
+                "Zone Ideal Loads Supply Air Total Heating Energy",
+                "Hourly",
+            ],
+            [
+                "OUTPUT:VARIABLE",
+                "Block1:ApptX1E Ideal Loads Air",
+                "Zone Ideal Loads Supply Air Total Heating Energy",
+                "Hourly",
+            ],
+        ]
 
-        building.post_process()
+        energyplus_results = read_eplus_res(RESOURCES_PATH / "test_res.csv")
 
-        to_test = building.building_results.sum().to_numpy()[0]
+        res = gas_boiler.post_process(eplus_results=energyplus_results)
 
-        assert np.floor(to_test) == np.floor(1957968532.1269674)
+        pd.testing.assert_series_equal(
+            res.sum(), pd.Series({"Main_boiler_Energy_[J]": 978973922.4169228})
+        )
 
     def test_ahu(self, building):
         cta = sys.AirHandlingUnit(
@@ -108,7 +135,9 @@ class TestSystems:
 
         building.pre_process()
 
-        schedules_name_list = pr.get_objects_name_list(building.idf, "Schedule:Compact")
+        schedules_name_list = energytool.base.idf_utils.get_objects_name_list(
+            building.idf, "Schedule:Compact"
+        )
 
         design_list = [
             obj.Outdoor_Air_Schedule_Name
@@ -128,7 +157,7 @@ class TestSystems:
         )
 
         building.pre_process()
-        to_test = pr.get_objects_field_values(
+        to_test = energytool.base.idf_utils.get_named_objects_field_values(
             building.idf, "OtherEquipment", field_name="Design_Level"
         )
         assert to_test == ["", "", "", "", 10, 10]
@@ -144,7 +173,7 @@ class TestSystems:
         )
 
         building.pre_process()
-        to_test = pr.get_objects_field_values(
+        to_test = energytool.base.idf_utils.get_named_objects_field_values(
             building.idf, "OtherEquipment", field_name="Design_Level"
         )
         assert to_test == ["", "", "", "", 20, 20, 20, 20]
@@ -166,7 +195,7 @@ class TestSystems:
         )
 
         building.pre_process()
-        to_test = pr.get_objects_field_values(
+        to_test = energytool.base.idf_utils.get_named_objects_field_values(
             building.idf, "OtherEquipment", field_name="Design_Level"
         )
         assert to_test == ["", "", "", "", 40, 40, 40, 40]
@@ -184,7 +213,7 @@ class TestSystems:
         )
 
         building.pre_process()
-        to_test = pr.get_objects_field_values(
+        to_test = energytool.base.idf_utils.get_named_objects_field_values(
             building.idf, "OtherEquipment", field_name="Design_Level"
         )
         assert to_test == [
@@ -207,7 +236,7 @@ class TestSystems:
         )
 
         building.pre_process()
-        to_test = pr.get_objects_field_values(
+        to_test = energytool.base.idf_utils.get_named_objects_field_values(
             building.idf,
             "ThermostatSetpoint:DualSetpoint",
             field_name="Heating_Setpoint_Temperature_Schedule_Name",
@@ -236,14 +265,14 @@ class TestSystems:
         )
 
         building.pre_process()
-        to_test = pr.get_objects_field_values(
+        to_test = energytool.base.idf_utils.get_named_objects_field_values(
             building.idf,
             "ThermostatSetpoint:DualSetpoint",
             field_name="Heating_Setpoint_Temperature_Schedule_Name",
         )
         assert to_test == ["test_df"] * 4
         assert building.idf.getobject("Schedule:File", "test_df")
-        to_test = pr.get_objects_field_values(
+        to_test = energytool.base.idf_utils.get_named_objects_field_values(
             building.idf,
             "ThermostatSetpoint:DualSetpoint",
             field_name="Cooling_Setpoint_Temperature_Schedule_Name",
