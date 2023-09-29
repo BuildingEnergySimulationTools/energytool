@@ -2,45 +2,59 @@ import eppy.modeleditor
 import numpy as np
 import pandas as pd
 
-import energytool.epluspreprocess as pr
-import energytool.epluspostprocess as po
+import energytool.base.idf_utils
+import energytool.base.idfobject_utils as pr
+from energytool.outputs import get_output_variable
 import energytool.tools as tl
 
+from eppy.modeleditor import IDF
+from typing import Union
 
-class HeaterSimple:
-    def __init__(self, name, building, zones="*", cop=0.86):
+from abc import ABC, abstractmethod
+
+
+class System(ABC):
+    def __init__(self, name: str):
         self.name = name
-        self.building = building
+
+    @abstractmethod
+    def pre_process(self, idf: IDF):
+        """Operations happening before the simulation"""
+        pass
+
+    @abstractmethod
+    def post_process(self, idf: IDF = None, eplus_results: pd.DataFrame = None):
+        """Operations happening after the simulation"""
+        pass
+
+
+class HeaterSimple(System):
+    def __init__(self, name: str, zones: Union[str, list] = "*", cop=1):
+        super().__init__(name)
         self.cop = cop
-        if zones == "*":
-            self.zones = self.building.zone_name_list
-        else:
-            self.zones = tl.format_input_to_list(zones)
+        self.zones = zones
+        self.ilas_list = []
 
-        # Find IdealLoadsAirSystem
-        self.ilas_list = pr.get_zones_idealloadsairsystem(building.idf, self.zones)
+    def pre_process(self, idf: IDF):
+        self.ilas_list = pr.get_zones_idealloadsairsystem(idf, self.zones)
 
-    @property
-    def ilas_name_list(self):
-        return [ilas.Name for ilas in self.ilas_list]
-
-    def pre_process(self):
         pr.add_output_variable(
-            idf=self.building.idf,
-            key_values=self.ilas_name_list,
+            idf=idf,
+            key_values=[ilas.Name for ilas in self.ilas_list],
             variables="Zone Ideal Loads Supply Air Total Heating Energy",
         )
 
-    def post_process(self):
+    def post_process(self, idf: IDF = None, eplus_results: pd.DataFrame = None):
         # Warning, works only if ilas name contains zone name
-        ideal_heating = po.get_output_variable(
-            eplus_res=self.building.energyplus_results,
-            key_values=self.ilas_name_list,
+        ideal_heating = get_output_variable(
+            eplus_res=eplus_results,
+            key_values=[ilas.Name for ilas in self.ilas_list],
             variables="Zone Ideal Loads Supply Air Total Heating Energy",
         )
 
         system_out = (ideal_heating / self.cop).sum(axis=1)
-        self.building.building_results[f"{self.name}_Energy_[J]"] = system_out
+        system_out.name = f"{self.name}_Energy_[J]"
+        return system_out.to_frame()
 
 
 class AuxiliarySimplified:
@@ -63,7 +77,7 @@ class AuxiliarySimplified:
         )
 
     def post_process(self):
-        ideal_heating = po.get_output_variable(
+        ideal_heating = energytool.outputs.get_output_variable(
             eplus_res=self.building.energyplus_results,
             key_values=self.zones,
             variables="Zone Ideal Loads Supply Air Total Heating Energy",
@@ -106,7 +120,7 @@ class AirHandlingUnit:
         # Modify ACH if necessary
         if self.ach is not None:
             obj_name_arg = tl.select_by_strings(
-                items_list=pr.get_objects_name_list(
+                items_list=energytool.base.idf_utils.get_objects_name_list(
                     self.building.idf, "DesignSpecification:OutdoorAir"
                 ),
                 select_by=self.zones,
@@ -118,7 +132,7 @@ class AirHandlingUnit:
             }
 
             for field, value in mod_fields.items():
-                pr.set_objects_field_values(
+                energytool.base.idf_utils.set_named_objects_field_values(
                     idf=self.building.idf,
                     idf_object="DesignSpecification:OutdoorAir",
                     idf_object_names=obj_name_arg,
@@ -129,7 +143,7 @@ class AirHandlingUnit:
         # Modify Heat Recovery if necessary
         if self.heat_recovery_efficiency is not None:
             obj_name_arg = tl.select_by_strings(
-                items_list=pr.get_objects_name_list(
+                items_list=energytool.base.idf_utils.get_objects_name_list(
                     self.building.idf, "ZoneHVAC:IdealLoadsAirSystem"
                 ),
                 select_by=self.zones,
@@ -141,7 +155,7 @@ class AirHandlingUnit:
                 "Latent_Heat_Recovery_Effectiveness": self.heat_recovery_efficiency,
             }
             for field, value in mod_fields.items():
-                pr.set_objects_field_values(
+                energytool.base.idf_utils.set_named_objects_field_values(
                     idf=self.building.idf,
                     idf_object="ZoneHVAC:IdealLoadsAirSystem",
                     idf_object_names=obj_name_arg,
@@ -150,7 +164,7 @@ class AirHandlingUnit:
                 )
 
     def post_process(self):
-        air_volume = po.get_output_variable(
+        air_volume = energytool.outputs.get_output_variable(
             eplus_res=self.building.energyplus_results,
             key_values=self.zones,
             variables="Zone Mechanical Ventilation Standard Density Volume Flow Rate",
@@ -229,12 +243,14 @@ class ArtificialLightingSimple:
             "Watts_per_Zone_Floor_Area": self.power_ratio,
         }
         obj_name_arg = tl.select_by_strings(
-            items_list=pr.get_objects_name_list(self.building.idf, "Lights"),
+            items_list=energytool.base.idf_utils.get_objects_name_list(
+                self.building.idf, "Lights"
+            ),
             select_by=self.zones,
         )
 
         for field, value in config.items():
-            pr.set_objects_field_values(
+            energytool.base.idf_utils.set_named_objects_field_values(
                 idf=self.building.idf,
                 idf_object="Lights",
                 idf_object_names=obj_name_arg,
@@ -243,7 +259,7 @@ class ArtificialLightingSimple:
             )
 
     def post_process(self):
-        lighting_consumption = po.get_output_variable(
+        lighting_consumption = energytool.outputs.get_output_variable(
             eplus_res=self.building.energyplus_results,
             key_values=self.zones,
             variables="Zone Lights Electricity Energy",
@@ -268,7 +284,7 @@ class AHUControl:
         self.zones = zones
         self.control_strategy = control_strategy
         self.schedule_name = schedule_name
-        self.resources_idf = pr.get_resources_idf()
+        self.resources_idf = energytool.base.epluspreprocess.get_resources_idf()
 
         if data_frame is not None:
             if data_frame.shape[1] > 1:
@@ -286,12 +302,14 @@ class AHUControl:
         if self.control_strategy == "Schedule":
             # Get schedule in resources file
             idf_schedules = self.building.idf.idfobjects["Schedule:Compact"]
-            schedule_to_copy = pr.get_objects_by_names(
+            schedule_to_copy = energytool.base.idf_utils.get_named_objects(
                 self.resources_idf, "Schedule:Compact", self.schedule_name
             )
 
             # Copy in building idf if not already present
-            if schedule_to_copy[0].Name not in pr.get_objects_name_list(
+            if schedule_to_copy[
+                0
+            ].Name not in energytool.base.idf_utils.get_objects_name_list(
                 self.building.idf, "Schedule:Compact"
             ):
                 idf_schedules.append(schedule_to_copy[0])
@@ -307,13 +325,13 @@ class AHUControl:
 
         # Get Design spec object to modify and set schedule
         obj_name_arg = tl.select_by_strings(
-            items_list=pr.get_objects_name_list(
+            items_list=energytool.base.idf_utils.get_objects_name_list(
                 self.building.idf, "DesignSpecification:OutdoorAir"
             ),
             select_by=self.zones,
         )
 
-        pr.set_objects_field_values(
+        energytool.base.idf_utils.set_named_objects_field_values(
             idf=self.building.idf,
             idf_object="DesignSpecification:OutdoorAir",
             idf_object_names=obj_name_arg,
@@ -374,14 +392,14 @@ class OtherEquipment:
         self.building = building
         self.design_level_power = design_level_power
         self.add_output_variables = add_output_variables
-        self.resources_idf = pr.get_resources_idf()
+        self.resources_idf = energytool.base.epluspreprocess.get_resources_idf()
         self.distribute_load = distribute_load
         self.fraction_radiant = fraction_radiant
 
         if zones == "*":
             self.zones = self.building.zone_name_list
         else:
-            self.zones = tl.format_input_to_list(zones)
+            self.zones = tl.to_list(zones)
 
         if series_schedule is None:
             if compact_schedule_name is None:
@@ -394,8 +412,11 @@ class OtherEquipment:
 
                 # Copy in building idf if not already present
                 idf_schedules = self.building.idf.idfobjects["Schedule:Compact"]
-                if schedule_to_copy.Name not in pr.get_objects_name_list(
-                    self.building.idf, "Schedule:Compact"
+                if (
+                    schedule_to_copy.Name
+                    not in energytool.base.idf_utils.get_objects_name_list(
+                        self.building.idf, "Schedule:Compact"
+                    )
                 ):
                     idf_schedules.append(schedule_to_copy)
 
@@ -416,7 +437,7 @@ class OtherEquipment:
             if not isinstance(series_schedule, pd.Series):
                 raise ValueError("series_schedule must be a Pandas Series")
 
-            pr.del_obj_by_names(
+            energytool.base.idf_utils.del_named_objects(
                 self.building.idf, "Schedule:File", series_schedule.name
             )
 
@@ -438,7 +459,9 @@ class OtherEquipment:
         for i, zone in enumerate(self.zones):
             equipment_name = f"{zone}_{self.name}_equipment"
             equipment_name_list.append(equipment_name)
-            pr.del_obj_by_names(self.building.idf, "OtherEquipment", equipment_name)
+            energytool.base.idf_utils.del_named_objects(
+                self.building.idf, "OtherEquipment", equipment_name
+            )
 
             self.building.idf.newidfobject(
                 "OtherEquipment",
@@ -479,20 +502,20 @@ class ZoneThermostat:
         self.building = building
         self.zones = zones
         self.add_schedules_output_variables = add_schedules_output_variables
-        self.resources_idf = pr.get_resources_idf()
+        self.resources_idf = energytool.base.epluspreprocess.get_resources_idf()
         self.overwrite_heating_availability = overwrite_heating_availability
         self.overwrite_cooling_availability = overwrite_cooling_availability
 
         if zones == "*":
             self.zones = self.building.zone_name_list
         else:
-            self.zones = tl.format_input_to_list(zones)
+            self.zones = tl.to_list(zones)
 
         self.ilas_list = pr.get_zones_idealloadsairsystem(building.idf, self.zones)
 
         if heating_series_schedule is None:
             if heating_compact_schedule_name is None:
-                pr.copy_object_from_idf(
+                energytool.base.idf_utils.copy_named_object_from_idf(
                     self.resources_idf,
                     building.idf,
                     "Schedule:Compact",
@@ -516,7 +539,7 @@ class ZoneThermostat:
             if not isinstance(heating_series_schedule, pd.Series):
                 raise ValueError("series_schedule must be a Pandas Series")
 
-            pr.del_obj_by_names(
+            energytool.base.idf_utils.del_named_objects(
                 self.building.idf, "Schedule:File", heating_series_schedule.name
             )
             pr.add_hourly_schedules_from_df(
@@ -526,7 +549,7 @@ class ZoneThermostat:
 
         if cooling_series_schedule is None:
             if cooling_compact_schedule_name is None:
-                pr.copy_object_from_idf(
+                energytool.base.idf_utils.copy_named_object_from_idf(
                     self.resources_idf,
                     building.idf,
                     "Schedule:Compact",
@@ -550,7 +573,7 @@ class ZoneThermostat:
             if not isinstance(cooling_series_schedule, pd.Series):
                 raise ValueError("series_schedule must be a Pandas Series")
 
-            pr.del_obj_by_names(
+            energytool.base.idf_utils.del_named_objects(
                 self.building.idf, "Schedule:File", cooling_series_schedule.name
             )
             pr.add_hourly_schedules_from_df(
@@ -560,7 +583,7 @@ class ZoneThermostat:
 
     def pre_process(self):
         if self.overwrite_heating_availability or self.overwrite_cooling_availability:
-            pr.copy_object_from_idf(
+            energytool.base.idf_utils.copy_named_object_from_idf(
                 self.resources_idf,
                 self.building.idf,
                 "Schedule:Compact",
@@ -568,7 +591,7 @@ class ZoneThermostat:
             )
 
         if self.overwrite_heating_availability:
-            pr.set_objects_field_values(
+            energytool.base.idf_utils.set_named_objects_field_values(
                 idf=self.building.idf,
                 idf_object="ZONEHVAC:IDEALLOADSAIRSYSTEM",
                 field_name="Heating_Availability_Schedule_Name",
@@ -577,7 +600,7 @@ class ZoneThermostat:
             )
 
         if self.overwrite_cooling_availability:
-            pr.set_objects_field_values(
+            energytool.base.idf_utils.set_named_objects_field_values(
                 idf=self.building.idf,
                 idf_object="ZONEHVAC:IDEALLOADSAIRSYSTEM",
                 field_name="Cooling_Availability_Schedule_Name",
@@ -585,13 +608,13 @@ class ZoneThermostat:
                 values="ON_24h24h_FULL_YEAR",
             )
 
-        thermos_name_list = pr.get_objects_name_list(
+        thermos_name_list = energytool.base.idf_utils.get_objects_name_list(
             self.building.idf, "ThermostatSetpoint:DualSetpoint"
         )
 
         thermos_to_keep = tl.select_by_strings(thermos_name_list, self.zones)
 
-        pr.set_objects_field_values(
+        energytool.base.idf_utils.set_named_objects_field_values(
             idf=self.building.idf,
             idf_object="ThermostatSetpoint:DualSetpoint",
             field_name="Heating_Setpoint_Temperature_Schedule_Name",
@@ -599,7 +622,7 @@ class ZoneThermostat:
             values=self.heating_schedule_name,
         )
 
-        pr.set_objects_field_values(
+        energytool.base.idf_utils.set_named_objects_field_values(
             idf=self.building.idf,
             idf_object="ThermostatSetpoint:DualSetpoint",
             field_name="Cooling_Setpoint_Temperature_Schedule_Name",
