@@ -2,7 +2,7 @@ import pandas as pd
 import datetime as dt
 
 
-def format_input_to_list(f_input):
+def to_list(f_input):
     """
     Convert a string into a list
     return f_input if f_input is a list
@@ -16,11 +16,14 @@ def format_input_to_list(f_input):
     elif isinstance(f_input, list):
         return f_input
     else:
-        raise ValueError("Input must be a string an interger a " "float or a list")
+        raise ValueError(
+            f"{f_input} must be an instance of str, int, float or list."
+            f"Got {type(f_input)} instead"
+        )
 
 
 def select_by_strings(items_list, select_by):
-    select_by_list = format_input_to_list(select_by)
+    select_by_list = to_list(select_by)
 
     if select_by == "*":
         return items_list
@@ -67,7 +70,7 @@ class Scheduler:
         if start.year != self.year or end.year != end.year:
             raise ValueError("start date or end date is out of bound ")
 
-        day_list = format_input_to_list(days)
+        day_list = to_list(days)
         period = self.series.loc[start:end]
 
         selected_timestamp = [idx for idx in period.index if idx.day_name() in day_list]
