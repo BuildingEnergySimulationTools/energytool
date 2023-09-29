@@ -1,4 +1,4 @@
-import energytool.epluspreprocess as pr
+import energytool.base.idfobject_utils as pr
 import energytool.tools as tl
 
 
@@ -10,7 +10,7 @@ class AddOutputVariables:
         self.variables = variables
 
     def pre_process(self):
-        vars_to_add = tl.format_input_to_list(self.variables)
+        vars_to_add = tl.to_list(self.variables)
         for var in vars_to_add:
             pr.add_output_variable(
                 idf=self.building.idf, key_values=self.key_value, variables=var

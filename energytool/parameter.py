@@ -1,4 +1,4 @@
-import energytool.epluspreprocess as pr
+import energytool.base.idf_utils
 
 
 class UncertainParameter:
@@ -24,7 +24,7 @@ class UncertainParameter:
     def get_nominal_values(self):
         if self.idf_parameters is not None:
             self.idf_nominal_values = [
-                pr.get_objects_field_values(
+                energytool.base.idf_utils.get_named_objects_field_values(
                     idf=self.building.idf,
                     idf_object=element["idf_object"],
                     idf_object_names=element["names"],
@@ -54,7 +54,7 @@ class UncertainParameter:
                 else:
                     values_to_set = value
 
-                pr.set_objects_field_values(
+                energytool.base.idf_utils.set_named_objects_field_values(
                     self.building.idf,
                     idf_object=element["idf_object"],
                     idf_object_names=element["names"],

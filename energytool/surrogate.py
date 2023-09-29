@@ -106,7 +106,7 @@ class SimulationSampler:
             )
 
         simulation_runner = SimulationsRunner(
-            simu_list=self.sample_simulation_list[-new_sample_value.shape[0]:],
+            simu_list=self.sample_simulation_list[-new_sample_value.shape[0] :],
             run_dir=run_directory,
             nb_cpus=nb_cpus,
             nb_simu_per_batch=nb_simu_per_batch,

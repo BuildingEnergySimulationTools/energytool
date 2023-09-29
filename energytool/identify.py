@@ -8,7 +8,7 @@ from scipy.optimize import differential_evolution
 def remove_gaps(data, gaps_list):
     holed_data = data.copy()
     for gap in gaps_list:
-        remove = holed_data.loc[gap[0]: gap[1]]
+        remove = holed_data.loc[gap[0] : gap[1]]
         holed_data.drop(remove.index, inplace=True)
     return holed_data
 

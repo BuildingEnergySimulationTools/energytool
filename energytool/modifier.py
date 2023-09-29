@@ -5,11 +5,11 @@ import pandas as pd
 import numpy as np
 import plotly.express as px
 
-import energytool.epluspreprocess as pr
-from energytool.tools import format_input_to_list
+import energytool.base.idf_utils
+import energytool.base.idfobject_utils
+from energytool.tools import to_list
 from energytool.tools import is_list_items_in_list
-from energytool.epluspreprocess import get_building_surface_area
-from energytool.epluspreprocess import get_building_volume
+from energytool.base.idf_utils import get_building_surface_area, get_building_volume
 from energytool.simulate import Simulation
 from energytool.simulate import SimulationsRunner
 
@@ -104,7 +104,7 @@ def get_windows_by_boundary_condition(idf, boundary_condition):
 
 
 def get_constructions_layer_list(constructions):
-    construction_list = format_input_to_list(constructions)
+    construction_list = to_list(constructions)
     material_name_list = []
     for constructions in construction_list:
         material_name_list += [
@@ -116,7 +116,7 @@ def get_constructions_layer_list(constructions):
 
 
 def remove_layer_from_constructions(building, names):
-    names_list = format_input_to_list(names)
+    names_list = to_list(names)
 
     new_cons_list = []
     for construction in building.idf.idfobjects["Construction"]:
@@ -158,12 +158,14 @@ class OpaqueSurfaceModifier:
             if "Roughness" not in material.keys():
                 material["Roughness"] = "Rough"
 
-            if material["Name"] not in pr.get_objects_name_list(
+            if material["Name"] not in energytool.base.idf_utils.get_objects_name_list(
                 self.building.idf, "Material"
             ):
                 self.building.idf.newidfobject("Material", **material)
 
-        if name not in pr.get_objects_name_list(self.building.idf, "Construction"):
+        if name not in energytool.base.idf_utils.get_objects_name_list(
+            self.building.idf, "Construction"
+        ):
             construction_kwargs = {
                 "Name": name,
                 "Outside_Layer": construction[0]["Name"],
@@ -270,7 +272,7 @@ class EnvelopeShadesModifier:
         self.name = name
         self.building = building
         self.variant_dict = variant_dict
-        self.resources_idf = pr.get_resources_idf()
+        self.resources_idf = energytool.base.epluspreprocess.get_resources_idf()
 
     @property
     def windows(self):
