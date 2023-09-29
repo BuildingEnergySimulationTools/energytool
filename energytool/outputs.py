@@ -1,7 +1,14 @@
 import datetime as dt
+import re
+
 import pandas as pd
+import numpy as np
 
 from pathlib import Path
+
+from energytool.tools import to_list
+
+from typing import Union
 
 
 def eplus_date_parser(timestamp: str):
@@ -94,7 +101,6 @@ def system_energy_results(self):
     return sys_nrj_res
 
 
-@property
 def overshoot_thermal_comfort(self):
     if self.energyplus_results.empty:
         raise ValueError("No energyplus results available")
@@ -103,13 +109,13 @@ def overshoot_thermal_comfort(self):
     begin_loc = f"{year}-{self.month_summer_begins}"
     end_loc = f"{year}-{self.month_summer_ends}"
 
-    zones_top = po.get_output_variable(
+    zones_top = get_output_variable(
         self.energyplus_results,
         "Zone Operative Temperature",
         self.zone_name_list,
     )
 
-    zones_occupation = po.get_output_variable(
+    zones_occupation = get_output_variable(
         self.energyplus_results,
         "Zone People Occupant Count",
         self.zone_name_list,
@@ -128,3 +134,92 @@ def overshoot_thermal_comfort(self):
     )
 
     return (zone_hot_and_someone.sum() / zones_is_someone.sum()) * 100
+
+
+def zone_contains_regex(elmt_list):
+    tempo = [elmt + ":.+|" for elmt in elmt_list]
+    return "".join(tempo)[:-1]
+
+
+def variable_contains_regex(elmt_list):
+    if not elmt_list:
+        return None
+    tempo = [elmt + ".+|" for elmt in elmt_list]
+    return "".join(tempo)[:-1]
+
+
+def get_output_variable(
+    eplus_res: pd.DataFrame,
+    variables: Union[str, list],
+    key_values: Union[str, list] = "*",
+    drop_suffix=True,
+) -> pd.DataFrame:
+    """
+    This function allows you to extract specific output variables from an EnergyPlus
+     result DataFrame based on the provided variable names and key values.
+
+    :param eplus_res: A pandas DataFrame containing EnergyPlus simulation results.
+        Index is a DateTimeIndex, columns are output variables
+    :param variables: The names of the specific output variables to retrieve.
+        This can be a single variable name (string) or a list of variable names
+        (list of strings).
+    :param key_values: (Optional) The key values that identify the simulation
+        outputs. This can be a single key value (string) or a list of key values
+        (list of strings). By default, "*" is used to retrieve variables for all
+        key values.
+    :param drop_suffix: (Optional) If True, remove the suffixes from the column
+        names in the returned DataFrame. Default is True.
+    :return: A DataFrame containing the selected output variables.
+    Example:
+    ```
+    get_output_variable(
+        eplus_res=toy_df,
+        key_values="Zone1",
+        variables="Equipment Total Heating Energy",
+    )
+
+
+    get_output_variable(
+        eplus_res=toy_df,
+        key_values=["Zone1", "ZONE2"],
+        variables="Equipment Total Heating Energy",
+    )
+
+    get_output_variable(
+        eplus_res=toy_df,
+        key_values="*",
+        variables="Equipment Total Heating Energy",
+    )
+
+    get_output_variable(
+        eplus_res=toy_df,
+        key_values="Zone1",
+        variables=[
+            "Equipment Total Heating Energy",
+            "Ideal Loads Supply Air Total Heating Energy",
+        ],
+    )
+    ```
+
+    """
+    if key_values == "*":
+        key_mask = np.full((1, eplus_res.shape[1]), True).flatten()
+    else:
+        key_list = to_list(key_values)
+        key_list_upper = [elmt.upper() for elmt in key_list]
+        reg_key = zone_contains_regex(key_list_upper)
+        key_mask = eplus_res.columns.str.contains(reg_key)
+
+    variable_names_list = to_list(variables)
+    reg_var = variable_contains_regex(variable_names_list)
+    variable_mask = eplus_res.columns.str.contains(reg_var)
+
+    mask = np.logical_and(key_mask, variable_mask)
+
+    results = eplus_res.loc[:, mask]
+
+    if drop_suffix:
+        new_columns = [re.sub(f":{variables}.+", "", col) for col in results.columns]
+        results.columns = new_columns
+
+    return results
