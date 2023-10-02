@@ -31,7 +31,10 @@ def idf(tmp_path_factory):
 class TestSystems:
     def test_heater_simple(self, idf):
         gas_boiler = sys.HeaterSimple(
-            name="Main_boiler", cop=0.5, zones=["Block1:ApptX1W", "Block1:ApptX1E"]
+            name="Main_boiler",
+            category=sys.SystemCategories.HEATING,
+            cop=0.5,
+            zones=["Block1:ApptX1W", "Block1:ApptX1E"],
         )
         gas_boiler.pre_process(idf)
 

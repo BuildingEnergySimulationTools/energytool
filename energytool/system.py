@@ -1,9 +1,12 @@
+import enum
+
 import eppy.modeleditor
 import numpy as np
 import pandas as pd
 
 import energytool.base.idf_utils
 import energytool.base.idfobject_utils as pr
+from energytool.base.units import Units
 from energytool.outputs import get_output_variable
 import energytool.tools as tl
 
@@ -13,9 +16,21 @@ from typing import Union
 from abc import ABC, abstractmethod
 
 
+class SystemCategories(enum.Enum):
+    HEATING = "HEATING"
+    COOLING = "COOLING"
+    VENTILATION = "VENTILATION"
+    LIGHTING = "LIGHTING"
+    AUXILIARY = "AUXILIARY"
+    DHW = "DHW"
+    PV = "PV"
+    OTHER = "OTHER"
+
+
 class System(ABC):
-    def __init__(self, name: str):
+    def __init__(self, name: str, category: str = SystemCategories.OTHER.value):
         self.name = name
+        self.category = category
 
     @abstractmethod
     def pre_process(self, idf: IDF):
@@ -29,8 +44,14 @@ class System(ABC):
 
 
 class HeaterSimple(System):
-    def __init__(self, name: str, zones: Union[str, list] = "*", cop=1):
-        super().__init__(name)
+    def __init__(
+        self,
+        name: str,
+        category: SystemCategories = SystemCategories.OTHER,
+        zones: Union[str, list] = "*",
+        cop=1,
+    ):
+        super().__init__(name, category)
         self.cop = cop
         self.zones = zones
         self.ilas_list = []
@@ -53,7 +74,7 @@ class HeaterSimple(System):
         )
 
         system_out = (ideal_heating / self.cop).sum(axis=1)
-        system_out.name = f"{self.name}_Energy_[J]"
+        system_out.name = f"{self.name}_{Units.ENERGY.value}"
         return system_out.to_frame()
 
 
