@@ -9,7 +9,7 @@ import energytool.base.idf_utils
 from energytool.base.parse_results import read_eplus_res
 from energytool.building import Building
 from energytool.simulate import Simulation, SimulationsRunner
-import energytool.system as sys
+from energytool.system import HeaterSimple, HeatingAuxiliary
 
 RESOURCES_PATH = Path(__file__).parent / "resources"
 
@@ -30,7 +30,7 @@ def idf(tmp_path_factory):
 
 class TestSystems:
     def test_heater_simple(self, idf):
-        gas_boiler = sys.HeaterSimple(
+        gas_boiler = HeaterSimple(
             name="Main_boiler",
             cop=0.5,
             zones=["Block1:ApptX1W", "Block1:ApptX1E"],
@@ -64,6 +64,35 @@ class TestSystems:
 
         pd.testing.assert_series_equal(
             res.sum(), pd.Series({"Main_boiler_Energy_[J]": 978973922.4169228})
+        )
+
+    def test_heating_auxiliary(self):
+        idf = IDF((RESOURCES_PATH / "test.idf").as_posix())
+
+        aux = HeatingAuxiliary(name="Heating_aux", zones="Block1:ApptX1W")
+
+        aux.pre_process(idf)
+
+        assert idf.model.dt["output:variable".upper()] == [
+            [
+                "OUTPUT:VARIABLE",
+                "*",
+                "Zone Other Equipment Total Heating Energy",
+                "Hourly",
+            ],
+            [
+                "OUTPUT:VARIABLE",
+                "Block1:ApptX1W Ideal Loads Air",
+                "Zone Ideal Loads Supply Air Total Heating Energy",
+                "Hourly",
+            ],
+        ]
+        energyplus_results = read_eplus_res(RESOURCES_PATH / "test_res.csv")
+
+        res = aux.post_process(eplus_results=energyplus_results)
+
+        pd.testing.assert_series_equal(
+            res.sum(), pd.Series({"Heating_aux_Energy_[J]": 12234297.18460})
         )
 
     def test_ahu(self, building):

@@ -45,7 +45,19 @@ class System(ABC):
 
 
 class HeaterSimple(System):
-    """"""
+    """
+    Represent a simple heating system with a coefficient of performance COP.
+    The class is based on IdealLoadsAirSytem. For each provided zones, it will get the
+    "Zone Ideal Loads Supply Air Total Heating Energy" result and divide it by the cop.
+
+    :parameter name(str): name of the system
+    :parameter zone(str): idf zones controlled by the system. It must match zones in the idf file
+    heated by the IdealLoadsAirSystem
+    :parameter cop(float): Coefficient of Performance of the System. Can range from 0 to +infinity
+
+    attribute : category(SystemCategories): SystemCategories.HEATING
+
+    """
 
     def __init__(
         self,
@@ -80,34 +92,53 @@ class HeaterSimple(System):
         return system_out.to_frame()
 
 
-class AuxiliarySimplified:
+class HeatingAuxiliary(System):
     """
-    Simplified heating auxiliary component energy consumption.
-    multiply ideal heat need by a constant. Default 5%
+    A simple way to model heating system auxiliary consumption as a ratio of the total
+    heating needs.
+    The class is based on IdealLoadsAirSytem. For each provided zones, it will get the
+    "Zone Ideal Loads Supply Air Total Heating Energy" result and multiply it by a ratio.
+
+    :parameter name(str): name of the system
+    :parameter zone(str): idf zones controlled by the system. It must match zones in the idf file
+    heated by the IdealLoadsAirSystem
+    :parameter ratio(float): The ratio of auxiliary consumption. Can range from 0 to +infinity
+
+    attribute : category(SystemCategories): SystemCategories.AUXILIARY
+
     """
 
-    def __init__(self, name, building=None, zones="*", ratio=0.05):
-        self.name = name
-        self.building = building
-        self.zones = zones
+    def __init__(
+        self,
+        name: str,
+        zones: Union[str, list] = "*",
+        ratio=0.05,
+    ):
+        super().__init__(name=name, category=SystemCategories.AUXILIARY)
         self.ratio = ratio
+        self.zones = zones
+        self.ilas_list = []
 
-    def pre_process(self):
+    def pre_process(self, idf: IDF):
+        self.ilas_list = pr.get_zones_idealloadsairsystem(idf, self.zones)
+
         pr.add_output_variable(
-            idf=self.building.idf,
-            key_values=self.zones,
+            idf=idf,
+            key_values=[ilas.Name for ilas in self.ilas_list],
             variables="Zone Ideal Loads Supply Air Total Heating Energy",
         )
 
-    def post_process(self):
-        ideal_heating = energytool.base.parse_results.get_output_variable(
-            eplus_res=self.building.energyplus_results,
-            key_values=self.zones,
+    def post_process(self, idf: IDF = None, eplus_results: pd.DataFrame = None):
+        # Warning, works only if ilas name contains zone name
+        ideal_heating = get_output_variable(
+            eplus_res=eplus_results,
+            key_values=[ilas.Name for ilas in self.ilas_list],
             variables="Zone Ideal Loads Supply Air Total Heating Energy",
         )
 
         system_out = (ideal_heating * self.ratio).sum(axis=1)
-        self.building.building_results[f"{self.name}_Energy_[J]"] = system_out
+        system_out.name = f"{self.name}_{Units.ENERGY.value}"
+        return system_out.to_frame()
 
 
 class AirHandlingUnit:
