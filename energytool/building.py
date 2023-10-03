@@ -10,6 +10,7 @@ from pathlib import Path
 from eppy.runner.run_functions import run
 import eppy.json_functions as json_functions
 import enum
+from typing import Dict, Union
 
 import energytool.base.idf_utils
 from energytool.base.parse_results import read_eplus_res
@@ -36,6 +37,7 @@ class SimuOpt(enum.Enum):
     STOP = "stop"
     TIMESTEP = "timestep"
     OUTPUTS = "outputs"
+    EPW_FILE = "epw_file"
 
 
 @contextmanager
@@ -110,7 +112,9 @@ Others : {[obj.name for obj in self.systems[SystemCategories.OTHER]]}
         self.systems[system.category].append(system)
 
     def simulate(
-        self, parameter_dict: dict = None, simulation_options: dict = None
+        self,
+        parameter_dict: Dict[str, Union[str, float, int]] = None,
+        simulation_options: Dict[str, Union[str, float, int]] = None,
     ) -> pd.DataFrame:
         """
 
@@ -151,7 +155,18 @@ Others : {[obj.name for obj in self.systems[SystemCategories.OTHER]]}
                 )
 
         if epw_path is None:
-            raise ValueError("'epw_path' not found in parameter_dict")
+            try:
+                epw_path = simulation_options[SimuOpt.EPW_FILE.value]
+            except KeyError:
+                raise ValueError(
+                    "'epw_path' not found in parameter_dict nor in "
+                    "simulation_options"
+                )
+        elif SimuOpt.EPW_FILE.value in list(simulation_options.keys()):
+            raise ValueError(
+                "'epw_path' have been used in both parameter_dict and "
+                "simulation_options"
+            )
 
         system_list = [sys for sublist in working_syst.values() for sys in sublist]
         for system in system_list:
@@ -181,7 +196,7 @@ Others : {[obj.name for obj in self.systems[SystemCategories.OTHER]]}
 
             return get_systems_results(
                 eplus_res,
-                simulation_options[SimuOpt.OUTPUTS],
+                simulation_options[SimuOpt.OUTPUTS.value],
                 working_idf,
                 systems=working_syst,
             )
