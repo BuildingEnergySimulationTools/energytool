@@ -97,6 +97,7 @@ Zone number : {len(self.zone_name_list)}
 
 ==HVAC systems==
 Heating systems : {[obj.name for obj in self.systems[SystemCategories.HEATING]]}
+Auxiliary : {[obj.name for obj in self.systems[SystemCategories.AUXILIARY]]}
 Cooling systems : {[obj.name for obj in self.systems[SystemCategories.COOLING]]}
 Ventilation system : {[obj.name for obj in self.systems[SystemCategories.VENTILATION]]}
 Artificial lighting system : {[obj.name for obj in self.systems[SystemCategories.LIGHTING]]}
