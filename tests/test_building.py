@@ -1,75 +1,55 @@
 from pathlib import Path
 
-import pandas as pd
-import pytest
-
-from energytool.building import Building
-import energytool.system as st
+from energytool.building import Building, SimuOpt
+from energytool.outputs import OutputCategories
+from energytool.system import HeaterSimple
 
 RESOURCES_PATH = Path(__file__).parent / "resources"
 
 Building.set_idd(RESOURCES_PATH)
 
+PARAM_DICT = {
+    "idf.material.Urea Formaldehyde Foam_.1327.Conductivity": 0.05,
+    "system.heating.Heater.cop": 0.5,
+    "epw_file": (
+        Path(r"C:\EnergyPlusV9-4-0\WeatherData") / "B4R_weather_Paris_2020.epw"
+    ).as_posix(),
+}
 
-@pytest.fixture(scope="session")
-def building(tmp_path_factory):
-    building = Building(idf_path=RESOURCES_PATH / "test.idf")
-
-    building.heating_system = {
-        "Main_heater": st.HeaterSimple("Old_boiler", building),
-        "Distribution": st.AuxiliarySimplified("Heating_aux", building),
-    }
-
-    building.dwh_system = {
-        "DHW_production": st.DHWIdealExternal("Old_dhw_prod", building)
-    }
-
-    building.ventilation_system = {
-        "Ventilation": st.AirHandlingUnit("Old_natural", building),
-        "Ventilation_control": st.AHUControl(
-            name="Constant_ventilation",
-            building=building,
-            schedule_name="ON_24h24h_FULL_YEAR",
-        ),
-        "Natural_ventilation": st.NaturalVentilation("Natural_ventilation", building),
-    }
-
-    building.artificial_lighting_system = {
-        "Lights": st.ArtificialLightingSimple("Artificial_light", building)
-    }
-
-    building.building_results = pd.DataFrame(
-        [14065759.40650512, 562630.3762602, 0.0, 0.0, 1864404.97474219],
-        index=[
-            "Old_boiler_Energy",
-            "Heating_aux_Energy",
-            "Old_natural_Energy",
-            "Artificial_light_Energy",
-            "Old_dhw_prod_Energy",
-        ],
-    ).T
-
-    return building
+SIMULATION_OPTION = {
+    SimuOpt.OUTPUTS: f"{OutputCategories.SYSTEM.value}|{OutputCategories.RAW.value}"
+}
 
 
 class TestBuilding:
     def test_load_idf(self):
         test_build = Building(idf_path=RESOURCES_PATH / "test.idf")
+        test_build.add_system(HeaterSimple(name="Heater", cop=0.1))
 
-        assert test_build.idf.idfobjects["Building"][0].Name == "Building"
+        res = test_build.simulate(
+            parameter_dict=PARAM_DICT, simulation_options=SIMULATION_OPTION
+        )
 
-    def test_system_energy_results(self, building):
-        ref = pd.DataFrame(
-            [14628390.37626, 0.0, 0.0, 0.0, 1.864405e06, 0.0, 16492794.75750751],
-            index=[
-                "Heating",
-                "Cooling",
-                "Ventilation",
-                "Lighting",
-                "DHW",
-                "Local_production",
-                "Total",
-            ],
-        ).T
+        assert test_build.zone_name_list == [
+            "Block1:ApptX1W",
+            "Block1:ApptX1E",
+            "Block2:ApptX2W",
+            "Block2:ApptX2E",
+        ]
 
-        pd.testing.assert_frame_equal(ref, building.system_energy_results)
+        assert test_build.surface == 200.0
+
+        assert test_build.volume == 600.0
+
+        assert res.sum().to_dict() == {
+            "HEATING_Energy_[J]": 124442595875.44434,
+            "TOTAL_SYSTEM_Energy_[J]": 124442595875.44434,
+            "BLOCK1:APPTX1W:Zone Other Equipment Total Heating Energy [J](Hourly)": 18564769403.136005,
+            "BLOCK1:APPTX1E:Zone Other Equipment Total Heating Energy [J](Hourly)": 18564769403.136005,
+            "BLOCK2:APPTX2W:Zone Other Equipment Total Heating Energy [J](Hourly)": 18564769403.136005,
+            "BLOCK2:APPTX2E:Zone Other Equipment Total Heating Energy [J](Hourly)": 18564769403.136005,
+            "BLOCK1:APPTX1W IDEAL LOADS AIR:Zone Ideal Loads Supply Air Total Heating Energy [J](Hourly)": 15412078533.53048,
+            "BLOCK1:APPTX1E IDEAL LOADS AIR:Zone Ideal Loads Supply Air Total Heating Energy [J](Hourly)": 15855121735.988373,
+            "BLOCK2:APPTX2W IDEAL LOADS AIR:Zone Ideal Loads Supply Air Total Heating Energy [J](Hourly)": 15276675722.295742,
+            "BLOCK2:APPTX2E IDEAL LOADS AIR:Zone Ideal Loads Supply Air Total Heating Energy [J](Hourly) ": 15677421945.907581,
+        }
