@@ -6,8 +6,9 @@ import pandas as pd
 
 import energytool.base.idf_utils
 import energytool.base.idfobject_utils as pr
+import energytool.base.parse_results
 from energytool.base.units import Units
-from energytool.outputs import get_output_variable
+from energytool.base.parse_results import get_output_variable
 import energytool.tools as tl
 
 from eppy.modeleditor import IDF
@@ -28,7 +29,7 @@ class SystemCategories(enum.Enum):
 
 
 class System(ABC):
-    def __init__(self, name: str, category: str = SystemCategories.OTHER.value):
+    def __init__(self, name: str, category: SystemCategories = SystemCategories.OTHER):
         self.name = name
         self.category = category
 
@@ -44,14 +45,15 @@ class System(ABC):
 
 
 class HeaterSimple(System):
+    """"""
+
     def __init__(
         self,
         name: str,
-        category: SystemCategories = SystemCategories.OTHER,
         zones: Union[str, list] = "*",
         cop=1,
     ):
-        super().__init__(name, category)
+        super().__init__(name=name, category=SystemCategories.HEATING)
         self.cop = cop
         self.zones = zones
         self.ilas_list = []
@@ -98,7 +100,7 @@ class AuxiliarySimplified:
         )
 
     def post_process(self):
-        ideal_heating = energytool.outputs.get_output_variable(
+        ideal_heating = energytool.base.parse_results.get_output_variable(
             eplus_res=self.building.energyplus_results,
             key_values=self.zones,
             variables="Zone Ideal Loads Supply Air Total Heating Energy",
@@ -185,7 +187,7 @@ class AirHandlingUnit:
                 )
 
     def post_process(self):
-        air_volume = energytool.outputs.get_output_variable(
+        air_volume = energytool.base.parse_results.get_output_variable(
             eplus_res=self.building.energyplus_results,
             key_values=self.zones,
             variables="Zone Mechanical Ventilation Standard Density Volume Flow Rate",
@@ -280,7 +282,7 @@ class ArtificialLightingSimple:
             )
 
     def post_process(self):
-        lighting_consumption = energytool.outputs.get_output_variable(
+        lighting_consumption = energytool.base.parse_results.get_output_variable(
             eplus_res=self.building.energyplus_results,
             key_values=self.zones,
             variables="Zone Lights Electricity Energy",

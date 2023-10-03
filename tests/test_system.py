@@ -6,7 +6,7 @@ import pytest
 from eppy.modeleditor import IDF
 
 import energytool.base.idf_utils
-from energytool.outputs import read_eplus_res
+from energytool.base.parse_results import read_eplus_res
 from energytool.building import Building
 from energytool.simulate import Simulation, SimulationsRunner
 import energytool.system as sys
@@ -32,7 +32,6 @@ class TestSystems:
     def test_heater_simple(self, idf):
         gas_boiler = sys.HeaterSimple(
             name="Main_boiler",
-            category=sys.SystemCategories.HEATING,
             cop=0.5,
             zones=["Block1:ApptX1W", "Block1:ApptX1E"],
         )

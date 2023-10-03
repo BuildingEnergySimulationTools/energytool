@@ -54,6 +54,8 @@ def temporary_directory():
 
 
 class Building(Model):
+    """ """
+
     def __init__(
         self,
         idf_path,
@@ -109,6 +111,12 @@ Others : {[obj.name for obj in self.systems[SystemCategories.OTHER]]}
     def simulate(
         self, parameter_dict: dict = None, simulation_options: dict = None
     ) -> pd.DataFrame:
+        """
+
+        :param parameter_dict:
+        :param simulation_options:
+        :return:
+        """
         working_idf = deepcopy(self.idf)
         working_syst = deepcopy(self.systems)
 
