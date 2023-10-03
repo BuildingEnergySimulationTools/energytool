@@ -1,104 +1,85 @@
-import datetime as dt
-import re
-
+import enum
 import pandas as pd
 import numpy as np
 
-from pathlib import Path
+from energytool.base.parse_results import get_output_variable
 
-from energytool.tools import to_list
-
-from typing import Union
-
-
-def eplus_date_parser(timestamp: str):
-    """Convert energyplus timestamp to datetime."""
-    try:
-        time = dt.datetime.strptime(timestamp, " %m/%d %H:%M:%S")
-        time += -dt.timedelta(hours=1)
-
-    except ValueError:
-        try:
-            time = dt.datetime.strptime(timestamp, "%m/%d %H:%M:%S")
-            time += -dt.timedelta(hours=1)
-
-        except ValueError:
-            # Because EnergyPlus works with 1-24h and python with 0-23h
-            try:
-                time = timestamp.replace("24:", "23:")
-                time = dt.datetime.strptime(time, " %m/%d %H:%M:%S")
-            except ValueError:
-                time = timestamp.replace("24:", "23:")
-                time = dt.datetime.strptime(time, "%m/%d %H:%M:%S")
-
-    return time
+from energytool.system import System, SystemCategories
+from typing import Dict, List
+from eppy.modeleditor import IDF
+from energytool.base.units import Units
 
 
-def read_eplus_res(file_path: Path, ref_year: int = None):
+class OutputCategories(enum.Enum):
+    RAW = "RAW"
+    SYSTEM = "SYSTEM"
+    OVERSHOOT_28 = "OVERSHOOT_28"
+    OPERATIVE_TEMPERATURES = "OPERATIVE_TEMPERATURES"
+
+
+def get_systems_results(
+    eplus_res: pd.DataFrame,
+    outputs: str,
+    idf: IDF = None,
+    systems: Dict[SystemCategories, List[System]] = None,
+):
     """
-    Read EnergyPlus result data from output CSV file and adjust the date/time index.
+    Retrieve HVAC systems results based on specified output categories.
 
-    Parameters:
-    - file_path (Path): The path to the EnergyPlus result file in CSV format.
-    - ref_year (int, optional): The reference year for adjusting the date/time index.
-      If not provided, the current year will be used as the reference year.
-
-    Returns:
-    - results (DataFrame): A pandas DataFrame containing the EnergyPlus result data
-      with the adjusted date/time index.
-
-    Raises:
-    - ValueError: If the specified EnergyPlus result file is not found.
+    :param eplus_res: DataFrame containing EnergyPlus simulation results.
+    :param outputs: String containing pipe-separated output categories
+        (e.g., "RAW|SYSTEM"). Categories must be values from OutputCategories enum
+    :param idf: Optional, IDF object representing the EnergyPlus input data.
+    :param systems: Optional, dictionary mapping SystemCategories to lists of System
+        objects.
+    :return: A DataFrame containing the concatenated results based on the specified
+        categories.
     """
-    try:
-        results = pd.read_csv(
-            file_path, index_col=0, parse_dates=True, date_parser=eplus_date_parser
-        )
-    except FileNotFoundError:
-        raise ValueError("EnergyPlus result file not found")
-
-    if ref_year is None:
-        ref_year = dt.datetime.today().year
-
-    timestep = results.index[1] - results.index[0]
-    dt_range = pd.date_range(
-        results.index[0].replace(year=int(ref_year)),
-        periods=results.shape[0],
-        freq=timestep,
-    )
-    dt_range.name = "Date/Time"
-    results.index = dt_range
-
-    return results
-
-
-def system_energy_results(self):
-    system_dict = {
-        "Heating": self.heating_system,
-        "Cooling": self.cooling_system,
-        "Ventilation": self.ventilation_system,
-        "Lighting": self.artificial_lighting_system,
-        "DHW": self.dwh_system,
-        "Local_production": self.pv_production,
-    }
-
-    sys_nrj_res = pd.DataFrame(columns=system_dict.keys())
-    if self.building_results.empty:
-        return sys_nrj_res
-
-    for header, systems in system_dict.items():
-        if systems:
-            to_find = variable_contains_regex([sys.name for sys in systems.values()])
-            mask = self.building_results.columns.str.contains(to_find)
-            res = self.building_results.loc[:, mask]
-            sys_nrj_res[header] = res.sum(axis=1)
+    to_return = []
+    split_outputs = outputs.split("|")
+    for output_cat in split_outputs:
+        if output_cat == OutputCategories.RAW.value:
+            to_return.append(eplus_res)
+        elif output_cat == OutputCategories.SYSTEM.value:
+            to_return.append(get_system_energy_results(systems, eplus_res))
         else:
-            sys_nrj_res[header] = pd.Series(
-                self.building_results.shape[0] * [0.0],
-                index=self.building_results.index,
-            )
-    sys_nrj_res["Total"] = sys_nrj_res.sum(axis=1)
-    return sys_nrj_res
+            raise ValueError(f"{output_cat} not recognized or not yet implemented")
+
+    return pd.concat(to_return, axis=1)
+
+
+def get_system_energy_results(
+    systems: Dict[SystemCategories, List[System]],
+    eplus_res: pd.DataFrame,
+):
+    """
+    Retrieve energy results for systems contains in the SystemCategories.
+    If several systems are present in a category, it will return the sum of there
+    energy use.
+    The energy absorbed by a system is identified by the ENERGY_[J] tag in its name.
+    A TOTAL_ENERGY_[J] column sums all the energy consumed by the systems
+
+    :param systems: Dictionary mapping SystemCategories to lists of System objects.
+    :param eplus_res: DataFrame containing EnergyPlus simulation results.
+    :return: A DataFrame containing energy results for different system categories.
+    """
+    sys_nrj_res = []
+    for cat in SystemCategories:
+        syst_list = systems[cat]
+        if syst_list:
+            cat_res = []
+            for system in syst_list:
+                res = system.post_process(eplus_results=eplus_res)
+                unit = Units.ENERGY.value
+                unit = unit.replace("[", r"\[").replace("]", r"\]")
+                cat_res.append(res.loc[:, res.columns.str.contains(unit, regex=True)])
+            cat_res_series = pd.concat(cat_res, axis=1).sum(axis=1)
+            cat_res_series.name = f"{cat.value}_{Units.ENERGY.value}"
+            sys_nrj_res.append(cat_res_series)
+
+    sys_nrj_res_df = pd.concat(sys_nrj_res, axis=1)
+    sys_nrj_res_df[f"TOTAL_SYSTEM_{Units.ENERGY.value}"] = sys_nrj_res_df.sum(axis=1)
+    return sys_nrj_res_df
 
 
 def overshoot_thermal_comfort(self):
@@ -134,92 +115,3 @@ def overshoot_thermal_comfort(self):
     )
 
     return (zone_hot_and_someone.sum() / zones_is_someone.sum()) * 100
-
-
-def zone_contains_regex(elmt_list):
-    tempo = [elmt + ":.+|" for elmt in elmt_list]
-    return "".join(tempo)[:-1]
-
-
-def variable_contains_regex(elmt_list):
-    if not elmt_list:
-        return None
-    tempo = [elmt + ".+|" for elmt in elmt_list]
-    return "".join(tempo)[:-1]
-
-
-def get_output_variable(
-    eplus_res: pd.DataFrame,
-    variables: Union[str, list],
-    key_values: Union[str, list] = "*",
-    drop_suffix=True,
-) -> pd.DataFrame:
-    """
-    This function allows you to extract specific output variables from an EnergyPlus
-     result DataFrame based on the provided variable names and key values.
-
-    :param eplus_res: A pandas DataFrame containing EnergyPlus simulation results.
-        Index is a DateTimeIndex, columns are output variables
-    :param variables: The names of the specific output variables to retrieve.
-        This can be a single variable name (string) or a list of variable names
-        (list of strings).
-    :param key_values: (Optional) The key values that identify the simulation
-        outputs. This can be a single key value (string) or a list of key values
-        (list of strings). By default, "*" is used to retrieve variables for all
-        key values.
-    :param drop_suffix: (Optional) If True, remove the suffixes from the column
-        names in the returned DataFrame. Default is True.
-    :return: A DataFrame containing the selected output variables.
-    Example:
-    ```
-    get_output_variable(
-        eplus_res=toy_df,
-        key_values="Zone1",
-        variables="Equipment Total Heating Energy",
-    )
-
-
-    get_output_variable(
-        eplus_res=toy_df,
-        key_values=["Zone1", "ZONE2"],
-        variables="Equipment Total Heating Energy",
-    )
-
-    get_output_variable(
-        eplus_res=toy_df,
-        key_values="*",
-        variables="Equipment Total Heating Energy",
-    )
-
-    get_output_variable(
-        eplus_res=toy_df,
-        key_values="Zone1",
-        variables=[
-            "Equipment Total Heating Energy",
-            "Ideal Loads Supply Air Total Heating Energy",
-        ],
-    )
-    ```
-
-    """
-    if key_values == "*":
-        key_mask = np.full((1, eplus_res.shape[1]), True).flatten()
-    else:
-        key_list = to_list(key_values)
-        key_list_upper = [elmt.upper() for elmt in key_list]
-        reg_key = zone_contains_regex(key_list_upper)
-        key_mask = eplus_res.columns.str.contains(reg_key)
-
-    variable_names_list = to_list(variables)
-    reg_var = variable_contains_regex(variable_names_list)
-    variable_mask = eplus_res.columns.str.contains(reg_var)
-
-    mask = np.logical_and(key_mask, variable_mask)
-
-    results = eplus_res.loc[:, mask]
-
-    if drop_suffix:
-        new_columns = [re.sub(f":{variables}.+", "", col) for col in results.columns]
-        results.columns = new_columns
-
-    return results
