@@ -63,6 +63,7 @@ class Building(Model):
         idf_path,
     ):
         self.idf = IDF(str(idf_path))
+        self._idf_path = str(idf_path)
         self.systems = {category: [] for category in SystemCategories}
 
     @staticmethod
@@ -122,7 +123,7 @@ Others : {[obj.name for obj in self.systems[SystemCategories.OTHER]]}
         :param simulation_options:
         :return:
         """
-        working_idf = deepcopy(self.idf)
+        working_idf = IDF(self._idf_path)
         working_syst = deepcopy(self.systems)
 
         epw_path = None
