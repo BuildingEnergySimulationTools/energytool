@@ -4,12 +4,16 @@ import eppy.modeleditor
 import numpy as np
 import pandas as pd
 
-import energytool.base.idf_utils
-import energytool.base.idfobject_utils as pr
+from energytool.base.idf_utils import get_objects_name_list
+
+from energytool.base.idfobject_utils import (
+    get_zones_idealloadsairsystem,
+    add_output_variable,
+)
 import energytool.base.parse_results
 from energytool.base.units import Units
 from energytool.base.parse_results import get_output_variable
-import energytool.tools as tl
+from energytool.tools import select_in_list
 
 from eppy.modeleditor import IDF
 from typing import Union
@@ -71,9 +75,9 @@ class HeaterSimple(System):
         self.ilas_list = []
 
     def pre_process(self, idf: IDF):
-        self.ilas_list = pr.get_zones_idealloadsairsystem(idf, self.zones)
+        self.ilas_list = get_zones_idealloadsairsystem(idf, self.zones)
 
-        pr.add_output_variable(
+        add_output_variable(
             idf=idf,
             key_values=[ilas.Name for ilas in self.ilas_list],
             variables="Zone Ideal Loads Supply Air Total Heating Energy",
@@ -120,9 +124,9 @@ class HeatingAuxiliary(System):
         self.ilas_list = []
 
     def pre_process(self, idf: IDF):
-        self.ilas_list = pr.get_zones_idealloadsairsystem(idf, self.zones)
+        self.ilas_list = get_zones_idealloadsairsystem(idf, self.zones)
 
-        pr.add_output_variable(
+        add_output_variable(
             idf=idf,
             key_values=[ilas.Name for ilas in self.ilas_list],
             variables="Zone Ideal Loads Supply Air Total Heating Energy",
@@ -141,7 +145,7 @@ class HeatingAuxiliary(System):
         return system_out.to_frame()
 
 
-class AirHandlingUnit:
+class AirHandlingUnit(System):
     """
     If "ach" argument is used, DesignSpecification:OutdoorAir objects Names
     corresponding to specified "zones" must contain zones Name
@@ -150,34 +154,32 @@ class AirHandlingUnit:
 
     def __init__(
         self,
-        name,
-        building=None,
-        zones="*",
-        fan_energy_coefficient=0.23,  # Wh/m3
-        heat_recovery_efficiency=None,
-        ach=None,
+        name: str,
+        zones: Union[str, list] = "*",
+        fan_energy_coefficient: float = 0.23,
+        heat_recovery_efficiency: float = None,
+        ach: float = None,
     ):
-        self.name = name
-        self.building = building
+        super().__init__(name=name, category=SystemCategories.VENTILATION)
         self.zones = zones
         self.ach = ach
         self.fan_energy_coefficient = fan_energy_coefficient
         self.heat_recovery_efficiency = heat_recovery_efficiency
 
-    def pre_process(self):
-        pr.add_output_variable(
-            idf=self.building.idf,
+    def pre_process(self, idf: IDF):
+        add_output_variable(
+            idf=idf,
             key_values=self.zones,
             variables="Zone Mechanical Ventilation Standard Density Volume Flow Rate",
         )
 
         # Modify ACH if necessary
         if self.ach is not None:
-            obj_name_arg = tl.select_by_strings(
-                items_list=energytool.base.idf_utils.get_objects_name_list(
-                    self.building.idf, "DesignSpecification:OutdoorAir"
+            obj_name_arg = select_in_list(
+                target_list=get_objects_name_list(
+                    idf, "DesignSpecification:OutdoorAir"
                 ),
-                select_by=self.zones,
+                target=self.zones,
             )
 
             mod_fields = {
@@ -187,7 +189,7 @@ class AirHandlingUnit:
 
             for field, value in mod_fields.items():
                 energytool.base.idf_utils.set_named_objects_field_values(
-                    idf=self.building.idf,
+                    idf=idf,
                     idf_object="DesignSpecification:OutdoorAir",
                     idf_object_names=obj_name_arg,
                     field_name=field,
@@ -196,11 +198,9 @@ class AirHandlingUnit:
 
         # Modify Heat Recovery if necessary
         if self.heat_recovery_efficiency is not None:
-            obj_name_arg = tl.select_by_strings(
-                items_list=energytool.base.idf_utils.get_objects_name_list(
-                    self.building.idf, "ZoneHVAC:IdealLoadsAirSystem"
-                ),
-                select_by=self.zones,
+            obj_name_arg = select_in_list(
+                target_list=get_objects_name_list(idf, "ZoneHVAC:IdealLoadsAirSystem"),
+                target=self.zones,
             )
 
             mod_fields = {
@@ -210,16 +210,16 @@ class AirHandlingUnit:
             }
             for field, value in mod_fields.items():
                 energytool.base.idf_utils.set_named_objects_field_values(
-                    idf=self.building.idf,
+                    idf=idf,
                     idf_object="ZoneHVAC:IdealLoadsAirSystem",
                     idf_object_names=obj_name_arg,
                     field_name=field,
                     values=value,
                 )
 
-    def post_process(self):
-        air_volume = energytool.base.parse_results.get_output_variable(
-            eplus_res=self.building.energyplus_results,
+    def post_process(self, idf: IDF = None, eplus_results: pd.DataFrame = None):
+        air_volume = get_output_variable(
+            eplus_res=eplus_results,
             key_values=self.zones,
             variables="Zone Mechanical Ventilation Standard Density Volume Flow Rate",
         )
@@ -229,8 +229,8 @@ class AirHandlingUnit:
             axis=1
         )
 
-        system_out.name = f"{self.name}_Energy"
-        self.building.building_results[f"{self.name}_Energy_[J]"] = system_out
+        system_out.name = f"{self.name}_{Units.ENERGY.value}"
+        return system_out.to_frame()
 
 
 class DHWIdealExternal:
@@ -296,11 +296,9 @@ class ArtificialLightingSimple:
             "Design_Level_Calculation_Method": "Watts/Area",
             "Watts_per_Zone_Floor_Area": self.power_ratio,
         }
-        obj_name_arg = tl.select_by_strings(
-            items_list=energytool.base.idf_utils.get_objects_name_list(
-                self.building.idf, "Lights"
-            ),
-            select_by=self.zones,
+        obj_name_arg = tl.select_in_list(
+            target_list=get_objects_name_list(self.building.idf, "Lights"),
+            target=self.zones,
         )
 
         for field, value in config.items():
@@ -378,11 +376,11 @@ class AHUControl:
             raise ValueError("Specify valid control_strategy")
 
         # Get Design spec object to modify and set schedule
-        obj_name_arg = tl.select_by_strings(
-            items_list=energytool.base.idf_utils.get_objects_name_list(
+        obj_name_arg = tl.select_in_list(
+            target_list=energytool.base.idf_utils.get_objects_name_list(
                 self.building.idf, "DesignSpecification:OutdoorAir"
             ),
-            select_by=self.zones,
+            target=self.zones,
         )
 
         energytool.base.idf_utils.set_named_objects_field_values(
@@ -666,7 +664,7 @@ class ZoneThermostat:
             self.building.idf, "ThermostatSetpoint:DualSetpoint"
         )
 
-        thermos_to_keep = tl.select_by_strings(thermos_name_list, self.zones)
+        thermos_to_keep = tl.select_in_list(thermos_name_list, self.zones)
 
         energytool.base.idf_utils.set_named_objects_field_values(
             idf=self.building.idf,
