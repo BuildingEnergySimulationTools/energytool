@@ -15,6 +15,7 @@ from energytool.system import (
     HeatingAuxiliary,
     AirHandlingUnit,
     DHWIdealExternal,
+    ArtificialLighting,
 )
 
 RESOURCES_PATH = Path(__file__).parent / "resources"
@@ -166,6 +167,23 @@ class TestSystems:
         assert results.sum().to_dict() == {
             "DHW_Energy_[J]": 8430408987.330694,
             "TOTAL_SYSTEM_Energy_[J]": 8430408987.330694,
+        }
+
+    def test_artificial_lighting(self):
+        building = Building(idf_path=RESOURCES_PATH / "test.idf")
+        building.add_system(ArtificialLighting(name="Lights"))
+
+        results = building.simulate(
+            parameter_dict={},
+            simulation_options={
+                "epw_file": (RESOURCES_PATH / "Paris_2020.epw").as_posix(),
+                "outputs": "SYSTEM",
+            },
+        )
+
+        assert results.sum().to_dict() == {
+            "LIGHTING_Energy_[J]": 11899767559.680002,
+            "TOTAL_SYSTEM_Energy_[J]": 11899767559.680002,
         }
 
     #

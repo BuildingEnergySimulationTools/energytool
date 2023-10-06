@@ -4,7 +4,10 @@ import eppy.modeleditor
 import numpy as np
 import pandas as pd
 
-from energytool.base.idf_utils import get_objects_name_list
+from energytool.base.idf_utils import (
+    get_objects_name_list,
+    set_named_objects_field_values,
+)
 
 from energytool.base.idfobject_utils import (
     get_zones_idealloadsairsystem,
@@ -324,17 +327,35 @@ class DHWIdealExternal(System):
         )
 
 
-class ArtificialLightingSimple:
-    def __init__(self, name, building=None, zones="*", power_ratio=3, cop=1):  # W/m²
+class ArtificialLighting(System):
+    """
+    A model for simulating artificial lighting systems energy consumption.
+
+    Parameters:
+        name (str): The name of the lighting system.
+        zones (str | List[str]): The name(s) of the zones where the lighting system is
+            present.
+        power_ratio (float): The lighting power density in watts per square meter (W/m²).
+        cop (float): The coefficient of performance (COP) for lighting system energy
+            consumption (default is 1).
+
+    Methods:
+        pre_process(idf: IDF): Pre-processes the EnergyPlus IDF file to set
+            lighting-related configurations.
+        post_process(idf: IDF = None, eplus_results: pd.DataFrame = None) -> pd.DataFrame:
+            Calculates lighting energy consumption and returns the results as a DataFrame.
+    """
+
+    def __init__(self, name, zones="*", power_ratio=3, cop=1):  # W/m²
+        super().__init__(name, category=SystemCategories.LIGHTING)
         self.name = name
-        self.building = building
         self.zones = zones
         self.power_ratio = power_ratio
         self.cop = cop
 
-    def pre_process(self):
-        pr.add_output_variable(
-            idf=self.building.idf,
+    def pre_process(self, idf: IDF):
+        add_output_variable(
+            idf=idf,
             key_values=self.zones,
             variables="Zone Lights Electricity Energy",
         )
@@ -343,29 +364,30 @@ class ArtificialLightingSimple:
             "Design_Level_Calculation_Method": "Watts/Area",
             "Watts_per_Zone_Floor_Area": self.power_ratio,
         }
-        obj_name_arg = tl.select_in_list(
-            target_list=get_objects_name_list(self.building.idf, "Lights"),
+        obj_name_arg = select_in_list(
+            target_list=get_objects_name_list(idf, "Lights"),
             target=self.zones,
         )
 
         for field, value in config.items():
-            energytool.base.idf_utils.set_named_objects_field_values(
-                idf=self.building.idf,
+            set_named_objects_field_values(
+                idf=idf,
                 idf_object="Lights",
                 idf_object_names=obj_name_arg,
                 field_name=field,
                 values=value,
             )
 
-    def post_process(self):
-        lighting_consumption = energytool.base.parse_results.get_output_variable(
-            eplus_res=self.building.energyplus_results,
+    def post_process(self, idf: IDF = None, eplus_results: pd.DataFrame = None):
+        lighting_consumption = get_output_variable(
+            eplus_res=eplus_results,
             key_values=self.zones,
             variables="Zone Lights Electricity Energy",
         )
 
         lighting_out = (lighting_consumption / self.cop).sum(axis=1)
-        self.building.building_results[f"{self.name}_Energy_[J]"] = lighting_out
+        lighting_out.name = f"{self.name}_{Units.ENERGY.value}"
+        return lighting_out.to_frame()
 
 
 class AHUControl:
