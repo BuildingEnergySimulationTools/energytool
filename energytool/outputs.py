@@ -18,9 +18,9 @@ class OutputCategories(enum.Enum):
 
 
 def get_systems_results(
+    idf: IDF,
     eplus_res: pd.DataFrame,
     outputs: str,
-    idf: IDF = None,
     systems: Dict[SystemCategories, List[System]] = None,
 ):
     """
@@ -29,7 +29,7 @@ def get_systems_results(
     :param eplus_res: DataFrame containing EnergyPlus simulation results.
     :param outputs: String containing pipe-separated output categories
         (e.g., "RAW|SYSTEM"). Categories must be values from OutputCategories enum
-    :param idf: Optional, IDF object representing the EnergyPlus input data.
+    :param idf: IDF object representing the EnergyPlus input data.
     :param systems: Optional, dictionary mapping SystemCategories to lists of System
         objects.
     :return: A DataFrame containing the concatenated results based on the specified
@@ -41,7 +41,7 @@ def get_systems_results(
         if output_cat == OutputCategories.RAW.value:
             to_return.append(eplus_res)
         elif output_cat == OutputCategories.SYSTEM.value:
-            to_return.append(get_system_energy_results(systems, eplus_res))
+            to_return.append(get_system_energy_results(idf, systems, eplus_res))
         else:
             raise ValueError(f"{output_cat} not recognized or not yet implemented")
 
@@ -49,6 +49,7 @@ def get_systems_results(
 
 
 def get_system_energy_results(
+    idf: IDF,
     systems: Dict[SystemCategories, List[System]],
     eplus_res: pd.DataFrame,
 ):
@@ -59,6 +60,7 @@ def get_system_energy_results(
     The energy absorbed by a system is identified by the ENERGY_[J] tag in its name.
     A TOTAL_ENERGY_[J] column sums all the energy consumed by the systems
 
+    :param idf: IDF object representing the EnergyPlus input data.
     :param systems: Dictionary mapping SystemCategories to lists of System objects.
     :param eplus_res: DataFrame containing EnergyPlus simulation results.
     :return: A DataFrame containing energy results for different system categories.
@@ -69,7 +71,7 @@ def get_system_energy_results(
         if syst_list:
             cat_res = []
             for system in syst_list:
-                res = system.post_process(eplus_results=eplus_res)
+                res = system.post_process(idf, eplus_results=eplus_res)
                 unit = Units.ENERGY.value
                 unit = unit.replace("[", r"\[").replace("]", r"\]")
                 cat_res.append(res.loc[:, res.columns.str.contains(unit, regex=True)])
