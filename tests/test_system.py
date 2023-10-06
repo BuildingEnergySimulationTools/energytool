@@ -14,17 +14,12 @@ from energytool.system import (
     HeaterSimple,
     HeatingAuxiliary,
     AirHandlingUnit,
+    DHWIdealExternal,
 )
 
 RESOURCES_PATH = Path(__file__).parent / "resources"
 
 Building.set_idd(RESOURCES_PATH)
-
-
-@pytest.fixture(scope="session")
-def building(tmp_path_factory):
-    building = Building(idf_path=RESOURCES_PATH / "test.idf")
-    return building
 
 
 @pytest.fixture(scope="session")
@@ -99,7 +94,8 @@ class TestSystems:
             res.sum(), pd.Series({"Heating_aux_Energy_[J]": 12234297.18460})
         )
 
-    def test_ahu(self, building):
+    def test_ahu(self):
+        building = Building(idf_path=RESOURCES_PATH / "test.idf")
         building.add_system(
             AirHandlingUnit(
                 name="AHU",
@@ -155,23 +151,23 @@ class TestSystems:
             "VENTILATION_Energy_[J]": 634902466.3027192,
         }
 
-        # result = simu.building.building_results["AHU_Energy_[J]"].sum()
-        # assert result == 634902466.3027192
+    def test_dhw_ideal_external(self):
+        building = Building(idf_path=RESOURCES_PATH / "test.idf")
+        building.add_system(DHWIdealExternal(name="DHW_prod", daily_volume_occupant=30))
 
-    # def test_dhw_ideal_external(self, building):
-    #     dhw = sys.DHWIdealExternal(
-    #         name="DHW_prod", building=building, daily_volume_occupant=30
-    #     )
-    #
-    #     building.dwh_system = {dhw.name: dhw}
-    #
-    #     simu = Simulation(building, epw_file_path=)
-    #     runner = SimulationsRunner([simu])
-    #     runner.run()
-    #
-    #     result = simu.building.building_results["DHW_prod_Energy_[J]"].sum()
-    #
-    #     assert result == 8430408987.330694
+        results = building.simulate(
+            parameter_dict={},
+            simulation_options={
+                "epw_file": (RESOURCES_PATH / "Paris_2020.epw").as_posix(),
+                "outputs": "SYSTEM",
+            },
+        )
+
+        assert results.sum().to_dict() == {
+            "DHW_Energy_[J]": 8430408987.330694,
+            "TOTAL_SYSTEM_Energy_[J]": 8430408987.330694,
+        }
+
     #
     # def test_ahu_control(self, building):
     #     ahu_control = sys.AHUControl(name="ahu_control", building=building)

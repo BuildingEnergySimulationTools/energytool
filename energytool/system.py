@@ -9,6 +9,7 @@ from energytool.base.idf_utils import get_objects_name_list
 from energytool.base.idfobject_utils import (
     get_zones_idealloadsairsystem,
     add_output_variable,
+    get_number_of_people,
 )
 import energytool.base.parse_results
 from energytool.base.units import Units
@@ -147,9 +148,25 @@ class HeatingAuxiliary(System):
 
 class AirHandlingUnit(System):
     """
-    If "ach" argument is used, DesignSpecification:OutdoorAir objects Names
-    corresponding to specified "zones" must contain zones Name
-    in their "Name" field
+    A simple model for single flow and crossflow air handling units.
+    This class is based on DesignSpecification:OutdoorAir objects and provides
+    a convenient way to estimate fan energy consumption, set airflow using
+    air changes per hour (ACH), and define heat recovery efficiency.
+
+    Parameters:
+        name (str): The name of the air handling unit.
+        zones (str | List[str]): The name(s) of the zones served by the unit.
+        fan_energy_coefficient (float): The fan energy coefficient in Wh/m3,
+            used for fan energy consumption estimation.
+        ach (float): The air change rate per hour in volume per hour (Vol/h).
+
+    Notes:
+    - If you use the "ach" argument, ensure that the DesignSpecification:OutdoorAir
+      objects' names corresponding to the specified "zones" contain the zone names
+      in their "Name" field.
+
+    - Heat recovery efficiency settings will impact the latent and sensible
+      efficiency of the heat exchanger between extracted and blown air.
     """
 
     def __init__(
@@ -233,20 +250,19 @@ class AirHandlingUnit(System):
         return system_out.to_frame()
 
 
-class DHWIdealExternal:
+class DHWIdealExternal(System):
     def __init__(
         self,
         name,
-        building=None,
         zones="*",
-        cop=0.95,  # Wh/m3
+        cop=0.95,
         t_dwh_set_point=60,
         t_cold_water=15,
         daily_volume_occupant=50,
-        cp_water=4183.2,  # J/L.°C
+        cp_water=4183.2,
     ):
+        super().__init__(name, category=SystemCategories.DHW)
         self.name = name
-        self.building = building
         self.zones = zones
         self.cop = cop
         self.t_dwh_set_point = t_dwh_set_point
@@ -254,11 +270,11 @@ class DHWIdealExternal:
         self.daily_volume_occupant = daily_volume_occupant
         self.cp_water = cp_water
 
-    def pre_process(self):
+    def pre_process(self, idf: IDF):
         pass
 
-    def post_process(self):
-        nb_people = pr.get_number_of_people(self.building.idf, zones=self.zones)
+    def post_process(self, idf: IDF = None, eplus_results: pd.DataFrame = None):
+        nb_people = get_number_of_people(idf, zones=self.zones)
 
         # 4183.2[J/L.°C]
         daily_cons_per_occupant = (
@@ -267,13 +283,18 @@ class DHWIdealExternal:
             * self.daily_volume_occupant
         )
 
-        nb_days = self.building.energyplus_results.resample("D").sum().shape[0]
-        nb_entry = self.building.energyplus_results.shape[0]
+        nb_days = eplus_results.resample("D").sum().shape[0]
+        nb_entry = eplus_results.shape[0]
 
         dhw_consumption = daily_cons_per_occupant * nb_days * nb_people / self.cop
 
-        self.building.building_results[f"{self.name}_Energy_[J]"] = (
-            np.ones(nb_entry) * dhw_consumption / nb_entry
+        return pd.DataFrame(
+            {
+                f"{self.name}_{Units.ENERGY.value}": (
+                    np.ones(nb_entry) * dhw_consumption / nb_entry
+                )
+            },
+            index=eplus_results.index,
         )
 
 
