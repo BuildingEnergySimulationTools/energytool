@@ -251,6 +251,32 @@ class AirHandlingUnit(System):
 
 
 class DHWIdealExternal(System):
+    """
+    A model for simulating an ideal domestic hot water (DHW) system .
+    This class represents an idealized DHW system. It allows you to model DHW energy
+    consumption based on various parameters and on the number of occupants present in the
+    zone(s).
+
+    Parameters:
+        name (str): The name of the DHW system.
+        zones (str | List[str]): The name(s) of the zones where the DHW system is
+            located.
+        cop (float): The coefficient of performance (COP) for the DHW system, indicating
+            its efficiency.
+        t_dwh_set_point (float): The setpoint temperature for domestic hot water
+            in degrees Celsius.
+        t_cold_water (float): The temperature of the cold water supply in
+            degrees Celsius.
+        daily_volume_occupant (float): The daily volume of hot water consumed per
+            occupant in liters.
+        cp_water (float): The specific heat capacity of water in J/L·°C.
+
+    Methods:
+        pre_process(idf: IDF): pass.
+        post_process(idf: IDF = None, eplus_results: pd.DataFrame = None) -> pd.DataFrame:
+        Calculates DHW energy consumption and returns the results as a DataFrame.
+    """
+
     def __init__(
         self,
         name,
