@@ -287,13 +287,13 @@ class DHWIdealExternal(System):
 
     def __init__(
         self,
-        name,
-        zones="*",
-        cop=0.95,
-        t_dwh_set_point=60,
-        t_cold_water=15,
-        daily_volume_occupant=50,
-        cp_water=4183.2,
+        name: str,
+        zones: Union[str, list] = "*",
+        cop: float = 0.95,
+        t_dwh_set_point: float = 60.0,
+        t_cold_water: float = 15.0,
+        daily_volume_occupant: float = 50.0,
+        cp_water: float = 4183.2,
     ):
         super().__init__(name, category=SystemCategories.DHW)
         self.name = name
@@ -351,7 +351,13 @@ class ArtificialLighting(System):
             Calculates lighting energy consumption and returns the results as a DataFrame.
     """
 
-    def __init__(self, name, zones="*", power_ratio=3, cop=1):  # W/m²
+    def __init__(
+        self,
+        name: str,
+        zones: Union[str, list] = "*",
+        power_ratio: float = 3.0,
+        cop: float = 1,
+    ):  # W/m²
         super().__init__(name, category=SystemCategories.LIGHTING)
         self.name = name
         self.zones = zones
@@ -418,10 +424,10 @@ class AHUControl(System):
 
     def __init__(
         self,
-        name,
-        zones="*",
-        control_strategy="Schedule",
-        schedule_name="ON_24h24h_FULL_YEAR",
+        name: str,
+        zones: Union[str, list] = "*",
+        control_strategy: str = "Schedule",
+        schedule_name: str = "ON_24h24h_FULL_YEAR",
         data_frame: Union[pd.DataFrame, pd.Series] = None,
     ):
         super().__init__(name, category=SystemCategories.VENTILATION)
@@ -474,18 +480,17 @@ class AHUControl(System):
         pass
 
 
-class NaturalVentilation:
+class NaturalVentilation(System):
     def __init__(
         self,
-        name,
-        building=None,
+        name: str,
         zones="*",
         ach=0.7,
         occupancy_schedule=True,
         ventilation_kwargs=None,
     ):
+        super().__init__(name=name, category=SystemCategories.VENTILATION)
         self.name = name
-        self.building = building
         self.zones = zones
         self.ach = ach
         self.occupancy_schedule = occupancy_schedule
