@@ -41,11 +41,14 @@ def get_systems_results(
         if output_cat == OutputCategories.RAW.value:
             to_return.append(eplus_res)
         elif output_cat == OutputCategories.SYSTEM.value:
-            to_return.append(get_system_energy_results(idf, systems, eplus_res))
+            results = get_system_energy_results(idf, systems, eplus_res)
+            if results is not None:
+                to_return.append(results)
         else:
             raise ValueError(f"{output_cat} not recognized or not yet implemented")
 
-    return pd.concat(to_return, axis=1)
+    if to_return:
+        return pd.concat(to_return, axis=1)
 
 
 def get_system_energy_results(
@@ -72,16 +75,23 @@ def get_system_energy_results(
             cat_res = []
             for system in syst_list:
                 res = system.post_process(idf, eplus_results=eplus_res)
-                unit = Units.ENERGY.value
-                unit = unit.replace("[", r"\[").replace("]", r"\]")
-                cat_res.append(res.loc[:, res.columns.str.contains(unit, regex=True)])
-            cat_res_series = pd.concat(cat_res, axis=1).sum(axis=1)
-            cat_res_series.name = f"{cat.value}_{Units.ENERGY.value}"
-            sys_nrj_res.append(cat_res_series)
+                if res is not None:
+                    unit = Units.ENERGY.value
+                    unit = unit.replace("[", r"\[").replace("]", r"\]")
+                    cat_res.append(
+                        res.loc[:, res.columns.str.contains(unit, regex=True)]
+                    )
+            if cat_res:
+                cat_res_series = pd.concat(cat_res, axis=1).sum(axis=1)
+                cat_res_series.name = f"{cat.value}_{Units.ENERGY.value}"
+                sys_nrj_res.append(cat_res_series)
 
-    sys_nrj_res_df = pd.concat(sys_nrj_res, axis=1)
-    sys_nrj_res_df[f"TOTAL_SYSTEM_{Units.ENERGY.value}"] = sys_nrj_res_df.sum(axis=1)
-    return sys_nrj_res_df
+    if sys_nrj_res:
+        sys_nrj_res_df = pd.concat(sys_nrj_res, axis=1)
+        sys_nrj_res_df[f"TOTAL_SYSTEM_{Units.ENERGY.value}"] = sys_nrj_res_df.sum(
+            axis=1
+        )
+        return sys_nrj_res_df
 
 
 def overshoot_thermal_comfort(self):
