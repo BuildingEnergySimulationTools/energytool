@@ -1,14 +1,12 @@
 from pathlib import Path
-import numpy as np
 import pandas as pd
 
 import pytest
 from eppy.modeleditor import IDF
 
-import energytool.base.idf_utils
+from energytool.base.idfobject_utils import get_objects_name_list
 from energytool.base.parse_results import read_eplus_res
 from energytool.building import Building
-from energytool.simulate import Simulation, SimulationsRunner
 from energytool.system import (
     SystemCategories,
     HeaterSimple,
@@ -16,6 +14,7 @@ from energytool.system import (
     AirHandlingUnit,
     DHWIdealExternal,
     ArtificialLighting,
+    AHUControl,
 )
 
 RESOURCES_PATH = Path(__file__).parent / "resources"
@@ -186,25 +185,53 @@ class TestSystems:
             "TOTAL_SYSTEM_Energy_[J]": 11899767559.680002,
         }
 
-    #
-    # def test_ahu_control(self, building):
-    #     ahu_control = sys.AHUControl(name="ahu_control", building=building)
-    #
-    #     building.ventilation_system[ahu_control.name] = ahu_control
-    #
-    #     building.pre_process()
-    #
-    #     schedules_name_list = energytool.base.idf_utils.get_objects_name_list(
-    #         building.idf, "Schedule:Compact"
-    #     )
-    #
-    #     design_list = [
-    #         obj.Outdoor_Air_Schedule_Name
-    #         for obj in building.idf.idfobjects["DesignSpecification:OutdoorAir"]
-    #     ]
-    #
-    #     assert "ON_24h24h_FULL_YEAR" in schedules_name_list
-    #     assert design_list == ["ON_24h24h_FULL_YEAR"] * len(design_list)
+    def test_ahu_control(self):
+        building = Building(idf_path=RESOURCES_PATH / "test.idf")
+        building.add_system(AHUControl(name="ahu_control"))
+        building.add_system(AirHandlingUnit(name="AHU"))
+
+        building.systems[SystemCategories.VENTILATION][0].pre_process(building.idf)
+
+        schedules_name_list = get_objects_name_list(building.idf, "Schedule:Compact")
+
+        design_list = [
+            obj.Outdoor_Air_Schedule_Name
+            for obj in building.idf.idfobjects["DesignSpecification:OutdoorAir"]
+        ]
+
+        assert "ON_24h24h_FULL_YEAR" in schedules_name_list
+        assert design_list == ["ON_24h24h_FULL_YEAR"] * len(design_list)
+
+        data_frame = pd.DataFrame(
+            {
+                "schedule_1": [0.5] * 8760,
+                "schedule_2": [2] * 8760,
+            },
+            index=pd.date_range("2009-01-01", freq="H", periods=8760),
+        )
+
+        building.del_system("ahu_control")
+        building.add_system(
+            AHUControl(
+                name="ahu_control",
+                control_strategy="DataFrame",
+                data_frame=data_frame["schedule_1"],
+            )
+        )
+
+        results = building.simulate(
+            parameter_dict={},
+            simulation_options={
+                "epw_file": (RESOURCES_PATH / "Paris_2020.epw").as_posix(),
+                "outputs": "SYSTEM",
+            },
+        )
+
+        assert results.sum().to_dict() == {
+            "TOTAL_SYSTEM_Energy_[J]": 5800244198.831992,
+            "VENTILATION_Energy_[J]": 5800244198.831992,
+        }
+
     #
     # def test_other_equipments(self, building):
     #     building.other["Other_test"] = sys.OtherEquipment(

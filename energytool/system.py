@@ -4,15 +4,20 @@ import eppy.modeleditor
 import numpy as np
 import pandas as pd
 
+from corrai.utils import as_1_column_dataframe
+
 from energytool.base.idf_utils import (
     get_objects_name_list,
     set_named_objects_field_values,
+    get_named_objects,
 )
 
 from energytool.base.idfobject_utils import (
     get_zones_idealloadsairsystem,
     add_output_variable,
     get_number_of_people,
+    get_resources_idf,
+    add_hourly_schedules_from_df,
 )
 import energytool.base.parse_results
 from energytool.base.units import Units
@@ -390,77 +395,82 @@ class ArtificialLighting(System):
         return lighting_out.to_frame()
 
 
-class AHUControl:
+class AHUControl(System):
+    """
+    Represents an Air Handling Unit (AHU) control system for building energy modeling.
+    This class is designed to model the control of an AHU system within a building
+    energy model. It provides options for controlling the AHU based on either a
+    predefined schedule or user-supplied data in the form of a Pandas DataFrame or
+    Series.
+
+    :param name: The name of the AHU control system.
+    :param zones: The zones or spaces associated with the AHU control
+        (default is "*," indicating all zones).
+    :param control_strategy: The control strategy for the AHU, either "Schedule" or
+        "DataFrame" (default is "Schedule").
+    :param schedule_name: The name of the predefined schedule to use if the control
+        strategy is "Schedule" (default is "ON_24h24h_FULL_YEAR").
+    :param data_frame: A Pandas DataFrame or Series containing user-defined control data
+        (used when control_strategy is "DataFrame"). Default is None.
+
+    :raises ValueError: If an invalid control strategy is specified.
+    """
+
     def __init__(
         self,
         name,
-        building=None,
         zones="*",
         control_strategy="Schedule",
         schedule_name="ON_24h24h_FULL_YEAR",
-        data_frame=None,
+        data_frame: Union[pd.DataFrame, pd.Series] = None,
     ):
+        super().__init__(name, category=SystemCategories.VENTILATION)
         self.name = name
-        self.building = building
         self.zones = zones
         self.control_strategy = control_strategy
         self.schedule_name = schedule_name
-        self.resources_idf = energytool.base.epluspreprocess.get_resources_idf()
-
+        self.resources_idf = get_resources_idf()
         if data_frame is not None:
-            if data_frame.shape[1] > 1:
-                raise ValueError(
-                    "Specify a one columns DataFrame or " "a Pandas Series"
-                )
-            to_test = np.logical_or(data_frame < 0, data_frame > 1).to_numpy()
-            if to_test.any():
-                raise ValueError(
-                    "Invalid values in DataFrame. Values > 1 " "or Value < 0"
-                )
-        self.data_frame = data_frame
+            self.data_frame = as_1_column_dataframe(data_frame)
 
-    def pre_process(self):
+    def pre_process(self, idf: IDF):
         if self.control_strategy == "Schedule":
             # Get schedule in resources file
-            idf_schedules = self.building.idf.idfobjects["Schedule:Compact"]
-            schedule_to_copy = energytool.base.idf_utils.get_named_objects(
+            idf_schedules = idf.idfobjects["Schedule:Compact"]
+            schedule_to_copy = get_named_objects(
                 self.resources_idf, "Schedule:Compact", self.schedule_name
             )
 
             # Copy in building idf if not already present
-            if schedule_to_copy[
-                0
-            ].Name not in energytool.base.idf_utils.get_objects_name_list(
-                self.building.idf, "Schedule:Compact"
+            if schedule_to_copy[0].Name not in get_objects_name_list(
+                idf, "Schedule:Compact"
             ):
                 idf_schedules.append(schedule_to_copy[0])
 
             schedule_name = schedule_to_copy[0].Name
 
         elif self.control_strategy == "DataFrame":
-            pr.add_hourly_schedules_from_df(self.building.idf, self.data_frame)
+            add_hourly_schedules_from_df(idf, self.data_frame)
             schedule_name = self.data_frame.columns[0]
 
         else:
             raise ValueError("Specify valid control_strategy")
 
         # Get Design spec object to modify and set schedule
-        obj_name_arg = tl.select_in_list(
-            target_list=energytool.base.idf_utils.get_objects_name_list(
-                self.building.idf, "DesignSpecification:OutdoorAir"
-            ),
+        obj_name_arg = select_in_list(
+            target_list=get_objects_name_list(idf, "DesignSpecification:OutdoorAir"),
             target=self.zones,
         )
 
-        energytool.base.idf_utils.set_named_objects_field_values(
-            idf=self.building.idf,
+        set_named_objects_field_values(
+            idf=idf,
             idf_object="DesignSpecification:OutdoorAir",
             idf_object_names=obj_name_arg,
             field_name="Outdoor_Air_Schedule_Name",
             values=schedule_name,
         )
 
-    def post_process(self):
+    def post_process(self, idf: IDF = None, eplus_results: pd.DataFrame = None):
         pass
 
 
