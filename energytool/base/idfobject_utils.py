@@ -8,7 +8,7 @@ import pandas as pd
 import os
 import uuid
 import tempfile
-import energytool.tools as tl
+from energytool.tools import to_list, is_items_in_list
 import eppy
 
 from typing import Union
@@ -23,7 +23,7 @@ from energytool.base.idf_utils import (
 RESOURCES_PATH = Path(__file__).parent.parent / "resources"
 
 try:
-    IDF.setiddname(RESOURCES_PATH / "Energy+.idd")
+    IDF.setiddname((RESOURCES_PATH / "Energy+.idd").as_posix())
 except eppy.modeleditor.IDDAlreadySetError:
     pass
 
@@ -45,7 +45,7 @@ def get_zones_idealloadsairsystem(idf: IDF, zones: Union[str, list] = "*"):
     if zones == "*":
         zones = get_objects_name_list(idf, "ZONE")
     else:
-        zones = tl.to_list(zones)
+        zones = to_list(zones)
 
     ilas_list = []
     for zone in zones:
@@ -203,8 +203,8 @@ def add_output_variable(
     # with default reporting frequency ("Hourly").
     ```
     """
-    key_values_list = tl.to_list(key_values)
-    variables_list = tl.to_list(variables)
+    key_values_list = to_list(key_values)
+    variables_list = to_list(variables)
 
     for key in key_values_list:
         for var in variables_list:
@@ -221,7 +221,7 @@ def add_output_variable(
 
 
 def get_number_of_people(idf, zones="*"):
-    zone_name_list = tl.to_list(zones)
+    zone_name_list = to_list(zones)
     if zones == "*":
         zone_list = idf.idfobjects["Zone"]
     else:
@@ -248,12 +248,54 @@ def get_number_of_people(idf, zones="*"):
 
 
 def add_hourly_schedules_from_df(
-    idf, data, schedule_type="Dimensionless", file_name=None, directory=None
+    idf: IDF,
+    data: Union[pd.DataFrame, pd.Series],
+    schedule_type="Dimensionless",
+    file_name=None,
+    directory=None,
 ):
+    """
+    Add hourly schedules from a Pandas DataFrame or Series to an EnergyPlus IDF
+
+    This function facilitates the integration of hourly schedule data into an
+    EnergyPlus IDF, which is commonly used in building energy modeling.
+    The provided data should represent hourly values for various parameters like
+    temperature, occupancy, or lighting.
+
+    :param idf: An EnergyPlus IDF object, which serves as the container for
+        building simulation input data.
+    :param data: A Pandas DataFrame or Series containing the hourly schedule data.
+        The data should align with the EnergyPlus weather data format.
+    :param schedule_type: The type of schedule data being added (e.g., "Dimensionless,"
+        "Temperature," "Percent"). Default is "Dimensionless."
+    :param file_name: The name of the CSV file where the schedule data will be
+        temporarily stored before integration. If not provided, a random name will
+         be generated.
+    :param directory: The directory where the temporary CSV file will be stored.
+        If not provided, a system-generated temporary directory will be used.
+
+    Raises:
+    - ValueError: If the input data is not a valid Pandas DataFrame or Series,
+        or if it does not have the expected shape (8760 rows).
+    - ValueError: If the schedule_type provided is not one of the valid EnergyPlus
+        schedule types.
+    - ValueError: If the length of schedule_type_list does not match the number
+        of columns in the data.
+    - ValueError: If schedule names in data columns already exist in the EnergyPlus IDF.
+
+    Notes:
+    The function reads the data, organizes it to match a single year
+    (e.g., replacing years with 2009), and then writes it to a CSV file.
+    Subsequently, it adds schedule objects to the EnergyPlus IDF,
+    linking them to the CSV file.
+    The schedules are defined as hourly data spanning 8760 hours,
+    which corresponds to a typical year.
+    """
+
     if isinstance(data, pd.Series):
         data = data.to_frame()
     if not isinstance(data, pd.DataFrame):
-        raise ValueError("data must be a Pandas Series on DataFrame")
+        raise ValueError("data must be a Pandas Series or DataFrame")
     if not (data.shape[0] == 8760 or data.shape[0] == 8760 + 24):
         raise ValueError("Invalid DataFrame. Dimension 0 must be 8760 or " "8760 + 24")
 
@@ -274,11 +316,12 @@ def add_hourly_schedules_from_df(
         "Mode",
     ]
 
-    schedule_type_list = tl.to_list(schedule_type)
-    if not np.array(tl.is_list_items_in_list(schedule_type_list, eplus_ref)).all():
+    schedule_type_list = to_list(schedule_type)
+    if not np.array(
+        is_items_in_list(items=schedule_type_list, target_list=eplus_ref)
+    ).all():
         raise ValueError(
-            f"Invalid schedules type in schedules type list\n"
-            f"Valid types are {eplus_ref}"
+            f"f{schedule_type_list} is not a valid schedules type Valid types are {eplus_ref}"
         )
 
     if len(schedule_type_list) == 1:
@@ -307,7 +350,7 @@ def add_hourly_schedules_from_df(
 
     full_path = os.path.realpath(os.path.join(directory, file_name))
 
-    # In case we have measurement over several years. Reorganise
+    # In case we have data spanning over several years. Reorganise
     data.index = [idx.replace(year=2009) for idx in data.index]
     data.sort_index(inplace=True)
     data.to_csv(full_path, index=False, sep=",")
@@ -334,7 +377,7 @@ def add_natural_ventilation(idf, ach, zones="*", occupancy_schedule=True, kwargs
     if zones == "*":
         z_list = get_objects_name_list(idf, "Zone")
     else:
-        z_list = tl.to_list(zones)
+        z_list = to_list(zones)
 
     if occupancy_schedule:
         zone_sched_dict = {}
