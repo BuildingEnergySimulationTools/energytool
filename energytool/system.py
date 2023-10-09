@@ -18,6 +18,7 @@ from energytool.base.idfobject_utils import (
     get_number_of_people,
     get_resources_idf,
     add_hourly_schedules_from_df,
+    add_natural_ventilation,
 )
 import energytool.base.parse_results
 from energytool.base.units import Units
@@ -484,7 +485,7 @@ class NaturalVentilation(System):
     def __init__(
         self,
         name: str,
-        zones="*",
+        zones: Union[str, list] = "*",
         ach=0.7,
         occupancy_schedule=True,
         ventilation_kwargs=None,
@@ -496,16 +497,16 @@ class NaturalVentilation(System):
         self.occupancy_schedule = occupancy_schedule
         self.ventilation_kwargs = ventilation_kwargs
 
-    def pre_process(self):
-        pr.add_natural_ventilation(
-            self.building.idf,
-            self.ach,
-            self.zones,
-            self.occupancy_schedule,
-            self.ventilation_kwargs,
+    def pre_process(self, idf: IDF):
+        add_natural_ventilation(
+            idf,
+            ach=self.ach,
+            zones=self.zones,
+            occupancy_schedule=self.occupancy_schedule,
+            kwargs=self.ventilation_kwargs,
         )
 
-    def post_process(self):
+    def post_process(self, idf: IDF = None, eplus_results: pd.DataFrame = None):
         pass
 
 
