@@ -112,6 +112,12 @@ Others : {[obj.name for obj in self.systems[SystemCategories.OTHER]]}
     def add_system(self, system: System):
         self.systems[system.category].append(system)
 
+    def del_system(self, system_name: str):
+        for cat in SystemCategories:
+            for sys in self.systems[cat]:
+                if sys.name == system_name:
+                    del sys
+
     def simulate(
         self,
         parameter_dict: Dict[str, Union[str, float, int]] = None,
@@ -196,8 +202,8 @@ Others : {[obj.name for obj in self.systems[SystemCategories.OTHER]]}
             eplus_res = read_eplus_res(Path(temp_dir) / "eplusout.csv")
 
             return get_systems_results(
-                eplus_res,
-                simulation_options[SimuOpt.OUTPUTS.value],
-                working_idf,
+                idf=working_idf,
+                eplus_res=eplus_res,
                 systems=working_syst,
+                outputs=simulation_options[SimuOpt.OUTPUTS.value],
             )
