@@ -10,6 +10,7 @@ from energytool.base.idf_utils import (
     get_objects_name_list,
     set_named_objects_field_values,
     get_named_objects,
+    del_named_objects,
 )
 
 from energytool.base.idfobject_utils import (
@@ -23,7 +24,7 @@ from energytool.base.idfobject_utils import (
 import energytool.base.parse_results
 from energytool.base.units import Units
 from energytool.base.parse_results import get_output_variable
-from energytool.tools import select_in_list
+from energytool.tools import select_in_list, to_list
 
 from eppy.modeleditor import IDF
 from typing import Union
@@ -417,7 +418,7 @@ class AHUControl(System):
         "DataFrame" (default is "Schedule").
     :param schedule_name: The name of the predefined schedule to use if the control
         strategy is "Schedule" (default is "ON_24h24h_FULL_YEAR").
-    :param data_frame: A Pandas DataFrame or Series containing user-defined control data
+    :param time_series: A Pandas DataFrame or Series containing user-defined control data
         (used when control_strategy is "DataFrame"). Default is None.
 
     :raises ValueError: If an invalid control strategy is specified.
@@ -429,7 +430,7 @@ class AHUControl(System):
         zones: Union[str, list] = "*",
         control_strategy: str = "Schedule",
         schedule_name: str = "ON_24h24h_FULL_YEAR",
-        data_frame: Union[pd.DataFrame, pd.Series] = None,
+        time_series: Union[pd.DataFrame, pd.Series] = None,
     ):
         super().__init__(name, category=SystemCategories.VENTILATION)
         self.name = name
@@ -437,8 +438,8 @@ class AHUControl(System):
         self.control_strategy = control_strategy
         self.schedule_name = schedule_name
         self.resources_idf = get_resources_idf()
-        if data_frame is not None:
-            self.data_frame = as_1_column_dataframe(data_frame)
+        if time_series is not None:
+            self.data_frame = as_1_column_dataframe(time_series)
 
     def pre_process(self, idf: IDF):
         if self.control_strategy == "Schedule":
@@ -510,36 +511,69 @@ class NaturalVentilation(System):
         pass
 
 
-class OtherEquipment:
+class OtherEquipment(System):
     def __init__(
         self,
         name,
-        building=None,
-        zones="*",
-        distribute_load=False,
-        cop=1,
-        design_level_power=None,
-        fraction_radiant=0.2,
-        compact_schedule_name=None,
-        series_schedule=None,
-        add_output_variables=False,
+        zones: Union[str, list] = "*",
+        distribute_load: bool = False,
+        cop: float = 1.0,
+        design_level_power: float = None,
+        fraction_radiant: float = 0.2,
+        compact_schedule_name: str = None,
+        time_series: pd.Series = None,
+        add_output_variables: bool = False,
     ):
-        self.name = name
+        """
+        This class is designed to model loads or heat source using other equipment systems
+        within a building energy model. It provides options for specifying equipment
+        parameters, distribution across zones, and scheduling methods.
+
+        :param name: The name of the other equipment system.
+        :param zones: The zones or spaces where the other equipment is located
+            (default is "*," indicating all zones).
+        :param distribute_load: If True, the equipment load is distributed based on
+            zone areas. If False, the load is evenly distributed across specified zones
+            (default is False).
+        :param cop: The Coefficient of Performance (COP) for the equipment
+            (default is 1.0). (eg. To model HP heating from compressor energy
+            measurements)
+        :param design_level_power: The design-level power of the equipment
+            (if None, a predefined schedule is used for power levels).
+        :param fraction_radiant: The fraction of radiant energy emitted by the
+            equipment (default is 0.2).
+        :param compact_schedule_name: The name of a predefined compact schedule to use
+            for equipment operation (if None, a default schedule is used).
+        :param time_series: A Pandas Series containing time-series data for equipment
+            operation (if provided, it takes precedence over the compact_schedule_name).
+        :param add_output_variables: If True, output variables for equipment heating
+            energy are added to the EnergyPlus IDF (default is False).
+        """
+        super().__init__(name=name, category=SystemCategories.OTHER)
         self.cop = cop
-        self.building = building
         self.design_level_power = design_level_power
         self.add_output_variables = add_output_variables
-        self.resources_idf = energytool.base.epluspreprocess.get_resources_idf()
+        self.resources_idf = get_resources_idf()
         self.distribute_load = distribute_load
         self.fraction_radiant = fraction_radiant
-
-        if zones == "*":
-            self.zones = self.building.zone_name_list
+        if time_series is not None:
+            self.time_series = as_1_column_dataframe(time_series)
         else:
-            self.zones = tl.to_list(zones)
+            self.time_series = None
+        self.compact_schedule_name = compact_schedule_name
+        self.schedule_name = None
+        self.zones = zones
 
-        if series_schedule is None:
-            if compact_schedule_name is None:
+    def pre_process(self, idf: IDF):
+        if self.zones == "*":
+            self.zones = get_objects_name_list(idf, "Zone")
+        else:
+            self.zones = to_list(self.zones)
+
+        # No time series was passed
+        if self.time_series is None:
+            # No compact schedule name is provided
+            if self.compact_schedule_name is None:
                 self.schedule_name = "ON_24h24h_FULL_YEAR"
 
                 # Get schedule in resources file
@@ -548,59 +582,45 @@ class OtherEquipment:
                 )
 
                 # Copy in building idf if not already present
-                idf_schedules = self.building.idf.idfobjects["Schedule:Compact"]
-                if (
-                    schedule_to_copy.Name
-                    not in energytool.base.idf_utils.get_objects_name_list(
-                        self.building.idf, "Schedule:Compact"
-                    )
+                idf_schedules = idf.idfobjects["Schedule:Compact"]
+                if schedule_to_copy.Name not in get_objects_name_list(
+                    idf, "Schedule:Compact"
                 ):
                     idf_schedules.append(schedule_to_copy)
 
-            elif not self.building.idf.getobject(
-                "Schedule:Compact", compact_schedule_name
-            ):
+            # Compact schedule name is provided, but it can't be found
+            elif not idf.getobject("Schedule:Compact", self.compact_schedule_name):
                 raise ValueError(
-                    f"{compact_schedule_name} not found in" f"Schedule:Compact objects"
+                    f"{self.compact_schedule_name} not found in"
+                    f"Schedule:Compact objects"
                 )
+            # Correct name has been given
             else:
-                self.schedule_name = compact_schedule_name
+                self.schedule_name = self.compact_schedule_name
+        # Ime series was passed
         else:
-            if compact_schedule_name:
+            if self.compact_schedule_name:
                 raise ValueError(
-                    "Both schedule name and series schedule " "can not be specified"
+                    "Both compact_schedule_name and time_series " "were specified"
                 )
 
-            if not isinstance(series_schedule, pd.Series):
-                raise ValueError("series_schedule must be a Pandas Series")
+            del_named_objects(idf, "Schedule:File", self.time_series.columns[0])
+            add_hourly_schedules_from_df(idf=idf, data=self.time_series)
+            self.schedule_name = self.time_series.columns[0]
 
-            energytool.base.idf_utils.del_named_objects(
-                self.building.idf, "Schedule:File", series_schedule.name
-            )
-
-            pr.add_hourly_schedules_from_df(idf=building.idf, data=series_schedule)
-            self.schedule_name = series_schedule.name
-
-        self.pre_process()
-
-    def pre_process(self):
         equipment_name_list = []
         if self.distribute_load:
-            surf_arr = np.array(
-                [eppy.modeleditor.zonearea(self.building.idf, z) for z in self.zones]
-            )
+            surf_arr = np.array([eppy.modeleditor.zonearea(idf, z) for z in self.zones])
             surf_ratio = surf_arr / np.sum(surf_arr)
         else:
             surf_ratio = np.array([1] * len(self.zones))
 
         for i, zone in enumerate(self.zones):
             equipment_name = f"{zone}_{self.name}_equipment"
+            del_named_objects(idf, "OtherEquipment", equipment_name)
             equipment_name_list.append(equipment_name)
-            energytool.base.idf_utils.del_named_objects(
-                self.building.idf, "OtherEquipment", equipment_name
-            )
 
-            self.building.idf.newidfobject(
+            idf.newidfobject(
                 "OtherEquipment",
                 Name=equipment_name,
                 Zone_or_ZoneList_Name=zone,
@@ -611,13 +631,13 @@ class OtherEquipment:
             )
 
         if self.add_output_variables:
-            pr.add_output_variable(
-                self.building.idf,
+            add_output_variable(
+                idf,
                 key_values=equipment_name_list,
                 variables="Other Equipment Total Heating Energy",
             )
 
-    def post_process(self):
+    def post_process(self, idf: IDF = None, eplus_results: pd.DataFrame = None):
         pass
 
 

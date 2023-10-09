@@ -1,9 +1,12 @@
 from pathlib import Path
 import pandas as pd
+import numpy as np
 
 import pytest
 from eppy.modeleditor import IDF
+from copy import deepcopy
 
+from energytool.base.idf_utils import get_named_objects_field_values
 from energytool.base.idfobject_utils import get_objects_name_list
 from energytool.base.parse_results import read_eplus_res
 from energytool.building import Building
@@ -15,6 +18,7 @@ from energytool.system import (
     DHWIdealExternal,
     ArtificialLighting,
     AHUControl,
+    OtherEquipment,
 )
 
 RESOURCES_PATH = Path(__file__).parent / "resources"
@@ -215,7 +219,7 @@ class TestSystems:
             AHUControl(
                 name="ahu_control",
                 control_strategy="DataFrame",
-                data_frame=data_frame["schedule_1"],
+                time_series=data_frame["schedule_1"],
             )
         )
 
@@ -232,87 +236,88 @@ class TestSystems:
             "VENTILATION_Energy_[J]": 5800244198.831992,
         }
 
-    #
-    # def test_other_equipments(self, building):
-    #     building.other["Other_test"] = sys.OtherEquipment(
-    #         name="test_other",
-    #         building=building,
-    #         zones=["Block1:ApptX1W", "Block1:ApptX1E"],
-    #         design_level_power=10,
-    #         add_output_variables=True,
-    #     )
-    #
-    #     building.pre_process()
-    #     to_test = energytool.base.idf_utils.get_named_objects_field_values(
-    #         building.idf, "OtherEquipment", field_name="Design_Level"
-    #     )
-    #     assert to_test == ["", "", "", "", 10, 10]
-    #     assert building.idf.getobject("Schedule:Compact", "ON_24h24h_FULL_YEAR")
-    #
-    #     building.other["Other_test"] = sys.OtherEquipment(
-    #         name="test_other",
-    #         building=building,
-    #         zones="*",
-    #         design_level_power=20,
-    #         compact_schedule_name="On",
-    #         add_output_variables=True,
-    #     )
-    #
-    #     building.pre_process()
-    #     to_test = energytool.base.idf_utils.get_named_objects_field_values(
-    #         building.idf, "OtherEquipment", field_name="Design_Level"
-    #     )
-    #     assert to_test == ["", "", "", "", 20, 20, 20, 20]
-    #
-    #     df_sched = pd.Series(
-    #         name="test_df",
-    #         data=np.array([1] * 8760),
-    #         index=pd.date_range("01-01-2022", periods=8760, freq="H"),
-    #     )
-    #
-    #     building.other["Other_test"] = sys.OtherEquipment(
-    #         name="test_other",
-    #         building=building,
-    #         zones="*",
-    #         cop=2,
-    #         design_level_power=20,
-    #         series_schedule=df_sched,
-    #         add_output_variables=True,
-    #     )
-    #
-    #     building.pre_process()
-    #     to_test = energytool.base.idf_utils.get_named_objects_field_values(
-    #         building.idf, "OtherEquipment", field_name="Design_Level"
-    #     )
-    #     assert to_test == ["", "", "", "", 40, 40, 40, 40]
-    #     assert building.idf.getobject("Schedule:File", "test_df")
-    #
-    #     building.other["Other_test"] = sys.OtherEquipment(
-    #         name="test_other",
-    #         building=building,
-    #         zones="*",
-    #         cop=2,
-    #         design_level_power=20,
-    #         distribute_load=True,
-    #         series_schedule=df_sched,
-    #         add_output_variables=True,
-    #     )
-    #
-    #     building.pre_process()
-    #     to_test = energytool.base.idf_utils.get_named_objects_field_values(
-    #         building.idf, "OtherEquipment", field_name="Design_Level"
-    #     )
-    #     assert to_test == [
-    #         "",
-    #         "",
-    #         "",
-    #         "",
-    #         9.999999999999996,
-    #         10.000000000000002,
-    #         10.000000000000002,
-    #         10.0,
-    #     ]
-    #     assert building.idf.getobject("Schedule:File", "test_df")
+    def test_other_equipments(self):
+        tested_idf = IDF(RESOURCES_PATH / "test.idf")
+        other_system = OtherEquipment(
+            name="other_equipment",
+            zones=["Block1:ApptX1W", "Block1:ApptX1E"],
+            design_level_power=10,
+            add_output_variables=True,
+        )
+
+        copied_idf = deepcopy(tested_idf)
+        other_system.pre_process(copied_idf)
+        to_test = get_named_objects_field_values(
+            copied_idf, "OtherEquipment", field_name="Design_Level"
+        )
+        assert to_test == ["", "", "", "", 10, 10]
+        assert copied_idf.getobject("Schedule:Compact", "ON_24h24h_FULL_YEAR")
+
+        other_system = OtherEquipment(
+            name="test_other",
+            zones="*",
+            design_level_power=20,
+            compact_schedule_name="On",
+            add_output_variables=True,
+        )
+
+        copied_idf = deepcopy(tested_idf)
+        other_system.pre_process(copied_idf)
+        to_test = get_named_objects_field_values(
+            copied_idf, "OtherEquipment", field_name="Design_Level"
+        )
+        assert to_test == ["", "", "", "", 20, 20, 20, 20]
+
+        df_sched = pd.Series(
+            name="test_df",
+            data=np.array([1] * 8760),
+            index=pd.date_range("01-01-2022", periods=8760, freq="H"),
+        )
+
+        other_system = OtherEquipment(
+            name="test_other",
+            zones="*",
+            cop=2,
+            design_level_power=20,
+            time_series=df_sched,
+            add_output_variables=True,
+        )
+
+        copied_idf = deepcopy(tested_idf)
+        other_system.pre_process(copied_idf)
+        to_test = get_named_objects_field_values(
+            copied_idf, "OtherEquipment", field_name="Design_Level"
+        )
+        assert to_test == ["", "", "", "", 40, 40, 40, 40]
+        assert copied_idf.getobject("Schedule:File", "test_df")
+
+        other_system = OtherEquipment(
+            name="test_other",
+            zones="*",
+            cop=2,
+            design_level_power=20,
+            distribute_load=True,
+            time_series=df_sched,
+            add_output_variables=True,
+        )
+
+        copied_idf = deepcopy(tested_idf)
+        other_system.pre_process(copied_idf)
+        to_test = get_named_objects_field_values(
+            copied_idf, "OtherEquipment", field_name="Design_Level"
+        )
+        assert to_test == [
+            "",
+            "",
+            "",
+            "",
+            9.999999999999996,
+            10.000000000000002,
+            10.000000000000002,
+            10.0,
+        ]
+        assert copied_idf.getobject("Schedule:File", "test_df")
+
     #
     # def test_zone_thermostat(self, building):
     #     building.heating_system["Thermo"] = sys.ZoneThermostat(
