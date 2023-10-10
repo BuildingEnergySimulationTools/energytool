@@ -114,9 +114,9 @@ Others : {[obj.name for obj in self.systems[SystemCategories.OTHER]]}
 
     def del_system(self, system_name: str):
         for cat in SystemCategories:
-            for sys in self.systems[cat]:
+            for i, sys in enumerate(self.systems[cat]):
                 if sys.name == system_name:
-                    del sys
+                    del self.systems[cat][i]
 
     def simulate(
         self,
