@@ -11,6 +11,7 @@ from energytool.base.idf_utils import (
     set_named_objects_field_values,
     get_named_objects,
     del_named_objects,
+    copy_named_object_from_idf,
 )
 
 from energytool.base.idfobject_utils import (
@@ -30,6 +31,9 @@ from eppy.modeleditor import IDF
 from typing import Union
 
 from abc import ABC, abstractmethod
+
+
+RESOURCE_IDF = get_resources_idf()
 
 
 class SystemCategories(enum.Enum):
@@ -437,7 +441,6 @@ class AHUControl(System):
         self.zones = zones
         self.control_strategy = control_strategy
         self.schedule_name = schedule_name
-        self.resources_idf = get_resources_idf()
         if time_series is not None:
             self.data_frame = as_1_column_dataframe(time_series)
 
@@ -446,7 +449,7 @@ class AHUControl(System):
             # Get schedule in resources file
             idf_schedules = idf.idfobjects["Schedule:Compact"]
             schedule_to_copy = get_named_objects(
-                self.resources_idf, "Schedule:Compact", self.schedule_name
+                RESOURCE_IDF, "Schedule:Compact", self.schedule_name
             )
 
             # Copy in building idf if not already present
@@ -553,7 +556,6 @@ class OtherEquipment(System):
         self.cop = cop
         self.design_level_power = design_level_power
         self.add_output_variables = add_output_variables
-        self.resources_idf = get_resources_idf()
         self.distribute_load = distribute_load
         self.fraction_radiant = fraction_radiant
         if time_series is not None:
@@ -577,7 +579,7 @@ class OtherEquipment(System):
                 self.schedule_name = "ON_24h24h_FULL_YEAR"
 
                 # Get schedule in resources file
-                schedule_to_copy = self.resources_idf.getobject(
+                schedule_to_copy = RESOURCE_IDF.getobject(
                     "Schedule:Compact", self.schedule_name
                 )
 
@@ -641,146 +643,173 @@ class OtherEquipment(System):
         pass
 
 
-class ZoneThermostat:
+class ZoneThermostat(System):
     def __init__(
         self,
-        name,
-        building,
-        zones,
-        heating_compact_schedule_name=None,
-        heating_series_schedule=None,
-        cooling_compact_schedule_name=None,
-        cooling_series_schedule=None,
-        add_schedules_output_variables=False,
-        overwrite_heating_availability=False,
-        overwrite_cooling_availability=False,
+        name: str,
+        zones: Union[str, list] = "*",
+        heating_compact_schedule_name: str = None,
+        heating_time_series: pd.Series = None,
+        cooling_compact_schedule_name: str = None,
+        cooling_time_series: pd.Series = None,
+        add_schedules_output_variables: bool = False,
+        overwrite_heating_availability: bool = False,
+        overwrite_cooling_availability: bool = False,
     ):
-        self.name = name
-        self.building = building
+        """
+        The ZoneThermostat class is designed to simplify the process of managing
+        thermostat settings and schedule. It allows users to define thermostat configurations for
+        specific zones or all zones in a building specifying compact schedule, or using
+        Pandas Series.
+
+        :param name: Name of the ZoneThermostat.
+        :param zones: Zones to apply the thermostat settings to. "*" for all zones or
+           a list of zone names.
+        :param heating_compact_schedule_name: Name of the heating compact schedule.
+           If not provided, and no time_series is given. The heating is artificially
+            set to Off using a constant -60°C schedule.
+
+        :param heating_time_series: Heating time series data as a pandas Series.
+           If provided, this time series will be used for heating setpoint schedules,
+            and any provided heating_compact_schedule_name will be ignored.
+
+        :param cooling_compact_schedule_name: Name of the cooling compact schedule.
+           If not provided, and no time_series is given. The cooling is artificially
+            set to Off using a constant 100°C schedule.
+
+        :param cooling_time_series: Cooling time series data as a pandas Series.
+           If provided, this time series will be used for cooling setpoint schedules,
+           and any provided cooling_compact_schedule_name will be ignored.
+
+        :param add_schedules_output_variables: Whether to add schedules as output
+           variables in the idf. This can be useful for analysis and
+           visualization.
+
+        :param overwrite_heating_availability: Whether to overwrite heating
+           availability schedules for the specified zones.
+
+        :param overwrite_cooling_availability: Whether to overwrite cooling availability
+            schedules for the specified zones.
+        """
+        super().__init__(name=name, category=SystemCategories.OTHER)
         self.zones = zones
         self.add_schedules_output_variables = add_schedules_output_variables
-        self.resources_idf = energytool.base.epluspreprocess.get_resources_idf()
         self.overwrite_heating_availability = overwrite_heating_availability
         self.overwrite_cooling_availability = overwrite_cooling_availability
+        self.heating_compact_schedule_name = heating_compact_schedule_name
+        self.heating_time_series = heating_time_series
+        self.cooling_compact_schedule_name = cooling_compact_schedule_name
+        self.cooling_time_series = cooling_time_series
 
-        if zones == "*":
-            self.zones = self.building.zone_name_list
+    def pre_process(self, idf: IDF):
+        if self.zones == "*":
+            self.zones = get_objects_name_list(idf, "Zone")
         else:
-            self.zones = tl.to_list(zones)
+            self.zones = to_list(self.zones)
 
-        self.ilas_list = pr.get_zones_idealloadsairsystem(building.idf, self.zones)
+        ilas_list = get_zones_idealloadsairsystem(idf, self.zones)
 
-        if heating_series_schedule is None:
-            if heating_compact_schedule_name is None:
-                energytool.base.idf_utils.copy_named_object_from_idf(
-                    self.resources_idf,
-                    building.idf,
+        if self.heating_time_series is None:
+            if self.heating_compact_schedule_name is None:
+                copy_named_object_from_idf(
+                    RESOURCE_IDF,
+                    idf,
                     "Schedule:Compact",
                     "-60C_heating_setpoint",
                 )
                 self.heating_schedule_name = "-60C_heating_setpoint"
-            elif not self.building.idf.getobject(
-                "Schedule:Compact", heating_compact_schedule_name
+            elif not idf.getobject(
+                "Schedule:Compact", self.heating_compact_schedule_name
             ):
                 raise ValueError(
-                    f"{heating_compact_schedule_name} not found in"
+                    f"{self.heating_compact_schedule_name} not found in"
                     f"Schedule:Compact objects"
                 )
             else:
-                self.heating_schedule_name = heating_compact_schedule_name
+                self.heating_schedule_name = self.heating_compact_schedule_name
         else:
-            if heating_compact_schedule_name:
-                raise ValueError(
-                    "Both schedule name and series schedule " "can not be specified"
-                )
-            if not isinstance(heating_series_schedule, pd.Series):
-                raise ValueError("series_schedule must be a Pandas Series")
+            if self.heating_compact_schedule_name:
+                raise ValueError("Both schedule name and time_series were specified")
 
-            energytool.base.idf_utils.del_named_objects(
-                self.building.idf, "Schedule:File", heating_series_schedule.name
-            )
-            pr.add_hourly_schedules_from_df(
-                idf=building.idf, data=heating_series_schedule
-            )
-            self.heating_schedule_name = heating_series_schedule.name
+            del_named_objects(idf, "Schedule:File", self.heating_time_series.name)
 
-        if cooling_series_schedule is None:
-            if cooling_compact_schedule_name is None:
-                energytool.base.idf_utils.copy_named_object_from_idf(
-                    self.resources_idf,
-                    building.idf,
+            add_hourly_schedules_from_df(
+                idf=idf, data=as_1_column_dataframe(self.heating_time_series)
+            )
+            self.heating_schedule_name = self.heating_time_series.name
+
+        if self.cooling_time_series is None:
+            if self.cooling_compact_schedule_name is None:
+                copy_named_object_from_idf(
+                    RESOURCE_IDF,
+                    idf,
                     "Schedule:Compact",
                     "100C_cooling_setpoint",
                 )
                 self.cooling_schedule_name = "100C_cooling_setpoint"
-            elif not self.building.idf.getobject(
-                "Schedule:Compact", cooling_compact_schedule_name
+            elif not idf.getobject(
+                "Schedule:Compact", self.cooling_compact_schedule_name
             ):
                 raise ValueError(
-                    f"{cooling_compact_schedule_name} not found in"
+                    f"{self.cooling_compact_schedule_name} not found in"
                     f"Schedule:Compact objects"
                 )
             else:
-                self.cooling_schedule_name = cooling_compact_schedule_name
+                self.cooling_schedule_name = self.cooling_compact_schedule_name
         else:
-            if cooling_compact_schedule_name:
+            if self.cooling_compact_schedule_name:
                 raise ValueError(
-                    "Both schedule name and series schedule " "can not be specified"
+                    "Both schedule name and time_series cannot be specified"
                 )
-            if not isinstance(cooling_series_schedule, pd.Series):
-                raise ValueError("series_schedule must be a Pandas Series")
 
-            energytool.base.idf_utils.del_named_objects(
-                self.building.idf, "Schedule:File", cooling_series_schedule.name
+            del_named_objects(idf, "Schedule:File", self.cooling_time_series.name)
+            add_hourly_schedules_from_df(
+                idf=idf, data=as_1_column_dataframe(self.cooling_time_series)
             )
-            pr.add_hourly_schedules_from_df(
-                idf=building.idf, data=cooling_series_schedule
-            )
-            self.cooling_schedule_name = cooling_series_schedule.name
+            self.cooling_schedule_name = self.cooling_time_series.name
 
-    def pre_process(self):
         if self.overwrite_heating_availability or self.overwrite_cooling_availability:
-            energytool.base.idf_utils.copy_named_object_from_idf(
-                self.resources_idf,
-                self.building.idf,
+            copy_named_object_from_idf(
+                RESOURCE_IDF,
+                idf,
                 "Schedule:Compact",
                 "ON_24h24h_FULL_YEAR",
             )
 
         if self.overwrite_heating_availability:
-            energytool.base.idf_utils.set_named_objects_field_values(
-                idf=self.building.idf,
+            set_named_objects_field_values(
+                idf=idf,
                 idf_object="ZONEHVAC:IDEALLOADSAIRSYSTEM",
                 field_name="Heating_Availability_Schedule_Name",
-                idf_object_names=[ilas.Name for ilas in self.ilas_list],
+                idf_object_names=[ilas.Name for ilas in ilas_list],
                 values="ON_24h24h_FULL_YEAR",
             )
 
         if self.overwrite_cooling_availability:
-            energytool.base.idf_utils.set_named_objects_field_values(
-                idf=self.building.idf,
+            set_named_objects_field_values(
+                idf=idf,
                 idf_object="ZONEHVAC:IDEALLOADSAIRSYSTEM",
                 field_name="Cooling_Availability_Schedule_Name",
-                idf_object_names=[ilas.Name for ilas in self.ilas_list],
+                idf_object_names=[ilas.Name for ilas in ilas_list],
                 values="ON_24h24h_FULL_YEAR",
             )
 
-        thermos_name_list = energytool.base.idf_utils.get_objects_name_list(
-            self.building.idf, "ThermostatSetpoint:DualSetpoint"
+        thermos_name_list = get_objects_name_list(
+            idf, "ThermostatSetpoint:DualSetpoint"
         )
 
-        thermos_to_keep = tl.select_in_list(thermos_name_list, self.zones)
+        thermos_to_keep = select_in_list(thermos_name_list, self.zones)
 
-        energytool.base.idf_utils.set_named_objects_field_values(
-            idf=self.building.idf,
+        set_named_objects_field_values(
+            idf=idf,
             idf_object="ThermostatSetpoint:DualSetpoint",
             field_name="Heating_Setpoint_Temperature_Schedule_Name",
             idf_object_names=thermos_to_keep,
             values=self.heating_schedule_name,
         )
 
-        energytool.base.idf_utils.set_named_objects_field_values(
-            idf=self.building.idf,
+        set_named_objects_field_values(
+            idf=idf,
             idf_object="ThermostatSetpoint:DualSetpoint",
             field_name="Cooling_Setpoint_Temperature_Schedule_Name",
             idf_object_names=thermos_to_keep,
@@ -788,11 +817,11 @@ class ZoneThermostat:
         )
 
         if self.add_schedules_output_variables:
-            pr.add_output_variable(
-                self.building.idf,
+            add_output_variable(
+                idf=idf,
                 key_values=[self.heating_schedule_name, self.cooling_schedule_name],
                 variables="Schedule Value",
             )
 
-    def post_process(self):
+    def post_process(self, idf: IDF = None, eplus_results: pd.DataFrame = None):
         pass

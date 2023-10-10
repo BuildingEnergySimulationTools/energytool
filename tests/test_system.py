@@ -19,6 +19,7 @@ from energytool.system import (
     ArtificialLighting,
     AHUControl,
     OtherEquipment,
+    ZoneThermostat
 )
 
 RESOURCES_PATH = Path(__file__).parent / "resources"
@@ -318,54 +319,57 @@ class TestSystems:
         ]
         assert copied_idf.getobject("Schedule:File", "test_df")
 
-    #
-    # def test_zone_thermostat(self, building):
-    #     building.heating_system["Thermo"] = sys.ZoneThermostat(
-    #         name="test_thermo",
-    #         building=building,
-    #         zones=["Block1:ApptX1W", "Block1:ApptX1E"],
-    #     )
-    #
-    #     building.pre_process()
-    #     to_test = energytool.base.idf_utils.get_named_objects_field_values(
-    #         building.idf,
-    #         "ThermostatSetpoint:DualSetpoint",
-    #         field_name="Heating_Setpoint_Temperature_Schedule_Name",
-    #     )
-    #
-    #     assert to_test == [
-    #         "-60C_heating_setpoint",
-    #         "-60C_heating_setpoint",
-    #         "Block2:ApptX2W Heating Setpoint Schedule",
-    #         "Block2:ApptX2E Heating Setpoint Schedule",
-    #     ]
-    #     assert building.idf.getobject("Schedule:Compact", "100C_cooling_setpoint")
-    #     assert building.idf.getobject("Schedule:Compact", "-60C_heating_setpoint")
-    #
-    #     df_sched = pd.Series(
-    #         name="test_df",
-    #         data=np.array([19] * 8760),
-    #         index=pd.date_range("01-01-2022", periods=8760, freq="H"),
-    #     )
-    #
-    #     building.other["Thermo"] = sys.ZoneThermostat(
-    #         building=building,
-    #         name="test_thermo",
-    #         zones="*",
-    #         heating_series_schedule=df_sched,
-    #     )
-    #
-    #     building.pre_process()
-    #     to_test = energytool.base.idf_utils.get_named_objects_field_values(
-    #         building.idf,
-    #         "ThermostatSetpoint:DualSetpoint",
-    #         field_name="Heating_Setpoint_Temperature_Schedule_Name",
-    #     )
-    #     assert to_test == ["test_df"] * 4
-    #     assert building.idf.getobject("Schedule:File", "test_df")
-    #     to_test = energytool.base.idf_utils.get_named_objects_field_values(
-    #         building.idf,
-    #         "ThermostatSetpoint:DualSetpoint",
-    #         field_name="Cooling_Setpoint_Temperature_Schedule_Name",
-    #     )
-    #     assert to_test == ["100C_cooling_setpoint"] * 4
+
+    def test_zone_thermostat(self):
+        tested_idf = IDF(RESOURCES_PATH / "test.idf")
+
+        thermostat = ZoneThermostat(
+            name="test_thermo",
+            zones=["Block1:ApptX1W", "Block1:ApptX1E"],
+        )
+
+        working_idf = deepcopy(tested_idf)
+        thermostat.pre_process(working_idf)
+        to_test = get_named_objects_field_values(
+            working_idf,
+            "ThermostatSetpoint:DualSetpoint",
+            field_name="Heating_Setpoint_Temperature_Schedule_Name",
+        )
+
+        assert to_test == [
+            "-60C_heating_setpoint",
+            "-60C_heating_setpoint",
+            "Block2:ApptX2W Heating Setpoint Schedule",
+            "Block2:ApptX2E Heating Setpoint Schedule",
+        ]
+        assert working_idf.getobject("Schedule:Compact", "100C_cooling_setpoint")
+        assert working_idf.getobject("Schedule:Compact", "-60C_heating_setpoint")
+
+        df_sched = pd.Series(
+            name="test_df",
+            data=np.array([19] * 8760),
+            index=pd.date_range("01-01-2022", periods=8760, freq="H"),
+        )
+
+        thermostat = ZoneThermostat(
+            name="test_thermo",
+            zones="*",
+            heating_time_series=df_sched,
+        )
+
+        working_idf = deepcopy(tested_idf)
+        thermostat.pre_process(working_idf)
+
+        to_test = get_named_objects_field_values(
+            working_idf,
+            "ThermostatSetpoint:DualSetpoint",
+            field_name="Heating_Setpoint_Temperature_Schedule_Name",
+        )
+        assert to_test == ["test_df"] * 4
+        assert working_idf.getobject("Schedule:File", "test_df")
+        to_test = get_named_objects_field_values(
+            working_idf,
+            "ThermostatSetpoint:DualSetpoint",
+            field_name="Cooling_Setpoint_Temperature_Schedule_Name",
+        )
+        assert to_test == ["100C_cooling_setpoint"] * 4
