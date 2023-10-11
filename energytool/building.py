@@ -56,7 +56,28 @@ def temporary_directory():
 
 
 class Building(Model):
-    """ """
+    """
+    The Building class represents a building model. It is based on an EnergyPlus
+    simulation file.
+
+    :param idf_path: The path to the EnergyPlus IDF file that defines the building model.
+
+    Attributes:
+        idf: An EnergyPlus IDF object representing the building's configuration.
+        systems: A dictionary that stores various categories of
+        energytool HVAC systems associated with the building.
+
+    Methods:
+        set_idd(root_eplus): Sets the EnergyPlus IDD file used for parsing the IDF file.
+        zone_name_list: Returns a list of names of zones defined in the building model.
+        surface: Calculates and returns the total surface area of the building in square meters.
+        volume: Calculates and returns the total volume of the building in cubic meters.
+        add_system(system): Adds an HVAC system to the building's systems.
+        del_system(system_name): Deletes an HVAC system from the building's systems by name.
+        simulate(parameter_dict, simulation_options): Simulates the building model with
+        specified parameters and simulation options, returning the simulation results
+        as a pandas DataFrame.
+    """
 
     def __init__(
         self,
@@ -124,10 +145,47 @@ Others : {[obj.name for obj in self.systems[SystemCategories.OTHER]]}
         simulation_options: Dict[str, Union[str, float, int]] = None,
     ) -> pd.DataFrame:
         """
+        Simulate the building model with specified parameters and simulation options.
 
-        :param parameter_dict:
-        :param simulation_options:
-        :return:
+        :param parameter_dict: A dictionary containing key-value pairs representing
+            parameters to be modified in the building model.
+            These parameters can include changes to the IDF file, energytool HVAC system
+            settings, or weather file.
+            The key must represent the "path" to the parameter. "dots" must be separator.
+            "idf" at the beginning of the path indicates a modification in the idf file
+            "system" indicates a modification at energytool system level
+            "epw_file" the path to epw file.
+            see ParamCategories for allowed prefix
+
+        :param simulation_options: A dictionary of simulation options that control
+            the behavior of the EnergyPlus simulation.
+            These options can include the choice of weather file, run period,
+            time step, and desired outputs.
+            See SimuOpt enum for allowed simulation options
+
+        :return: A pandas DataFrame containing the simulation results, which may
+            include energy consumption, indoor conditions, and other relevant data
+            based on the specified outputs.
+
+        The `simulate` method allows you to customize and run an EnergyPlus simulation
+        for the building model. It provides the flexibility to modify various
+        parameters and specify simulation options. It returns the results in a
+        structured DataFrame
+
+        Usage:
+        # Example usage of the simulate method
+        parameter_changes = {
+            "idf.material.Urea Formaldehyde Foam_.1327.Conductivity": 0.05,
+            "system.heating.Heater.cop": 0.5,
+        }
+        simulation_options = {
+            'EPW_FILE': 'path/to/weather.epw',
+            'START': '2023-01-01 00:00:00',
+            'STOP': '2023-01-31 23:59:59',
+            'TIMESTEP': 900
+        }
+        results = building.simulate(parameter_dict=parameter_changes, simulation_options=simulation_options)
+
         """
         working_idf = IDF(self._idf_path)
         working_syst = deepcopy(self.systems)
