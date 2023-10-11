@@ -371,9 +371,37 @@ def add_hourly_schedules_from_df(
         )
 
 
-def add_natural_ventilation(idf, ach, zones="*", occupancy_schedule=True, kwargs=None):
-    if kwargs is None:
-        kwargs = {"Minimum_Indoor_Temperature": 22, "Delta_Temperature": 0}
+def add_natural_ventilation(
+    idf: IDF,
+    ach: float,
+    zones: Union[str, list] = "*",
+    occupancy_schedule: bool = True,
+    minimum_indoor_temperature: float = 22.0,
+    delta_temperature: float = 0,
+    kwargs: dict = {},
+):
+    """
+    This function facilitates the addition of natural ventilation settings to specific
+    zones in an EnergyPlus IDF (Input Data File).
+    Natural ventilation is modeled by specifying the desired Air Changes per Hour (ACH)
+    for each zone. Users can also choose whether to link the ventilation schedule
+    to occupancy or use a fixed schedule.
+
+    :param idf: An EnergyPlus IDF object.
+    :param ach: The desired Air Changes per Hour (ACH) for natural ventilation.
+    :param zones: The zones to which natural ventilation settings should be applied.
+        Can be a single zone name or a list of zone names. Default is "*," which
+        applies the settings to all zones.
+    :param occupancy_schedule: If True, the ventilation schedule is linked to occupancy
+        schedules in the IDF. If False, a fixed schedule "On 24/7" is used for all
+        specified zones (default is True).
+    :param minimum_indoor_temperature: The minimum indoor temperature
+        (in degrees Celsius) at which natural ventilation is allowed (default is 22.0°C).
+    :param delta_temperature: The temperature difference (in degrees Celsius) above
+        the outdoor temperature at which natural ventilation is initiated
+        (default is 0.0°C).
+    """
+
     if zones == "*":
         z_list = get_objects_name_list(idf, "Zone")
     else:
@@ -411,6 +439,8 @@ def add_natural_ventilation(idf, ach, zones="*", occupancy_schedule=True, kwargs
             Schedule_Name=zone_sched_dict[z_name],
             Design_Flow_Rate_Calculation_Method="AirChanges/Hour",
             Design_Flow_Rate=ach,
+            Minimum_Indoor_Temperature=minimum_indoor_temperature,
+            Delta_Temperature=delta_temperature,
             **kwargs,
         )
 
