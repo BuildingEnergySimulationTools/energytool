@@ -16,7 +16,11 @@ import energytool.base.idf_utils
 from energytool.base.parse_results import read_eplus_res
 from energytool.outputs import get_systems_results
 from energytool.system import System, SystemCategories
-from energytool.base.idfobject_utils import get_number_of_people
+from energytool.base.idfobject_utils import (
+    get_number_of_people,
+    set_timestep,
+    set_run_period,
+)
 
 import tempfile
 import shutil
@@ -219,6 +223,7 @@ Others : {[obj.name for obj in self.systems[SystemCategories.OTHER]]}
                     f"{split_key[0]} was not recognize as a valid parameter category"
                 )
 
+        # Simulation options
         if epw_path is None:
             try:
                 epw_path = simulation_options[SimuOpt.EPW_FILE.value]
@@ -233,10 +238,32 @@ Others : {[obj.name for obj in self.systems[SystemCategories.OTHER]]}
                 "simulation_options"
             )
 
+        if SimuOpt.START.value in simulation_options.keys():
+            start = pd.to_datetime(simulation_options[SimuOpt.START.value])
+            try:
+                end = pd.to_datetime(simulation_options[SimuOpt.STOP.value])
+            except KeyError:
+                raise ValueError(
+                    "Cannot set run period. Only start value was found "
+                    "in simulation_options dict"
+                )
+            set_run_period(working_idf, start, end)
+
+        if SimuOpt.TIMESTEP.value in simulation_options.keys():
+            # timestep is supposed to be set in seconds
+            set_timestep(
+                working_idf,
+                nb_timestep_per_hour=int(
+                    3600 / simulation_options[SimuOpt.TIMESTEP.value]
+                ),
+            )
+
+        # PRE-PROCESS
         system_list = [sys for sublist in working_syst.values() for sys in sublist]
         for system in system_list:
             system.pre_process(working_idf)
 
+        # SIMULATE
         with temporary_directory() as temp_dir:
             working_idf.saveas((Path(temp_dir) / "in.idf").as_posix(), encoding="utf-8")
             idd_ref = working_idf.idd_version
@@ -259,6 +286,7 @@ Others : {[obj.name for obj in self.systems[SystemCategories.OTHER]]}
 
             eplus_res = read_eplus_res(Path(temp_dir) / "eplusout.csv")
 
+            # POST-PROCESS
             return get_systems_results(
                 idf=working_idf,
                 eplus_res=eplus_res,
