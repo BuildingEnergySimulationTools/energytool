@@ -10,7 +10,7 @@ Building.set_idd(RESOURCES_PATH)
 
 
 class TestBuilding:
-    def test_load_idf(self):
+    def test_building(self):
         test_build = Building(idf_path=RESOURCES_PATH / "test.idf")
         test_build.add_system(HeaterSimple(name="Heater", cop=0.1))
 
@@ -62,6 +62,9 @@ class TestBuilding:
             "epw_file": (
                 Path(r"C:\EnergyPlusV9-4-0\WeatherData") / "B4R_weather_Paris_2020.epw"
             ).as_posix(),
+            SimuOpt.START.value: "2009-01-01",
+            SimuOpt.STOP.value: "2009-02-01",
+            SimuOpt.TIMESTEP.value: 15 * 60,
             SimuOpt.OUTPUTS.value: f"{OutputCategories.SYSTEM.value}|{OutputCategories.RAW.value}",
         }
 
@@ -70,14 +73,14 @@ class TestBuilding:
         )
 
         assert res.sum().to_dict() == {
-            "HEATING_Energy_[J]": 124442595875.44434,
-            "TOTAL_SYSTEM_Energy_[J]": 124442595875.44434,
-            "BLOCK1:APPTX1W:Zone Other Equipment Total Heating Energy [J](Hourly)": 18564769403.136005,
-            "BLOCK1:APPTX1E:Zone Other Equipment Total Heating Energy [J](Hourly)": 18564769403.136005,
-            "BLOCK2:APPTX2W:Zone Other Equipment Total Heating Energy [J](Hourly)": 18564769403.136005,
-            "BLOCK2:APPTX2E:Zone Other Equipment Total Heating Energy [J](Hourly)": 18564769403.136005,
-            "BLOCK1:APPTX1W IDEAL LOADS AIR:Zone Ideal Loads Supply Air Total Heating Energy [J](Hourly)": 15412078533.53048,
-            "BLOCK1:APPTX1E IDEAL LOADS AIR:Zone Ideal Loads Supply Air Total Heating Energy [J](Hourly)": 15855121735.988373,
-            "BLOCK2:APPTX2W IDEAL LOADS AIR:Zone Ideal Loads Supply Air Total Heating Energy [J](Hourly)": 15276675722.295742,
-            "BLOCK2:APPTX2E IDEAL LOADS AIR:Zone Ideal Loads Supply Air Total Heating Energy [J](Hourly) ": 15677421945.907581,
+            "HEATING_Energy_[J]": 28997691318.06697,
+            "TOTAL_SYSTEM_Energy_[J]": 28997691318.06697,
+            "BLOCK1:APPTX1W:Zone Other Equipment Total Heating Energy [J](Hourly)": 1627596221.6448004,
+            "BLOCK1:APPTX1E:Zone Other Equipment Total Heating Energy [J](Hourly)": 1627596221.6448004,
+            "BLOCK2:APPTX2W:Zone Other Equipment Total Heating Energy [J](Hourly)": 1627596221.6448004,
+            "BLOCK2:APPTX2E:Zone Other Equipment Total Heating Energy [J](Hourly)": 1627596221.6448004,
+            "BLOCK1:APPTX1W IDEAL LOADS AIR:Zone Ideal Loads Supply Air Total Heating Energy [J](Hourly)": 3608218979.0446877,
+            "BLOCK1:APPTX1E IDEAL LOADS AIR:Zone Ideal Loads Supply Air Total Heating Energy [J](Hourly)": 3682672386.484531,
+            "BLOCK2:APPTX2W IDEAL LOADS AIR:Zone Ideal Loads Supply Air Total Heating Energy [J](Hourly)": 3571575271.9865627,
+            "BLOCK2:APPTX2E IDEAL LOADS AIR:Zone Ideal Loads Supply Air Total Heating Energy [J](Hourly) ": 3636379021.517704,
         }
