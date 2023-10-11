@@ -3,7 +3,7 @@ from typing import Union, List
 import eppy
 from eppy.modeleditor import IDF
 
-from energytool import tools as tl
+from energytool.tools import is_items_in_list, to_list
 
 
 def get_objects_name_list(idf: IDF, idf_object: str):
@@ -39,7 +39,7 @@ def get_named_objects(idf: IDF, idf_object: str, names: Union[str, list]):
     returns a list of objects whose names match the names provided in the `names`
     parameter.
     """
-    names_list = tl.to_list(names)
+    names_list = to_list(names)
     objects_list = idf.idfobjects[idf_object]
     return [obj for obj in objects_list if obj.Name in names_list]
 
@@ -97,18 +97,18 @@ def is_value_in_objects_fieldname(
     # instance and "Zone2" is not found in the field of the second instance.
     ```
     """
-    values_list = tl.to_list(values)
+    values_list = to_list(values)
     obj_list = idf.idfobjects[idf_object]
     var_in_idf = [obj[field_name] for obj in obj_list]
 
-    return tl.is_list_items_in_list(var_in_idf, values_list)
+    return is_items_in_list(var_in_idf, values_list)
 
 
 def set_named_objects_field_values(
     idf: IDF,
     idf_object: str,
     field_name: str,
-    values: Union[str, list],
+    values: Union[str, float, List[Union[str, float]]],
     idf_object_names: Union[str, list] = "*",
 ):
     """
@@ -132,9 +132,9 @@ def set_named_objects_field_values(
     if idf_object_names == "*":
         idf_object_names_list = get_objects_name_list(idf, idf_object)
     else:
-        idf_object_names_list = tl.to_list(idf_object_names)
+        idf_object_names_list = to_list(idf_object_names)
 
-    values_list = tl.to_list(values)
+    values_list = to_list(values)
     if len(values_list) == 1:
         values_list = values_list * len(idf_object_names_list)
 
@@ -195,7 +195,7 @@ def get_named_objects_field_values(
     if names == "*":
         idf_object_names_list = get_objects_name_list(idf, idf_object)
     else:
-        idf_object_names_list = tl.to_list(names)
+        idf_object_names_list = to_list(names)
 
     return [
         _get_named_object_field_value(idf, idf_object, obj_name, field_name)
@@ -237,7 +237,7 @@ def del_named_objects(idf: IDF, idf_object: str, names: Union[str, list] = "*"):
     if names == "*":
         idf.idfobjects[idf_object] = []
     else:
-        name_list = tl.to_list(names)
+        name_list = to_list(names)
         obj_to_remove = [idf.getobject(idf_object, name) for name in name_list]
         obj_list = idf.idfobjects[idf_object]
 
