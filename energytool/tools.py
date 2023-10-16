@@ -1,5 +1,6 @@
 import pandas as pd
 import datetime as dt
+from typing import Union
 
 
 def to_list(f_input):
@@ -22,15 +23,24 @@ def to_list(f_input):
         )
 
 
-def select_by_strings(items_list, select_by):
-    select_by_list = to_list(select_by)
+def select_in_list(target_list: list, target: Union[str, list]):
+    """
+    Select elements from a list based on a target string or a list of target strings.
 
-    if select_by == "*":
-        return items_list
+    :param target_list: The source list from which elements will be selected.
+    :param target: A string or a list of strings to match against elements in
+    the target_list. If "*", all elements in the target_list are returned.
+
+    :return: A list containing the selected elements from the target_list.
+    """
+    select_by_list = to_list(target)
+
+    if target == "*":
+        return target_list
 
     output_list = []
     for elmt in select_by_list:
-        for items in items_list:
+        for items in target_list:
             if elmt in items:
                 output_list.append(items)
 
@@ -48,8 +58,19 @@ def hourly_lst_from_dict(hourly_dict):
     return val_list
 
 
-def is_list_items_in_list(tested_list, reference_list):
-    return [True if elmt in reference_list else False for elmt in tested_list]
+def is_items_in_list(items: Union[str, list], target_list: list):
+    """
+    This function checks whether one or more items (strings or lists) are present
+    within the target list.
+
+    :param target_list: The list to search for items.
+    :param items: The item(s) to check for presence in the target list. This can be a
+    single string or a list of strings.
+    :return: A list of Boolean values indicating whether each item is present in the
+    target list.
+    """
+    items = to_list(items)
+    return [True if elmt in target_list else False for elmt in items]
 
 
 class Scheduler:
