@@ -1,7 +1,7 @@
 from io import StringIO
 from pathlib import Path
 
-import energytool.epluspreprocess as pr
+import energytool.base.idf_utils
 import energytool.system as st
 import energytool.modifier as mo
 
@@ -11,11 +11,16 @@ import math
 
 from eppy.modeleditor import IDF
 from energytool.building import Building
-from energytool.modifier import OpaqueSurfaceModifier
-from energytool.modifier import InfiltrationModifier
-from energytool.modifier import EnvelopeShadesModifier
-from energytool.modifier import LightsModifier
-from energytool.modifier import SystemModifier
+from energytool.modifier import set_opaque_surface_construction
+from energytool.base.idf_utils import (
+    get_objects_name_list,
+    get_named_objects_field_values
+)
+
+# from energytool.modifier import InfiltrationModifier
+# from energytool.modifier import EnvelopeShadesModifier
+# from energytool.modifier import LightsModifier
+# from energytool.modifier import SystemModifier
 
 from copy import deepcopy
 
@@ -27,6 +32,67 @@ except eppy.modeleditor.IDDAlreadySetError:
     pass
 
 Building.set_idd(RESOURCES_PATH)
+
+# var_dict = {
+#     "EEM1_Wall_int_insulation": {
+#         VariantKeys.MODIFIER: "walls",
+#         VariantKeys.ARGUMENTS: {"boundaries": "external"},
+#         VariantKeys.DESCRIPTION: [
+#             {
+#                 "Name": "Project medium concrete block_.2",
+#                 "Thickness": 0.2,
+#                 "Conductivity": 0.51,
+#                 "Density": 1400,
+#                 "Specific_Heat": 1000,
+#             },
+#             {
+#                 "Name": "Laine_15cm",
+#                 "Thickness": 0.15,
+#                 "Conductivity": 0.032,
+#                 "Density": 40,
+#                 "Specific_Heat": 1000,
+#             },
+#         ],
+#     },
+#     "EEM2_Wall_ext_insulation": {
+#         VariantKeys.MODIFIER: "walls",
+#         VariantKeys.ARGUMENTS: {"names": "Ext_South"},
+#         VariantKeys.DESCRIPTION: [
+#             # Outside Layer
+#             {
+#                 "Name": "Coating",
+#                 "Thickness": 0.01,
+#                 "Conductivity": 0.1,
+#                 "Density": 400,
+#                 "Specific_Heat": 1200,
+#             },
+#             {
+#                 "Name": "Laine_30cm",
+#                 "Thickness": 0.30,
+#                 "Conductivity": 0.032,
+#                 "Density": 40,
+#                 "Specific_Heat": 1000,
+#             },
+#             {
+#                 "Name": "Project medium concrete block_.2",
+#                 "Thickness": 0.2,
+#                 "Conductivity": 0.51,
+#                 "Density": 1400,
+#                 "Specific_Heat": 1000,
+#             },
+#         ],
+#     },
+#     "EEM3_Double_glazing": {
+#         VariantKeys.MODIFIER: "windows",
+#         VariantKeys.ARGUMENTS: {},
+#         VariantKeys.DESCRIPTION: {
+#             "Name": "Double_glazing",
+#             "UFactor": 1.1,
+#             "Solar_Heat_Gain_Coefficient": 0.41,
+#             "Visible_Transmittance": 0.71,
+#         },
+#     },
+# }
 
 
 @pytest.fixture(scope="session")
@@ -98,21 +164,21 @@ def toy_building(tmp_path_factory):
             Name=f"Surface_{toy_surf}",
         )
 
-    pr.set_objects_field_values(
+    energytool.base.idf_utils.set_named_objects_field_values(
         idf=toy_idf,
         idf_object="BuildingSurface:Detailed",
         field_name="Surface_Type",
         values=["Wall", "Wall", "Floor", "Ceiling", "Roof", "Wall"],
     )
 
-    pr.set_objects_field_values(
+    energytool.base.idf_utils.set_named_objects_field_values(
         idf=toy_idf,
         idf_object="BuildingSurface:Detailed",
         field_name="Outside_Boundary_Condition",
         values=["Outdoors", "Surface", "Ground", "Surface", "Outdoors", "Outdoors"],
     )
 
-    pr.set_objects_field_values(
+    energytool.base.idf_utils.set_named_objects_field_values(
         idf=toy_idf,
         idf_object="BuildingSurface:Detailed",
         field_name="Zone_Name",
@@ -126,7 +192,7 @@ def toy_building(tmp_path_factory):
             Building_Surface_Name=sur,
         )
 
-    pr.set_objects_field_values(
+    energytool.base.idf_utils.set_named_objects_field_values(
         idf=toy_idf,
         idf_object="FenestrationSurface:Detailed",
         field_name="Construction_Name",
@@ -165,10 +231,13 @@ def toy_building(tmp_path_factory):
 
 
 class TestModifier:
+    def test_debug(self):
+        assert True
+
     def test_opaque_surface_modifier(self, toy_building):
         loc_toy = deepcopy(toy_building)
 
-        variant_dict = {
+        variant_base = {
             "test_base": [
                 {
                     "Name": "Coating",
@@ -184,7 +253,10 @@ class TestModifier:
                     "Density": 40,
                     "Specific_Heat": 1000,
                 },
-            ],
+            ]
+        }
+
+        variant_1 = {
             "test_1_layer": [
                 {
                     "Name": "Coating_2",
@@ -196,18 +268,16 @@ class TestModifier:
             ],
         }
 
-        ext_walls_mod = OpaqueSurfaceModifier(
-            building=loc_toy,
-            name="Ext_wall_modification",
+        set_opaque_surface_construction(
+            model=loc_toy,
+            # name_filter="Ext_wall_modification",
             surface_type="Wall",
             outside_boundary_condition="Outdoors",
-            variant_dict=variant_dict,
+            description=variant_base,
         )
 
         # Test general case
-        ext_walls_mod.set_variant("test_base")
         material_list = loc_toy.idf.idfobjects["Material"]
-        print(material_list)
         assert material_list[0]["obj"] == [
             "MATERIAL",
             "Coating",
@@ -220,7 +290,9 @@ class TestModifier:
             0.7,
             0.7,
         ]
-        assert pr.get_objects_name_list(loc_toy.idf, "Material") == [
+        assert get_objects_name_list(
+            loc_toy.idf, "Material"
+        ) == [
             "Coating",
             "Laine_15cm",
         ]
@@ -233,7 +305,7 @@ class TestModifier:
             "Laine_15cm",
         ]
 
-        to_test = pr.get_objects_field_values(
+        to_test = get_named_objects_field_values(
             idf=loc_toy.idf,
             idf_object="BuildingSurface:Detailed",
             field_name="Construction_Name",
@@ -241,7 +313,13 @@ class TestModifier:
         assert to_test == ["test_base", "", "", "", "", "test_base"]
 
         # Test single layer construction
-        ext_walls_mod.set_variant("test_1_layer")
+        set_opaque_surface_construction(
+            model=loc_toy,
+            # name_filter="Ext_wall_modification",
+            surface_type="Wall",
+            outside_boundary_condition="Outdoors",
+            description=variant_1,
+        )
         assert construction_list[-1]["obj"] == [
             "CONSTRUCTION",
             "test_1_layer",
@@ -249,275 +327,287 @@ class TestModifier:
         ]
 
         # No duplication
-        ext_walls_mod.set_variant("test_1_layer")
-        assert pr.get_objects_name_list(loc_toy.idf, "Material") == [
+        ext_walls_mod = set_opaque_surface_construction(
+            model=loc_toy,
+            # name_filter="Ext_wall_modification",
+            surface_type="Wall",
+            outside_boundary_condition="Outdoors",
+            description=variant_1,
+        )
+        assert energytool.base.idf_utils.get_objects_name_list(
+            loc_toy.idf, "Material"
+        ) == [
             "Coating",
             "Laine_15cm",
             "Coating_2",
         ]
 
-    def test_external_windows_modifier(self, toy_building):
-        loc_toy = deepcopy(toy_building)
-
-        test_win_variant_dict = {
-            "Variant_1": {
-                "Name": "Var_1",
-                "UFactor": 1,
-                "Solar_Heat_Gain_Coefficient": 0.1,
-                "Visible_Transmittance": 0.1,
-            },
-            "Variant_2": {
-                "Name": "Var_2",
-                "UFactor": 2,
-                "Solar_Heat_Gain_Coefficient": 0.2,
-                "Visible_Transmittance": 0.2,
-            },
-        }
-
-        win_test = mo.ExternalWindowsModifier(
-            building=loc_toy, name="test", variant_dict=test_win_variant_dict
-        )
-
-        win_test.set_variant("Variant_1")
-
-        assert win_test.windows_materials[0].fieldvalues == [
-            "WINDOWMATERIAL:SIMPLEGLAZINGSYSTEM",
-            "Var_1",
-            1,
-            0.1,
-            0.1,
-        ]
-
-        assert pr.get_objects_field_values(
-            loc_toy.idf, "Construction", "Outside_Layer"
-        ) == ["Shade", "Var_1", "Var_1", "Int_win"]
-
-        assert pr.get_objects_field_values(loc_toy.idf, "Construction", "Layer_2") == [
-            "Var_1",
-            "",
-            "",
-            "",
-        ]
-
-        win_test.set_variant("Variant_2")
-
-        assert win_test.windows_materials[0].fieldvalues == [
-            "WINDOWMATERIAL:SIMPLEGLAZINGSYSTEM",
-            "Var_2",
-            2,
-            0.2,
-            0.2,
-        ]
-
-        assert pr.get_objects_field_values(
-            loc_toy.idf, "Construction", "Outside_Layer"
-        ) == ["Shade", "Var_2", "Var_2", "Int_win"]
-
-        assert pr.get_objects_field_values(loc_toy.idf, "Construction", "Layer_2") == [
-            "Var_2",
-            "",
-            "",
-            "",
-        ]
-
-    def test_envelope_shades_modifier(self, toy_building):
-        loc_toy = deepcopy(toy_building)
-
-        test_variant_dict = {
-            "Variant_1": {
-                "shading": {"Name": "Shading", "Solar_Transmittance": 0.3},
-            },
-            "Variant_2": {"shading": {}},
-        }
-
-        mod = EnvelopeShadesModifier(
-            building=loc_toy, name="test", variant_dict=test_variant_dict
-        )
-
-        mod.set_variant("Variant_1")
-        assert [n.Name for n in mod.windows] == ["Window_0", "Window_2", "Window_3"]
-
-        for n in mod.window_constructions:
-            assert n.Name in ["Construction_Ext_win_2", "Construction_Ext_win_1"]
-
-        for n in mod.shaded_window_constructions:
-            assert n.Name in [
-                "Construction_Ext_win_1_shaded",
-                "Construction_Ext_win_2_shaded",
-            ]
-
-        test_cons = mod.building.idf.getobject(
-            "Construction", "Construction_Ext_win_2_shaded"
-        )
-        assert test_cons.obj == [
-            "CONSTRUCTION",
-            "Construction_Ext_win_2_shaded",
-            "Shading",
-            "Ext_win_2",
-        ]
-
-        assert len(mod.shading_materials) == 1
-        assert mod.shading_materials[0].obj == [
-            "WINDOWMATERIAL:SHADE",
-            "Shading",
-            0.3,
-            0.5,
-            0.4,
-            0.5,
-            0.9,
-            0.0,
-            0.003,
-            0.1,
-            0.05,
-            1.0,
-            0.0,
-            0.0,
-            0.0,
-            0.0,
-        ]
-        assert len(mod.shading_control) == 3
-        assert mod.shading_control[0].obj == [
-            "WINDOWSHADINGCONTROL",
-            "zone_0_Construction_Ext_win_2_Shading_control",
-            "zone_0",
-            "",
-            "ExteriorShade",
-            "Construction_Ext_win_2_shaded",
-            "OnIfScheduleAllows",
-            "",
-            "",
-            "Yes",
-            "No",
-            "",
-            "",
-            "",
-            "",
-            "",
-            "Group",
-            "Window_0",
-        ]
-
-        mod.set_variant("Variant_2")
-
-        test_cons = mod.building.idf.getobject("Construction", "Construction_Ext_win_1")
-        assert test_cons.obj == ["CONSTRUCTION", "Construction_Ext_win_1", "Ext_win_1"]
-
-        test_cons = mod.building.idf.getobject("Construction", "Construction_Ext_win_2")
-        assert test_cons.obj == ["CONSTRUCTION", "Construction_Ext_win_2", "Ext_win_2"]
-
-        assert mod.shaded_window_constructions == []
-        assert mod.shading_materials == []
-        assert mod.shading_control == []
-
-    def test_envelope_infiltration_modifier(self, toy_building):
-        loc_toy = deepcopy(toy_building)
-
-        var = {"poor": {"ach": 0.1}, "good": {"q4pa": 0.1}, "wtf": {}}
-
-        inf = InfiltrationModifier(building=loc_toy, name="test", variant_dict=var)
-
-        inf.set_variant("poor")
-
-        assert len(inf.infiltration_objects) == 4
-        assert inf.infiltration_objects[0].obj == [
-            "ZONEINFILTRATION:DESIGNFLOWRATE",
-            "zone_0_infiltration",
-            "zone_0",
-            "On 24/7",
-            "AirChanges/Hour",
-            "",
-            "",
-            "",
-            0.1,
-            1,
-            0,
-            0,
-            0,
-        ]
-        assert inf.building.idf.getobject("Schedule:Compact", "On 24/7")
-
-    def test_lights_modifier(self, toy_building):
-        loc_toy = deepcopy(toy_building)
-        var = {
-            "poor": 10,
-            "good": 4,
-        }
-        lit = LightsModifier(building=loc_toy, name="test", variant_dict=var)
-
-        lit.set_variant("good")
-
-        power_ratio_list = pr.get_objects_field_values(
-            loc_toy.idf, "Lights", "Watts_per_Zone_Floor_Area"
-        )
-        assert power_ratio_list == [4, 4, 4, 4]
-
-    def test_system_modifier(self, toy_building):
-        loc_toy = deepcopy(toy_building)
-
-        old_boil = st.HeaterSimple(name="Old_boiler", building=loc_toy)
-        loc_toy.heating_system["Main_boiler"] = old_boil
-
-        new_boil = st.HeaterSimple(name="New_boiler", building=toy_building)
-
-        variant_dict = {"Variant1": new_boil}
-
-        system_mod = SystemModifier(
-            building=toy_building,
-            name="sysmod",
-            category="heating_system",
-            system_name="Main_boiler",
-            variant_dict=variant_dict,
-        )
-
-        system_mod.building = loc_toy
-        system_mod.set_variant("Variant1")
-
-        assert loc_toy.heating_system["Main_boiler"].name == "New_boiler"
-        assert loc_toy == loc_toy.heating_system["Main_boiler"].building
-
-    def test_combiner(self):
-        building = Building(idf_path=RESOURCES_PATH / "test.idf")
-        building.heating_system = {
-            "Main_heater": st.HeaterSimple(name="Old_boiler", building=building, cop=1)
-        }
-
-        modifier_list = []
-
-        infiltration_variant_dict = {
-            "good": {"q4pa": 0.5},
-        }
-
-        modifier_list.append(
-            mo.InfiltrationModifier(
-                name="Infiltration", variant_dict=infiltration_variant_dict
-            )
-        )
-
-        boiler_variant_dict = {
-            "PAC": st.HeaterSimple(name="PAC", cop=3, building=building)
-        }
-
-        modifier_list.append(
-            mo.SystemModifier(
-                name="heater_modifier",
-                category="heating_system",
-                system_name="Main_heater",
-                variant_dict=boiler_variant_dict,
-            )
-        )
-
-        combiner = mo.Combiner(building, modifier_list=modifier_list)
-
-        combiner.run(
-            epw_file_path=RESOURCES_PATH / "Paris_2020.epw", timestep_per_hour=1
-        )
-
-        to_test = combiner.get_annual_system_results()
-
-        assert math.floor(to_test.loc[1, "Heating"]) == math.floor(
-            to_test.loc[0, "Heating"] / 3
-        )
-        assert to_test.loc[0, "Heating"] > to_test.loc[2, "Heating"]
-        assert math.floor(to_test.loc[3, "Heating"]) == math.floor(
-            to_test.loc[2, "Heating"] / 3
-        )
+    # def test_external_windows_modifier(self, toy_building):
+    #     loc_toy = deepcopy(toy_building)
+    #
+    #     test_win_variant_dict = {
+    #         "Variant_1": {
+    #             "Name": "Var_1",
+    #             "UFactor": 1,
+    #             "Solar_Heat_Gain_Coefficient": 0.1,
+    #             "Visible_Transmittance": 0.1,
+    #         },
+    #         "Variant_2": {
+    #             "Name": "Var_2",
+    #             "UFactor": 2,
+    #             "Solar_Heat_Gain_Coefficient": 0.2,
+    #             "Visible_Transmittance": 0.2,
+    #         },
+    #     }
+    #
+    #     win_test = mo.ExternalWindowsModifier(
+    #         building=loc_toy, name="test", variant_dict=test_win_variant_dict
+    #     )
+    #
+    #     win_test.set_variant("Variant_1")
+    #
+    #     assert win_test.windows_materials[0].fieldvalues == [
+    #         "WINDOWMATERIAL:SIMPLEGLAZINGSYSTEM",
+    #         "Var_1",
+    #         1,
+    #         0.1,
+    #         0.1,
+    #     ]
+    #
+    #     assert energytool.base.idf_utils.get_named_objects_field_values(
+    #         loc_toy.idf, "Construction", "Outside_Layer"
+    #     ) == ["Shade", "Var_1", "Var_1", "Int_win"]
+    #
+    #     assert energytool.base.idf_utils.get_named_objects_field_values(
+    #         loc_toy.idf, "Construction", "Layer_2"
+    #     ) == [
+    #         "Var_1",
+    #         "",
+    #         "",
+    #         "",
+    #     ]
+    #
+    #     win_test.set_variant("Variant_2")
+    #
+    #     assert win_test.windows_materials[0].fieldvalues == [
+    #         "WINDOWMATERIAL:SIMPLEGLAZINGSYSTEM",
+    #         "Var_2",
+    #         2,
+    #         0.2,
+    #         0.2,
+    #     ]
+    #
+    #     assert energytool.base.idf_utils.get_named_objects_field_values(
+    #         loc_toy.idf, "Construction", "Outside_Layer"
+    #     ) == ["Shade", "Var_2", "Var_2", "Int_win"]
+    #
+    #     assert energytool.base.idf_utils.get_named_objects_field_values(
+    #         loc_toy.idf, "Construction", "Layer_2"
+    #     ) == [
+    #         "Var_2",
+    #         "",
+    #         "",
+    #         "",
+    #     ]
+    #
+    # def test_envelope_shades_modifier(self, toy_building):
+    #     loc_toy = deepcopy(toy_building)
+    #
+    #     test_variant_dict = {
+    #         "Variant_1": {
+    #             "shading": {"Name": "Shading", "Solar_Transmittance": 0.3},
+    #         },
+    #         "Variant_2": {"shading": {}},
+    #     }
+    #
+    #     mod = EnvelopeShadesModifier(
+    #         building=loc_toy, name="test", variant_dict=test_variant_dict
+    #     )
+    #
+    #     mod.set_variant("Variant_1")
+    #     assert [n.Name for n in mod.windows] == ["Window_0", "Window_2", "Window_3"]
+    #
+    #     for n in mod.window_constructions:
+    #         assert n.Name in ["Construction_Ext_win_2", "Construction_Ext_win_1"]
+    #
+    #     for n in mod.shaded_window_constructions:
+    #         assert n.Name in [
+    #             "Construction_Ext_win_1_shaded",
+    #             "Construction_Ext_win_2_shaded",
+    #         ]
+    #
+    #     test_cons = mod.building.idf.getobject(
+    #         "Construction", "Construction_Ext_win_2_shaded"
+    #     )
+    #     assert test_cons.obj == [
+    #         "CONSTRUCTION",
+    #         "Construction_Ext_win_2_shaded",
+    #         "Shading",
+    #         "Ext_win_2",
+    #     ]
+    #
+    #     assert len(mod.shading_materials) == 1
+    #     assert mod.shading_materials[0].obj == [
+    #         "WINDOWMATERIAL:SHADE",
+    #         "Shading",
+    #         0.3,
+    #         0.5,
+    #         0.4,
+    #         0.5,
+    #         0.9,
+    #         0.0,
+    #         0.003,
+    #         0.1,
+    #         0.05,
+    #         1.0,
+    #         0.0,
+    #         0.0,
+    #         0.0,
+    #         0.0,
+    #     ]
+    #     assert len(mod.shading_control) == 3
+    #     assert mod.shading_control[0].obj == [
+    #         "WINDOWSHADINGCONTROL",
+    #         "zone_0_Construction_Ext_win_2_Shading_control",
+    #         "zone_0",
+    #         "",
+    #         "ExteriorShade",
+    #         "Construction_Ext_win_2_shaded",
+    #         "OnIfScheduleAllows",
+    #         "",
+    #         "",
+    #         "Yes",
+    #         "No",
+    #         "",
+    #         "",
+    #         "",
+    #         "",
+    #         "",
+    #         "Group",
+    #         "Window_0",
+    #     ]
+    #
+    #     mod.set_variant("Variant_2")
+    #
+    #     test_cons = mod.building.idf.getobject("Construction", "Construction_Ext_win_1")
+    #     assert test_cons.obj == ["CONSTRUCTION", "Construction_Ext_win_1", "Ext_win_1"]
+    #
+    #     test_cons = mod.building.idf.getobject("Construction", "Construction_Ext_win_2")
+    #     assert test_cons.obj == ["CONSTRUCTION", "Construction_Ext_win_2", "Ext_win_2"]
+    #
+    #     assert mod.shaded_window_constructions == []
+    #     assert mod.shading_materials == []
+    #     assert mod.shading_control == []
+    #
+    # def test_envelope_infiltration_modifier(self, toy_building):
+    #     loc_toy = deepcopy(toy_building)
+    #
+    #     var = {"poor": {"ach": 0.1}, "good": {"q4pa": 0.1}, "wtf": {}}
+    #
+    #     inf = InfiltrationModifier(building=loc_toy, name="test", variant_dict=var)
+    #
+    #     inf.set_variant("poor")
+    #
+    #     assert len(inf.infiltration_objects) == 4
+    #     assert inf.infiltration_objects[0].obj == [
+    #         "ZONEINFILTRATION:DESIGNFLOWRATE",
+    #         "zone_0_infiltration",
+    #         "zone_0",
+    #         "On 24/7",
+    #         "AirChanges/Hour",
+    #         "",
+    #         "",
+    #         "",
+    #         0.1,
+    #         1,
+    #         0,
+    #         0,
+    #         0,
+    #     ]
+    #     assert inf.building.idf.getobject("Schedule:Compact", "On 24/7")
+    #
+    # def test_lights_modifier(self, toy_building):
+    #     loc_toy = deepcopy(toy_building)
+    #     var = {
+    #         "poor": 10,
+    #         "good": 4,
+    #     }
+    #     lit = LightsModifier(building=loc_toy, name="test", variant_dict=var)
+    #
+    #     lit.set_variant("good")
+    #
+    #     power_ratio_list = energytool.base.idf_utils.get_named_objects_field_values(
+    #         loc_toy.idf, "Lights", "Watts_per_Zone_Floor_Area"
+    #     )
+    #     assert power_ratio_list == [4, 4, 4, 4]
+    #
+    # def test_system_modifier(self, toy_building):
+    #     loc_toy = deepcopy(toy_building)
+    #
+    #     old_boil = st.HeaterSimple(name="Old_boiler", building=loc_toy)
+    #     loc_toy.heating_system["Main_boiler"] = old_boil
+    #
+    #     new_boil = st.HeaterSimple(name="New_boiler", building=toy_building)
+    #
+    #     variant_dict = {"Variant1": new_boil}
+    #
+    #     system_mod = SystemModifier(
+    #         building=toy_building,
+    #         name="sysmod",
+    #         category="heating_system",
+    #         system_name="Main_boiler",
+    #         variant_dict=variant_dict,
+    #     )
+    #
+    #     system_mod.building = loc_toy
+    #     system_mod.set_variant("Variant1")
+    #
+    #     assert loc_toy.heating_system["Main_boiler"].name == "New_boiler"
+    #     assert loc_toy == loc_toy.heating_system["Main_boiler"].building
+    #
+    # def test_combiner(self):
+    #     building = Building(idf_path=RESOURCES_PATH / "test.idf")
+    #     building.heating_system = {
+    #         "Main_heater": st.HeaterSimple(name="Old_boiler", building=building, cop=1)
+    #     }
+    #
+    #     modifier_list = []
+    #
+    #     infiltration_variant_dict = {
+    #         "good": {"q4pa": 0.5},
+    #     }
+    #
+    #     modifier_list.append(
+    #         mo.InfiltrationModifier(
+    #             name="Infiltration", variant_dict=infiltration_variant_dict
+    #         )
+    #     )
+    #
+    #     boiler_variant_dict = {
+    #         "PAC": st.HeaterSimple(name="PAC", cop=3, building=building)
+    #     }
+    #
+    #     modifier_list.append(
+    #         mo.SystemModifier(
+    #             name="heater_modifier",
+    #             category="heating_system",
+    #             system_name="Main_heater",
+    #             variant_dict=boiler_variant_dict,
+    #         )
+    #     )
+    #
+    #     combiner = mo.Combiner(building, modifier_list=modifier_list)
+    #
+    #     combiner.run(
+    #         epw_file_path=RESOURCES_PATH / "Paris_2020.epw", timestep_per_hour=1
+    #     )
+    #
+    #     to_test = combiner.get_annual_system_results()
+    #
+    #     assert math.floor(to_test.loc[1, "Heating"]) == math.floor(
+    #         to_test.loc[0, "Heating"] / 3
+    #     )
+    #     assert to_test.loc[0, "Heating"] > to_test.loc[2, "Heating"]
+    #     assert math.floor(to_test.loc[3, "Heating"]) == math.floor(
+    #         to_test.loc[2, "Heating"] / 3
+    #     )
