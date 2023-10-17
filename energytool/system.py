@@ -52,6 +52,9 @@ class System(ABC):
         self.name = name
         self.category = category
 
+    def __repr__(self):
+        return f"{self.name}"
+
     @abstractmethod
     def pre_process(self, idf: IDF):
         """Operations happening before the simulation"""
