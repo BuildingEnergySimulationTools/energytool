@@ -191,7 +191,8 @@ Others : {[obj.name for obj in self.systems[SystemCategories.OTHER]]}
         results = building.simulate(parameter_dict=parameter_changes, simulation_options=simulation_options)
 
         """
-        working_idf = IDF(self._idf_path)
+        working_idf = deepcopy(self.idf)
+        #working_idf = IDF(self._idf_path)
         working_syst = deepcopy(self.systems)
 
         epw_path = None

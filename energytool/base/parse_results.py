@@ -9,27 +9,14 @@ import pandas as pd
 from energytool.tools import to_list
 
 
-def eplus_date_parser(timestamp: str):
+def eplus_date_parser(timestamp: str) -> dt.datetime:
     """Convert energyplus timestamp to datetime."""
-    try:
-        time = dt.datetime.strptime(timestamp, " %m/%d %H:%M:%S")
-        time += -dt.timedelta(hours=1)
-
-    except ValueError:
-        try:
-            time = dt.datetime.strptime(timestamp, "%m/%d %H:%M:%S")
-            time += -dt.timedelta(hours=1)
-
-        except ValueError:
-            # Because EnergyPlus works with 1-24h and python with 0-23h
-            try:
-                time = timestamp.replace("24:", "23:")
-                time = dt.datetime.strptime(time, " %m/%d %H:%M:%S")
-            except ValueError:
-                time = timestamp.replace("24:", "23:")
-                time = dt.datetime.strptime(time, "%m/%d %H:%M:%S")
-
-    return time
+    timestamp = timestamp.lstrip()
+    if timestamp.startswith("24:"):
+        # EnergyPlus works with 1-24h and python with 0-23h
+        timestamp = timestamp.replace("24:", "23:")
+        return dt.datetime.strptime(timestamp, "%m/%d %H:%M:%S")
+    return dt.datetime.strptime(timestamp, "%m/%d %H:%M:%S") - dt.timedelta(hours=1)
 
 
 def read_eplus_res(file_path: Path, ref_year: int = None):
