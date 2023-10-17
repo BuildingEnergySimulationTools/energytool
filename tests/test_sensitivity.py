@@ -1,11 +1,10 @@
 from pathlib import Path
 
-import energytool.system as st
-import energytool.epluspreprocess as pr
+import numpy as np
+from corrai.sensitivity import SAnalysis
 
 from energytool.building import Building
-from energytool.parameter import UncertainParameter
-from energytool.sensitivity import SAnalysis
+from energytool.system import HeaterSimple
 
 RESOURCES_PATH = Path(__file__).parent / "resources"
 
@@ -15,76 +14,78 @@ Building.set_idd(RESOURCES_PATH)
 class TestSensitivity:
     def test_sanalysis(self):
         building = Building(idf_path=RESOURCES_PATH / "test.idf")
-        heater = st.HeaterSimple(name="Main_boiler", building=building)
-        building.heating_system = {heater.name: heater}
+        building.add_system(HeaterSimple(name="Main_boiler"))
 
-        material_capacity = UncertainParameter(
-            name="Materials_capacity",
-            bounds=[0.8, 1.2],
-            building=building,
-            idf_parameters=[
-                dict(idf_object="Material", names="*", field="Specific_Heat")
-            ],
-        )
+        param_list = [
+            {
+                "name": "idf.material.Cast Concrete_.1.Specific_Heat",
+                "interval": (800, 1200),
+                "type": "Real",
+            },
+            {
+                "name": "idf.material.Urea Formaldehyde Foam_.1327.Conductivity",
+                "interval": (0.03, 0.05),
+                "type": "Real",
+            },
+            {
+                "name": "system.HEATING.Main_boiler.cop",
+                "interval": (0.8, 1.2),
+                "type": "Real",
+            },
+        ]
 
-        boiler_cop = UncertainParameter(
-            name="Boiler_cop",
-            bounds=[0.8, 1.2],
-            building=building,
-            building_parameters=[
-                dict(category="heating_system", element_name="Main_boiler", key="cop")
-            ],
-            absolute=False,
-        )
-
-        material_conductivity = UncertainParameter(
-            name="Material_conductivity",
-            bounds=[0.8, 1.2],
-            building=building,
-            idf_parameters=[
-                dict(idf_object="Material", names="*", field="Conductivity")
-            ],
-        )
+        simulation_options = {
+            "epw_file": (RESOURCES_PATH / "Paris_2020.epw").as_posix(),
+            "outputs": "SYSTEM",
+        }
 
         sa_analysis = SAnalysis(
-            building=building,
-            sensitivity_method="Sobol",
-            parameters=[material_conductivity, material_capacity, boiler_cop],
+            method="Sobol",
+            parameters_list=param_list,
         )
 
         sa_analysis.draw_sample(n=1)
-        sa_analysis.run_simulations(epw_file_path=RESOURCES_PATH / "Paris_2020.epw")
 
-        build_0 = sa_analysis.simulation_list[0].building
-        assert build_0.heating_system["Main_boiler"].cop == 0.86 * 0.9875
-        cond_tot_test = pr.get_objects_field_values(
-            build_0.idf, "Material", "Conductivity"
-        )
-        nom_values = pr.get_objects_field_values(
-            building.idf, "Material", "Conductivity"
-        )
-        assert cond_tot_test == [val * 0.8375 for val in nom_values]
-        capa_tot_test = pr.get_objects_field_values(
-            build_0.idf, "Material", "Specific_Heat"
-        )
-        nom_values = pr.get_objects_field_values(
-            building.idf, "Material", "Specific_Heat"
-        )
-        assert capa_tot_test == [val * 0.9875 for val in nom_values]
+        sa_analysis.evaluate(building, simulation_options=simulation_options, n_cpu=4)
 
-        build_1 = sa_analysis.simulation_list[1].building
-        assert build_1.heating_system["Main_boiler"].cop == 0.86 * 0.9875
-        cond_tot_test = pr.get_objects_field_values(
-            build_1.idf, "Material", "Conductivity"
-        )
-        nom_values = pr.get_objects_field_values(
-            building.idf, "Material", "Conductivity"
-        )
-        assert cond_tot_test == [val * 1.0625 for val in nom_values]
-        capa_tot_test = pr.get_objects_field_values(
-            build_1.idf, "Material", "Specific_Heat"
-        )
-        nom_values = pr.get_objects_field_values(
-            building.idf, "Material", "Specific_Heat"
-        )
-        assert capa_tot_test == [val * 0.9875 for val in nom_values]
+        to_test = [elmt[2].sum().to_dict() for elmt in sa_analysis.sample_results]
+
+        assert to_test == [
+            {
+                "HEATING_Energy_[J]": 62845042135.51034,
+                "TOTAL_SYSTEM_Energy_[J]": 62845042135.51034,
+            },
+            {
+                "HEATING_Energy_[J]": 62830504218.79953,
+                "TOTAL_SYSTEM_Energy_[J]": 62830504218.79953,
+            },
+            {
+                "HEATING_Energy_[J]": 62779352830.81906,
+                "TOTAL_SYSTEM_Energy_[J]": 62779352830.81906,
+            },
+            {
+                "HEATING_Energy_[J]": 52260613986.37176,
+                "TOTAL_SYSTEM_Energy_[J]": 52260613986.37176,
+            },
+            {
+                "HEATING_Energy_[J]": 52205988143.52323,
+                "TOTAL_SYSTEM_Energy_[J]": 52205988143.52323,
+            },
+            {
+                "HEATING_Energy_[J]": 52248524560.89646,
+                "TOTAL_SYSTEM_Energy_[J]": 52248524560.89646,
+            },
+            {
+                "HEATING_Energy_[J]": 62767419874.76175,
+                "TOTAL_SYSTEM_Energy_[J]": 62767419874.76175,
+            },
+            {
+                "HEATING_Energy_[J]": 52196064948.486084,
+                "TOTAL_SYSTEM_Energy_[J]": 52196064948.486084,
+            },
+        ]
+
+        sa_analysis.analyze(indicator="TOTAL_SYSTEM_Energy_[J]", agg_method=np.sum)
+
+        # just check if it runs and if it gives a result. SAnalysis tests are in corrai
+        assert sa_analysis.sensitivity_results is not None
