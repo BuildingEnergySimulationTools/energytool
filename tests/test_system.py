@@ -1,10 +1,10 @@
+from copy import deepcopy
 from pathlib import Path
-import pandas as pd
-import numpy as np
 
+import numpy as np
+import pandas as pd
 import pytest
 from eppy.modeleditor import IDF
-from copy import deepcopy
 
 from energytool.base.idf_utils import get_named_objects_field_values
 from energytool.base.idfobject_utils import get_objects_name_list
@@ -19,7 +19,7 @@ from energytool.system import (
     ArtificialLighting,
     AHUControl,
     OtherEquipment,
-    ZoneThermostat
+    ZoneThermostat,
 )
 
 RESOURCES_PATH = Path(__file__).parent / "resources"
@@ -318,7 +318,6 @@ class TestSystems:
             10.0,
         ]
         assert copied_idf.getobject("Schedule:File", "test_df")
-
 
     def test_zone_thermostat(self):
         tested_idf = IDF(RESOURCES_PATH / "test.idf")
