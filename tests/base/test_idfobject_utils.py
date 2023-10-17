@@ -1,16 +1,14 @@
 import datetime as dt
+from io import StringIO
 
 import pytest
-from io import StringIO
 from eppy.modeleditor import IDF
 
-import energytool.base
 from energytool.base.idf_utils import get_named_objects_field_values
 from energytool.base.idfobject_utils import (
     set_timestep,
     set_run_period,
     get_number_of_people,
-    add_hourly_schedules_from_df,
     add_output_variable,
     add_natural_ventilation,
 )
