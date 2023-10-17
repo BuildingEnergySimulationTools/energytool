@@ -1,28 +1,18 @@
+from copy import deepcopy
 from io import StringIO
 from pathlib import Path
 
-import energytool.base.idf_utils
-import energytool.system as st
-import energytool.modifier as mo
-
-import pytest
 import eppy
-import math
-
+import pytest
 from eppy.modeleditor import IDF
-from energytool.building import Building
-from energytool.modifier import set_opaque_surface_construction
+
+import energytool.base.idf_utils
 from energytool.base.idf_utils import (
     get_objects_name_list,
-    get_named_objects_field_values
+    get_named_objects_field_values,
 )
-
-# from energytool.modifier import InfiltrationModifier
-# from energytool.modifier import EnvelopeShadesModifier
-# from energytool.modifier import LightsModifier
-# from energytool.modifier import SystemModifier
-
-from copy import deepcopy
+from energytool.building import Building
+from energytool.modifier import set_opaque_surface_construction, set_external_windows
 
 RESOURCES_PATH = Path(__file__).parent / "resources"
 
@@ -231,9 +221,6 @@ def toy_building(tmp_path_factory):
 
 
 class TestModifier:
-    def test_debug(self):
-        assert True
-
     def test_opaque_surface_modifier(self, toy_building):
         loc_toy = deepcopy(toy_building)
 
@@ -290,9 +277,7 @@ class TestModifier:
             0.7,
             0.7,
         ]
-        assert get_objects_name_list(
-            loc_toy.idf, "Material"
-        ) == [
+        assert get_objects_name_list(loc_toy.idf, "Material") == [
             "Coating",
             "Laine_15cm",
         ]
@@ -342,74 +327,77 @@ class TestModifier:
             "Coating_2",
         ]
 
-    # def test_external_windows_modifier(self, toy_building):
-    #     loc_toy = deepcopy(toy_building)
-    #
-    #     test_win_variant_dict = {
-    #         "Variant_1": {
-    #             "Name": "Var_1",
-    #             "UFactor": 1,
-    #             "Solar_Heat_Gain_Coefficient": 0.1,
-    #             "Visible_Transmittance": 0.1,
-    #         },
-    #         "Variant_2": {
-    #             "Name": "Var_2",
-    #             "UFactor": 2,
-    #             "Solar_Heat_Gain_Coefficient": 0.2,
-    #             "Visible_Transmittance": 0.2,
-    #         },
-    #     }
-    #
-    #     win_test = mo.ExternalWindowsModifier(
-    #         building=loc_toy, name="test", variant_dict=test_win_variant_dict
-    #     )
-    #
-    #     win_test.set_variant("Variant_1")
-    #
-    #     assert win_test.windows_materials[0].fieldvalues == [
-    #         "WINDOWMATERIAL:SIMPLEGLAZINGSYSTEM",
-    #         "Var_1",
-    #         1,
-    #         0.1,
-    #         0.1,
-    #     ]
-    #
-    #     assert energytool.base.idf_utils.get_named_objects_field_values(
-    #         loc_toy.idf, "Construction", "Outside_Layer"
-    #     ) == ["Shade", "Var_1", "Var_1", "Int_win"]
-    #
-    #     assert energytool.base.idf_utils.get_named_objects_field_values(
-    #         loc_toy.idf, "Construction", "Layer_2"
-    #     ) == [
-    #         "Var_1",
-    #         "",
-    #         "",
-    #         "",
-    #     ]
-    #
-    #     win_test.set_variant("Variant_2")
-    #
-    #     assert win_test.windows_materials[0].fieldvalues == [
-    #         "WINDOWMATERIAL:SIMPLEGLAZINGSYSTEM",
-    #         "Var_2",
-    #         2,
-    #         0.2,
-    #         0.2,
-    #     ]
-    #
-    #     assert energytool.base.idf_utils.get_named_objects_field_values(
-    #         loc_toy.idf, "Construction", "Outside_Layer"
-    #     ) == ["Shade", "Var_2", "Var_2", "Int_win"]
-    #
-    #     assert energytool.base.idf_utils.get_named_objects_field_values(
-    #         loc_toy.idf, "Construction", "Layer_2"
-    #     ) == [
-    #         "Var_2",
-    #         "",
-    #         "",
-    #         "",
-    #     ]
-    #
+    def test_external_windows_modifier(self, toy_building):
+        loc_toy = deepcopy(toy_building)
+
+        var_0 = {
+            "Variant_1": {
+                "Name": "Var_1",
+                "UFactor": 1,
+                "Solar_Heat_Gain_Coefficient": 0.1,
+                "Visible_Transmittance": 0.1,
+            },
+        }
+
+        var_1 = {
+            "Variant_2": {
+                "Name": "Var_2",
+                "UFactor": 2,
+                "Solar_Heat_Gain_Coefficient": 0.2,
+                "Visible_Transmittance": 0.2,
+            },
+        }
+
+        set_external_windows(loc_toy, var_0)
+
+        assert loc_toy.idf.idfobjects["WINDOWMATERIAL:SIMPLEGLAZINGSYSTEM"][
+            -1
+        ].fieldvalues == [
+            "WINDOWMATERIAL:SIMPLEGLAZINGSYSTEM",
+            "Var_1",
+            1,
+            0.1,
+            0.1,
+        ]
+
+        assert get_named_objects_field_values(
+            loc_toy.idf, "Construction", "Outside_Layer"
+        ) == ["Shade", "Var_1", "Var_1", "Int_win"]
+
+        assert get_named_objects_field_values(
+            loc_toy.idf, "Construction", "Layer_2"
+        ) == [
+            "Var_1",
+            "",
+            "",
+            "",
+        ]
+
+        set_external_windows(loc_toy, var_1)
+
+        assert loc_toy.idf.idfobjects["WINDOWMATERIAL:SIMPLEGLAZINGSYSTEM"][
+            -1
+        ].fieldvalues == [
+            "WINDOWMATERIAL:SIMPLEGLAZINGSYSTEM",
+            "Var_2",
+            2,
+            0.2,
+            0.2,
+        ]
+
+        assert get_named_objects_field_values(
+            loc_toy.idf, "Construction", "Outside_Layer"
+        ) == ["Shade", "Var_2", "Var_2", "Int_win"]
+
+        assert get_named_objects_field_values(
+            loc_toy.idf, "Construction", "Layer_2"
+        ) == [
+            "Var_2",
+            "",
+            "",
+            "",
+        ]
+
     # def test_envelope_shades_modifier(self, toy_building):
     #     loc_toy = deepcopy(toy_building)
     #
