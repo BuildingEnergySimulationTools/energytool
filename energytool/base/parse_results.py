@@ -11,10 +11,13 @@ from energytool.tools import to_list
 
 def eplus_date_parser(timestamp: str) -> dt.datetime:
     """Convert energyplus timestamp to datetime."""
+    if not isinstance(timestamp, str):
+        raise TypeError()
+
     timestamp = timestamp.lstrip()
-    if timestamp.startswith("24:"):
+    if " 24:" in timestamp:
         # EnergyPlus works with 1-24h and python with 0-23h
-        timestamp = timestamp.replace("24:", "23:")
+        timestamp = timestamp.replace(" 24:", " 23:")
         return dt.datetime.strptime(timestamp, "%m/%d %H:%M:%S")
     return dt.datetime.strptime(timestamp, "%m/%d %H:%M:%S") - dt.timedelta(hours=1)
 
