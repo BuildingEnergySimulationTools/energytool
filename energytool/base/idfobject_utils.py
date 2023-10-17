@@ -1,24 +1,22 @@
 import datetime
-
-import numpy as np
-from pathlib import Path
-
-import pandas as pd
-
 import os
-import uuid
 import tempfile
-from energytool.tools import to_list, is_items_in_list
-import eppy
-
+import uuid
+from pathlib import Path
 from typing import Union
 
+import eppy
+import numpy as np
+import pandas as pd
 from eppy.modeleditor import IDF
 
 from energytool.base.idf_utils import (
     get_objects_name_list,
     is_value_in_objects_fieldname,
+    get_building_surface_area,
+    get_building_volume,
 )
+from energytool.tools import to_list, is_items_in_list
 
 RESOURCES_PATH = Path(__file__).parent.parent / "resources"
 
@@ -116,9 +114,10 @@ def set_timestep(idf, nb_timestep_per_hour: int):
     idf.newidfobject("Timestep", Number_of_Timesteps_per_Hour=nb_timestep_per_hour)
 
 
-def output_zone_variable_present(idf: IDF, zones: str, variables):
+def is_output_zone_variable(idf: IDF, zones: str, variables):
     """
-    For the idfobject OUTPUT:VARIABLE, returns True if the required zone variable is already
+    For the idfobject OUTPUT:VARIABLE, returns True if the required zone variable is
+    already
 
     :param idf:
     :param zones:
@@ -144,7 +143,7 @@ def output_zone_variable_present(idf: IDF, zones: str, variables):
 
 def del_output_zone_variable(idf, zones, variables):
     output_list = idf.idfobjects["OUTPUT:VARIABLE"]
-    to_delete = output_zone_variable_present(idf, zones, variables)
+    to_delete = is_output_zone_variable(idf, zones, variables)
 
     if np.any(to_delete):
         indices_to_remove = [i for i, trig in enumerate(to_delete) if trig]
@@ -208,7 +207,7 @@ def add_output_variable(
 
     for key in key_values_list:
         for var in variables_list:
-            if not np.any(output_zone_variable_present(idf, key, var)):
+            if not np.any(is_output_zone_variable(idf, key, var)):
                 if key == "*":
                     del_output_variable(idf, var)
 
@@ -321,7 +320,8 @@ def add_hourly_schedules_from_df(
         is_items_in_list(items=schedule_type_list, target_list=eplus_ref)
     ).all():
         raise ValueError(
-            f"f{schedule_type_list} is not a valid schedules type Valid types are {eplus_ref}"
+            f"f{schedule_type_list} is not a valid schedules type Valid types "
+            f"are {eplus_ref}"
         )
 
     if len(schedule_type_list) == 1:
@@ -378,7 +378,7 @@ def add_natural_ventilation(
     occupancy_schedule: bool = True,
     minimum_indoor_temperature: float = 22.0,
     delta_temperature: float = 0,
-    kwargs: dict = {},
+    kwargs: dict = None,
 ):
     """
     This function facilitates the addition of natural ventilation settings to specific
@@ -396,11 +396,16 @@ def add_natural_ventilation(
         schedules in the IDF. If False, a fixed schedule "On 24/7" is used for all
         specified zones (default is True).
     :param minimum_indoor_temperature: The minimum indoor temperature
-        (in degrees Celsius) at which natural ventilation is allowed (default is 22.0°C).
+        (in degrees Celsius) at which natural ventilation is allowed
+        (default is 22.0°C).
     :param delta_temperature: The temperature difference (in degrees Celsius) above
         the outdoor temperature at which natural ventilation is initiated
         (default is 0.0°C).
+    :param kwargs: Additional properties for "ZoneVentilation:DesignFlowrate" object
     """
+
+    if kwargs is None:
+        kwargs = {}
 
     if zones == "*":
         z_list = get_objects_name_list(idf, "Zone")
@@ -447,3 +452,116 @@ def add_natural_ventilation(
 
 def get_resources_idf():
     return IDF(RESOURCES_PATH / "resources_idf.idf")
+
+
+def get_n50_from_q4(q4, heated_volume, outside_surface, n=2 / 3):
+    """
+    Outside surface correspond to building surface in contact with outside Air
+    n is flow exponent. 1 is laminar 0.5 is turbulent. Default 2/3
+    """
+    return q4 / ((4 / 50) ** n * heated_volume / outside_surface)
+
+
+def get_ach_from_n50(n50, delta_qv, wind_exposition=0.07, f=15):
+    """
+    wind_exposition : ranging from 0.1 to 0.04 default 0.07
+    f : can't remember why but default is 15
+    delta_qv = in ach , the difference between mechanically blown and extracted
+        air.
+    For extraction only  delta_qv = Qv, for crossflow ventilation delta_qv = 0
+
+    """
+    return n50 * wind_exposition / (1 + f / wind_exposition * (delta_qv / n50) ** 2)
+
+
+def get_building_infiltration_ach_from_q4(idf, q4pa=1.2, wind_exposition=0.07, f=15):
+    building_outdoor_surface = get_building_surface_area(
+        idf, outside_boundary_condition="Outdoors"
+    )
+    building_volume = get_building_volume(idf)
+
+    # Compute N50 from q4pa
+    n50 = get_n50_from_q4(
+        q4=q4pa, heated_volume=building_volume, outside_surface=building_outdoor_surface
+    )
+
+    # Get qv
+    z_ach_dict = {}
+    for siz in idf.idfobjects["Sizing:Zone"]:
+        zone = siz.get_referenced_object("Zone_or_ZoneList_Name")
+        design = siz.get_referenced_object(
+            "Design_Specification_Outdoor_Air_Object_Name"
+        )
+        if design.Outdoor_Air_Method != "AirChanges/Hour":
+            raise ValueError(
+                "Outdoor Air method other than AirChanges/Hour" " not yet implemented"
+            )
+        z_ach_dict[zone.Name] = design.Outdoor_Air_Flow_Air_Changes_per_Hour
+
+    z_hx_dict = {}
+    for connection in idf.idfobjects["ZoneHVAC:EquipmentConnections"]:
+        z_name = connection.Zone_Name
+        sys = connection.get_referenced_object(
+            "Zone_Conditioning_Equipment_List_Name"
+        ).get_referenced_object("Zone_Equipment_1_Name")
+        z_hx_dict[z_name] = sys.Heat_Recovery_Type
+
+    qv = (
+        sum(
+            [
+                eppy.modeleditor.zonevolume(idf, zname) * z_ach_dict[zname]
+                for zname in z_ach_dict.keys()
+                if z_hx_dict[zname] == "None"
+            ]
+        )
+        / building_volume
+    )
+
+    return get_ach_from_n50(n50, delta_qv=qv, wind_exposition=wind_exposition, f=f)
+
+
+def get_windows_by_boundary_condition(idf, boundary_condition):
+    ext_surf_name = [
+        obj.Name
+        for obj in idf.idfobjects["BuildingSurface:Detailed"]
+        if obj.Outside_Boundary_Condition == boundary_condition
+    ]
+
+    return [
+        obj
+        for obj in idf.idfobjects["FenestrationSurface:Detailed"]
+        if obj.Building_Surface_Name in ext_surf_name
+    ]
+
+
+def get_constructions_layer_list(constructions):
+    construction_list = to_list(constructions)
+    material_name_list = []
+    for constructions in construction_list:
+        material_name_list += [
+            elmt
+            for elmt, key in zip(constructions.fieldvalues, constructions.fieldnames)
+            if key not in ["key", "Name"]
+        ]
+    return material_name_list
+
+
+def del_layer_from_constructions(building, names):
+    names_list = to_list(names)
+
+    new_cons_list = []
+    for construction in building.idf.idfobjects["Construction"]:
+        keys = [k for k in construction.fieldnames]
+        values = [v for v in construction.fieldvalues if v not in names_list]
+
+        new_cons = {k: v for v, k in zip(values, keys)}
+
+        new_cons_list.append(new_cons)
+
+    building.idf.idfobjects["Construction"] = [
+        building.idf.newidfobject(**cons) for cons in new_cons_list
+    ]
+
+
+def idf_object_to_dict(obj):
+    return {k: v for k, v in zip(obj.fieldnames, obj.fieldvalues)}
