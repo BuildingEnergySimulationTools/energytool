@@ -109,8 +109,8 @@ def set_opaque_surface_construction(
     if name_filter is None:
         name_filter = ""
 
-    construction_name = list(description.keys())[0]
-    composition = description[construction_name]
+    new_construction_name = list(description.keys())[0]
+    new_composition = description[new_construction_name]
     surface_list = model.idf.idfobjects["BuildingSurface:Detailed"]
 
     if surface_type not in surface_list[0].getfieldidd("Surface_Type")["key"]:
@@ -130,21 +130,21 @@ def set_opaque_surface_construction(
             f"got {outside_boundary_condition}"
         )
 
-    for material in composition:
+    for material in new_composition:
         if "Roughness" not in material.keys():
             material["Roughness"] = "Rough"
 
         if material["Name"] not in get_objects_name_list(model.idf, "Material"):
             model.idf.newidfobject("Material", **material)
 
-    if construction_name not in get_objects_name_list(model.idf, "Construction"):
+    if new_construction_name not in get_objects_name_list(model.idf, "Construction"):
         construction_kwargs = {
-            "Name": construction_name,
-            "Outside_Layer": composition[0]["Name"],
+            "Name": new_construction_name,
+            "Outside_Layer": new_composition[0]["Name"],
         }
 
-        if len(composition) > 1:
-            for idx, mat in enumerate(composition[1:]):
+        if len(new_composition) > 1:
+            for idx, mat in enumerate(new_composition[1:]):
                 construction_kwargs[f"Layer_{idx + 2}"] = mat["Name"]
 
         model.idf.newidfobject("Construction", **construction_kwargs)
@@ -158,16 +158,48 @@ def set_opaque_surface_construction(
     ]
 
     for surf in surf_to_modify:
-        surf.Construction_Name = construction_name
+        surf.Construction_Name = new_construction_name
 
 
 def set_external_windows(
-    model: Building, description: dict[str, dict[str, Any]], name_filter: str = None
+    model: Building,
+    description: dict[str, dict[str, Any]],
+    name_filter: str = None,
+    boundary_conditions: str = "Outdoors",
 ):
+    """
+    Replace windows in an EnergyPlus building model with new window descriptions.
+
+    This function iterates through the windows in the model, filters them based on their
+    name and boundary conditions, and replaces them with new window descriptions.
+    It also handles associated constructions and materials.
+
+    :param model: An EnergyPlus building model.
+    :param description: A dictionary containing the new window description(s).
+        the expected dictionary must be of the following form:
+        {
+            "Variant_1": {
+                "Name": "Var_1",
+                "UFactor": 1,
+                "Solar_Heat_Gain_Coefficient": 0.1,
+                "Visible_Transmittance": 0.1,
+            },
+        }
+    :param name_filter: An optional filter to match window names.
+    :param boundary_conditions: The boundary condition for the windows
+    (default is "Outdoors").
+
+    """
     idf = model.idf
 
     # Get windows materials list and shaded windows constructions
-    windows = get_windows_by_boundary_condition(idf, "Outdoors")
+    windows = get_windows_by_boundary_condition(
+        idf, boundary_condition=boundary_conditions
+    )
+
+    if name_filter is not None:
+        windows = [win for win in windows if name_filter in win.Name]
+
     windows_names = [win.Name for win in windows]
 
     win_cons_names = set(win.Construction_Name for win in windows)
@@ -209,13 +241,17 @@ def set_external_windows(
             if construction[field] in name_to_replace:
                 construction[field] = new_window["Name"]
 
+    idf.newidfobject(key="WindowMaterial:SimpleGlazingSystem", **new_window)
+
+    used_mat_list = [
+        val for cons in idf.idfobjects["CONSTRUCTION"] for val in cons.fieldvalues[2:]
+    ]
+
     idf.idfobjects["WindowMaterial:SimpleGlazingSystem"] = [
         win
         for win in idf.idfobjects["WindowMaterial:SimpleGlazingSystem"]
-        if win not in windows_materials
+        if win.Name in used_mat_list
     ]
-
-    idf.newidfobject(key="WindowMaterial:SimpleGlazingSystem", **new_window)
 
 
 #

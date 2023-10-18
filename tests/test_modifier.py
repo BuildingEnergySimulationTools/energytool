@@ -217,6 +217,10 @@ def toy_building(tmp_path_factory):
     toy_building = Building(idf_path=RESOURCES_PATH / "test.idf")
     toy_building.idf = toy_idf
 
+    toy_building.idf.saveas(
+        Path(r"C:\Users\bdurandestebe\Documents\46_Renov_DSF") / "loc_toy.idf"
+    )
+
     return toy_building
 
 
@@ -397,6 +401,18 @@ class TestModifier:
             "",
             "",
         ]
+
+        set_external_windows(loc_toy, var_0, name_filter="_0")
+
+        assert get_objects_name_list(
+            loc_toy.idf, "WINDOWMATERIAL:SIMPLEGLAZINGSYSTEM"
+        ) == ["Int_win", "Var_2", "Var_1"]
+
+        assert get_named_objects_field_values(
+            loc_toy.idf, "Construction", "Outside_Layer"
+        ) == ["Shade", "Var_2", "Var_1", "Int_win"]
+
+        assert True
 
     # def test_envelope_shades_modifier(self, toy_building):
     #     loc_toy = deepcopy(toy_building)
