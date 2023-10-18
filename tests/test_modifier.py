@@ -261,7 +261,6 @@ class TestModifier:
 
         set_opaque_surface_construction(
             model=loc_toy,
-            # name_filter="Ext_wall_modification",
             surface_type="Wall",
             outside_boundary_condition="Outdoors",
             description=variant_base,
@@ -304,7 +303,6 @@ class TestModifier:
         # Test single layer construction
         set_opaque_surface_construction(
             model=loc_toy,
-            # name_filter="Ext_wall_modification",
             surface_type="Wall",
             outside_boundary_condition="Outdoors",
             description=variant_1,
@@ -316,9 +314,8 @@ class TestModifier:
         ]
 
         # No duplication
-        ext_walls_mod = set_opaque_surface_construction(
+        set_opaque_surface_construction(
             model=loc_toy,
-            # name_filter="Ext_wall_modification",
             surface_type="Wall",
             outside_boundary_condition="Outdoors",
             description=variant_1,
@@ -330,6 +327,20 @@ class TestModifier:
             "Laine_15cm",
             "Coating_2",
         ]
+
+        # Test name filter
+        set_opaque_surface_construction(
+            model=loc_toy,
+            name_filter="_0",
+            surface_type="Wall",
+            outside_boundary_condition="Outdoors",
+            description=variant_base,
+        )
+
+        to_test = get_named_objects_field_values(
+            loc_toy.idf, "BuildingSurface:Detailed", "Construction_Name"
+        )
+        assert to_test == ["test_base", "", "", "", "", "test_1_layer"]
 
     def test_external_windows_modifier(self, toy_building):
         loc_toy = deepcopy(toy_building)
