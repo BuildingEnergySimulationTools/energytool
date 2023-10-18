@@ -66,6 +66,56 @@ class System(ABC):
         pass
 
 
+class SimplifiedChiller(System):
+    """
+    Represent a simplified chilling system with a coefficient of performance COP.
+    The class is based on IdealLoadsAirSytem. For each provided zones, it will get the
+    "Zone Ideal Loads Supply Air Total Cooling Energy" result and divide it by the cop.
+
+    :parameter name(str): name of the system
+    :parameter zone(str): idf zones controlled by the system. It must match zones in
+        the idf file
+    heated by the IdealLoadsAirSystem
+    :parameter cop(float): Coefficient of Performance of the System. Can range from 0
+        to +infinity
+
+    attribute : category(SystemCategories): SystemCategories.COOLING
+
+    """
+
+    def __init__(
+        self,
+        name: str,
+        zones: Union[str, list] = "*",
+        cop=2.5,
+    ):
+        super().__init__(name=name, category=SystemCategories.COOLING)
+        self.cop = cop
+        self.zones = zones
+        self.ilas_list = []
+
+    def pre_process(self, idf: IDF):
+        self.ilas_list = get_zones_idealloadsairsystem(idf, self.zones)
+
+        add_output_variable(
+            idf=idf,
+            key_values=[ilas.Name for ilas in self.ilas_list],
+            variables="Zone Ideal Loads Supply Air Total Cooling Energy",
+        )
+
+    def post_process(self, idf: IDF = None, eplus_results: pd.DataFrame = None):
+        # Warning, works only if ilas name contains zone name
+        ideal_cooling = get_output_variable(
+            eplus_res=eplus_results,
+            key_values=[ilas.Name for ilas in self.ilas_list],
+            variables="Zone Ideal Loads Supply Air Total Cooling Energy",
+        )
+
+        system_out = (ideal_cooling / self.cop).sum(axis=1)
+        system_out.name = f"{self.name}_{Units.ENERGY.value}"
+        return system_out.to_frame()
+
+
 class HeaterSimple(System):
     """
     Represent a simple heating system with a coefficient of performance COP.
