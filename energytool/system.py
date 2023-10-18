@@ -123,9 +123,11 @@ class HeaterSimple(System):
     "Zone Ideal Loads Supply Air Total Heating Energy" result and divide it by the cop.
 
     :parameter name(str): name of the system
-    :parameter zone(str): idf zones controlled by the system. It must match zones in the idf file
+    :parameter zone(str): idf zones controlled by the system. It must match zones in
+        the idf file
     heated by the IdealLoadsAirSystem
-    :parameter cop(float): Coefficient of Performance of the System. Can range from 0 to +infinity
+    :parameter cop(float): Coefficient of Performance of the System. Can range from 0
+        to +infinity
 
     attribute : category(SystemCategories): SystemCategories.HEATING
 
@@ -169,12 +171,15 @@ class HeatingAuxiliary(System):
     A simple way to model heating system auxiliary consumption as a ratio of the total
     heating needs.
     The class is based on IdealLoadsAirSytem. For each provided zones, it will get the
-    "Zone Ideal Loads Supply Air Total Heating Energy" result and multiply it by a ratio.
+    "Zone Ideal Loads Supply Air Total Heating Energy" result and multiply it by a
+     ratio.
 
     :parameter name(str): name of the system
-    :parameter zone(str): idf zones controlled by the system. It must match zones in the idf file
+    :parameter zone(str): idf zones controlled by the system. It must match zones in
+        the idf file
     heated by the IdealLoadsAirSystem
-    :parameter ratio(float): The ratio of auxiliary consumption. Can range from 0 to +infinity
+    :parameter ratio(float): The ratio of auxiliary consumption. Can range from 0 to
+        +infinity
 
     attribute : category(SystemCategories): SystemCategories.AUXILIARY
 
@@ -321,8 +326,8 @@ class DHWIdealExternal(System):
     """
     A model for simulating an ideal domestic hot water (DHW) system .
     This class represents an idealized DHW system. It allows you to model DHW energy
-    consumption based on various parameters and on the number of occupants present in the
-    zone(s).
+    consumption based on various parameters and on the number of occupants present in
+    the zone(s).
 
     Parameters:
         name (str): The name of the DHW system.
@@ -340,7 +345,8 @@ class DHWIdealExternal(System):
 
     Methods:
         pre_process(idf: IDF): pass.
-        post_process(idf: IDF = None, eplus_results: pd.DataFrame = None) -> pd.DataFrame:
+        post_process(idf: IDF = None, eplus_results: pd.DataFrame = None)
+            -> pd.DataFrame:
         Calculates DHW energy consumption and returns the results as a DataFrame.
     """
 
@@ -399,15 +405,18 @@ class ArtificialLighting(System):
         name (str): The name of the lighting system.
         zones (str | List[str]): The name(s) of the zones where the lighting system is
             present.
-        power_ratio (float): The lighting power density in watts per square meter (W/m²).
+        power_ratio (float): The lighting power density in watts per square meter
+            (W/m²).
         cop (float): The coefficient of performance (COP) for lighting system energy
             consumption (default is 1).
 
     Methods:
         pre_process(idf: IDF): Pre-processes the EnergyPlus IDF file to set
             lighting-related configurations.
-        post_process(idf: IDF = None, eplus_results: pd.DataFrame = None) -> pd.DataFrame:
-            Calculates lighting energy consumption and returns the results as a DataFrame.
+        post_process(idf: IDF = None, eplus_results: pd.DataFrame = None)
+            -> pd.DataFrame:
+            Calculates lighting energy consumption and returns the results as a
+            DataFrame.
     """
 
     def __init__(
@@ -475,8 +484,8 @@ class AHUControl(System):
         "DataFrame" (default is "Schedule").
     :param schedule_name: The name of the predefined schedule to use if the control
         strategy is "Schedule" (default is "ON_24h24h_FULL_YEAR").
-    :param time_series: A Pandas DataFrame or Series containing user-defined control data
-        (used when control_strategy is "DataFrame"). Default is None.
+    :param time_series: A Pandas DataFrame or Series containing user-defined control
+        data (used when control_strategy is "DataFrame"). Default is None.
 
     :raises ValueError: If an invalid control strategy is specified.
     """
@@ -581,9 +590,9 @@ class OtherEquipment(System):
         add_output_variables: bool = False,
     ):
         """
-        This class is designed to model loads or heat source using other equipment systems
-        within a building energy model. It provides options for specifying equipment
-        parameters, distribution across zones, and scheduling methods.
+        This class is designed to model loads or heat source using other equipment
+        systems within a building energy model. It provides options for specifying
+        equipment parameters, distribution across zones, and scheduling methods.
 
         :param name: The name of the other equipment system.
         :param zones: The zones or spaces where the other equipment is located
@@ -711,9 +720,9 @@ class ZoneThermostat(System):
     ):
         """
         The ZoneThermostat class is designed to simplify the process of managing
-        thermostat settings and schedule. It allows users to define thermostat configurations for
-        specific zones or all zones in a building specifying compact schedule, or using
-        Pandas Series.
+        thermostat settings and schedule. It allows users to define thermostat
+        configurations for specific zones or all zones in a building specifying
+        compact schedule, or using Pandas Series.
 
         :param name: Name of the ZoneThermostat.
         :param zones: Zones to apply the thermostat settings to. "*" for all zones or
@@ -753,6 +762,8 @@ class ZoneThermostat(System):
         self.heating_time_series = heating_time_series
         self.cooling_compact_schedule_name = cooling_compact_schedule_name
         self.cooling_time_series = cooling_time_series
+        self.heating_schedule_name = None
+        self.cooling_schedule_name = None
 
     def pre_process(self, idf: IDF):
         if self.zones == "*":
