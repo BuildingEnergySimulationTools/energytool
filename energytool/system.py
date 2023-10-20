@@ -1,11 +1,14 @@
 import enum
+from abc import ABC, abstractmethod
+from typing import Union
 
 import eppy.modeleditor
 import numpy as np
 import pandas as pd
-
 from corrai.utils import as_1_column_dataframe
+from eppy.modeleditor import IDF
 
+import energytool.base.parse_results
 from energytool.base.idf_utils import (
     get_objects_name_list,
     set_named_objects_field_values,
@@ -13,7 +16,6 @@ from energytool.base.idf_utils import (
     del_named_objects,
     copy_named_object_from_idf,
 )
-
 from energytool.base.idfobject_utils import (
     get_zones_idealloadsairsystem,
     add_output_variable,
@@ -22,16 +24,9 @@ from energytool.base.idfobject_utils import (
     add_hourly_schedules_from_df,
     add_natural_ventilation,
 )
-import energytool.base.parse_results
-from energytool.base.units import Units
 from energytool.base.parse_results import get_output_variable
+from energytool.base.units import Units
 from energytool.tools import select_in_list, to_list
-
-from eppy.modeleditor import IDF
-from typing import Union
-
-from abc import ABC, abstractmethod
-
 
 RESOURCE_IDF = get_resources_idf()
 
