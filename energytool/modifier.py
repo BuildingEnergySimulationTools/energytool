@@ -9,68 +9,6 @@ from energytool.building import Building
 from energytool.tools import is_items_in_list
 
 
-# VARIANT_DICT = {
-#     "EEM1_Wall_int_insulation": {
-#         VariantKeys.MODIFIER: "walls",
-#         VariantKeys.ARGUMENTS: {"boundaries": "external"},
-#         VariantKeys.DESCRIPTION: [
-#             {
-#                 "Name": "Project medium concrete block_.2",
-#                 "Thickness": 0.2,
-#                 "Conductivity": 0.51,
-#                 "Density": 1400,
-#                 "Specific_Heat": 1000,
-#             },
-#             {
-#                 "Name": "Laine_15cm",
-#                 "Thickness": 0.15,
-#                 "Conductivity": 0.032,
-#                 "Density": 40,
-#                 "Specific_Heat": 1000,
-#             },
-#         ],
-#     },
-#     "EEM2_Wall_ext_insulation": {
-#         VariantKeys.MODIFIER: "wall",
-#         VariantKeys.ARGUMENTS: {"names": "Ext_South"},
-#         VariantKeys.DESCRIPTION: [
-#             # Outside Layer
-#             {
-#                 "Name": "Coating",
-#                 "Thickness": 0.01,
-#                 "Conductivity": 0.1,
-#                 "Density": 400,
-#                 "Specific_Heat": 1200,
-#             },
-#             {
-#                 "Name": "Laine_30cm",
-#                 "Thickness": 0.30,
-#                 "Conductivity": 0.032,
-#                 "Density": 40,
-#                 "Specific_Heat": 1000,
-#             },
-#             {
-#                 "Name": "Project medium concrete block_.2",
-#                 "Thickness": 0.2,
-#                 "Conductivity": 0.51,
-#                 "Density": 1400,
-#                 "Specific_Heat": 1000,
-#             },
-#         ],
-#     },
-#     "EEM3_Double_glazing": {
-#         VariantKeys.MODIFIER: "windows",
-#         VariantKeys.ARGUMENTS: {},
-#         VariantKeys.DESCRIPTION: {
-#             "Name": "Double_glazing",
-#             "UFactor": 1.1,
-#             "Solar_Heat_Gain_Coefficient": 0.41,
-#             "Visible_Transmittance": 0.71,
-#         },
-#     },
-# }
-
-
 def set_opaque_surface_construction(
     model: Building,
     description: dict[str : list[dict[str:Any]]],
