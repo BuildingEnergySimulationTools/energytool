@@ -192,10 +192,12 @@ Others : {[obj.name for obj in self.systems[SystemCategories.OTHER]]}
 
         """
         working_idf = deepcopy(self.idf)
-        #working_idf = IDF(self._idf_path)
         working_syst = deepcopy(self.systems)
 
         epw_path = None
+        if parameter_dict is None:
+            parameter_dict = {}
+
         for key in parameter_dict:
             split_key = key.split(".")
 
