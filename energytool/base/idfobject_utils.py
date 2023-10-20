@@ -230,9 +230,17 @@ def get_number_of_people(idf, zones="*"):
     occupation = 0
     for zone in zone_list:
         try:
-            people = next(
-                p for p in people_list if p.Zone_or_ZoneList_Name == zone.Name
-            )
+            # Compatibility with EnergyPlus version older than 2022
+            if idf.idd_version[0] >= 22:
+                people = next(
+                    p
+                    for p in people_list
+                    if p.Zone_or_ZoneList_or_Space_or_SpaceList_Name == zone.Name
+                )
+            else:
+                people = next(
+                    p for p in people_list if p.Zone_or_ZoneList_Name == zone.Name
+                )
         except StopIteration:
             continue
 
