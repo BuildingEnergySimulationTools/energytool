@@ -42,6 +42,7 @@ class SimuOpt(enum.Enum):
     TIMESTEP = "timestep"
     OUTPUTS = "outputs"
     EPW_FILE = "epw_file"
+    VERBOSE = "verbose"
 
 
 @contextmanager
@@ -283,7 +284,7 @@ Others : {[obj.name for obj in self.systems[SystemCategories.OTHER]]}
                 output_prefix=None,
                 output_suffix=None,
                 version=False,
-                verbose="v",
+                verbose=simulation_options[SimuOpt.VERBOSE.value],
                 ep_version=f"{idd_ref[0]}-{idd_ref[1]}-{idd_ref[2]}",
             )
 
