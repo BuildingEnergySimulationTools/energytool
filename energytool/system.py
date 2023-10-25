@@ -63,13 +63,21 @@ class System(ABC):
 
 
 class Sensor(System):
+    """
+    Add output:variables to the idf, get the results in post process.
+    :param name(str): Name of the sensor
+    :param variables: The names of the variables to output.
+    :param key_values: The key values for which to add output variables.
+        This can be a single key value (string) or a list of key values
+        (list of strings). Default is '*' meaning all the available variables.
+    """
+
     def __init__(self, name: str, variables: str, key_values: str | list[str] = "*"):
         super().__init__(name=name, category=SystemCategories.SENSOR)
         self.variables = variables
         self.key_values = key_values
 
     def pre_process(self, idf: IDF):
-        """Operations happening before the simulation"""
         add_output_variable(
             idf=idf,
             key_values=self.key_values,
