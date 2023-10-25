@@ -39,6 +39,7 @@ class SystemCategories(enum.Enum):
     AUXILIARY = "AUXILIARY"
     DHW = "DHW"
     PV = "PV"
+    SENSOR = "SENSOR"
     OTHER = "OTHER"
 
 
@@ -59,6 +60,30 @@ class System(ABC):
     def post_process(self, idf: IDF = None, eplus_results: pd.DataFrame = None):
         """Operations happening after the simulation"""
         pass
+
+
+class Sensor(System):
+    def __init__(self, name: str, variables: str, key_values: str | list[str] = "*"):
+        super().__init__(name=name, category=SystemCategories.SENSOR)
+        self.variables = variables
+        self.key_values = key_values
+
+    def pre_process(self, idf: IDF):
+        """Operations happening before the simulation"""
+        add_output_variable(
+            idf=idf,
+            key_values=self.key_values,
+            variables=self.variables,
+        )
+
+    def post_process(self, idf: IDF = None, eplus_results: pd.DataFrame = None):
+        results = get_output_variable(
+            eplus_res=eplus_results,
+            key_values=self.key_values,
+            variables=self.variables,
+        )
+        results.columns = results.columns + f"_{self.variables}"
+        return results
 
 
 class SimplifiedChiller(System):

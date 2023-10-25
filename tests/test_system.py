@@ -20,6 +20,7 @@ from energytool.system import (
     AHUControl,
     OtherEquipment,
     ZoneThermostat,
+    Sensor,
 )
 
 RESOURCES_PATH = Path(__file__).parent / "resources"
@@ -33,6 +34,32 @@ def idf(tmp_path_factory):
 
 
 class TestSystems:
+    def test_sensor(self):
+        test_build = Building(idf_path=RESOURCES_PATH / "test.idf")
+        test_build.add_system(
+            Sensor(
+                name="TOP",
+                variables="Zone Mean Air Temperature",
+                key_values="*",
+            )
+        )
+
+        result = test_build.simulate(
+            parameter_dict={},
+            simulation_options={
+                "epw_file": (RESOURCES_PATH / "Paris_2020.epw").as_posix(),
+                "outputs": "SENSOR",
+                "verbose": "v",
+            },
+        )
+
+        assert result.mean().to_dict() == {
+            "BLOCK1:APPTX1E_Zone Mean Air Temperature": 24.106458524856194,
+            "BLOCK1:APPTX1W_Zone Mean Air Temperature": 24.31161298029638,
+            "BLOCK2:APPTX2E_Zone Mean Air Temperature": 24.136851195562542,
+            "BLOCK2:APPTX2W_Zone Mean Air Temperature": 24.327924630006954,
+        }
+
     def test_heater_simple(self, idf):
         gas_boiler = HeaterSimple(
             name="Main_boiler",

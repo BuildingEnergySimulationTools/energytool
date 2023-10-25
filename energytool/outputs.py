@@ -1,23 +1,23 @@
 import enum
-import pandas as pd
+from typing import Dict, List
+
 import numpy as np
+import pandas as pd
+from eppy.modeleditor import IDF
 
 from energytool.base.parse_results import get_output_variable
-
-from energytool.system import System, SystemCategories
-from typing import Dict, List
-from eppy.modeleditor import IDF
 from energytool.base.units import Units
+from energytool.system import System, SystemCategories
 
 
 class OutputCategories(enum.Enum):
     RAW = "RAW"
     SYSTEM = "SYSTEM"
     OVERSHOOT_28 = "OVERSHOOT_28"
-    OPERATIVE_TEMPERATURES = "OPERATIVE_TEMPERATURES"
+    SENSOR = "SENSOR"
 
 
-def get_systems_results(
+def get_results(
     idf: IDF,
     eplus_res: pd.DataFrame,
     outputs: str,
@@ -44,11 +44,26 @@ def get_systems_results(
             results = get_system_energy_results(idf, systems, eplus_res)
             if results is not None:
                 to_return.append(results)
+        elif output_cat == OutputCategories.SENSOR.value:
+            results = get_sensor_results(idf, systems, eplus_res)
+            if results is not None:
+                to_return.append(results)
         else:
             raise ValueError(f"{output_cat} not recognized or not yet implemented")
 
     if to_return:
         return pd.concat(to_return, axis=1)
+
+
+def get_sensor_results(
+    idf: IDF,
+    systems: Dict[SystemCategories, List[System]],
+    eplus_res: pd.DataFrame,
+):
+    result_list = []
+    for sens in systems[SystemCategories.SENSOR]:
+        result_list.append(sens.post_process(idf, eplus_res))
+    return pd.concat(result_list, axis=1)
 
 
 def get_system_energy_results(
@@ -69,7 +84,16 @@ def get_system_energy_results(
     :return: A DataFrame containing energy results for different system categories.
     """
     sys_nrj_res = []
-    for cat in SystemCategories:
+    hvac_list = [
+        SystemCategories.HEATING,
+        SystemCategories.COOLING,
+        SystemCategories.AUXILIARY,
+        SystemCategories.DHW,
+        SystemCategories.VENTILATION,
+        SystemCategories.LIGHTING,
+    ]
+
+    for cat in hvac_list:
         syst_list = systems[cat]
         if syst_list:
             cat_res = []
