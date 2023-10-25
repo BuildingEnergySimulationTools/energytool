@@ -14,7 +14,7 @@ from typing import Dict, Union
 
 import energytool.base.idf_utils
 from energytool.base.parse_results import read_eplus_res
-from energytool.outputs import get_systems_results
+from energytool.outputs import get_results
 from energytool.system import System, SystemCategories
 from energytool.base.idfobject_utils import (
     get_number_of_people,
@@ -267,6 +267,10 @@ Others : {[obj.name for obj in self.systems[SystemCategories.OTHER]]}
         for system in system_list:
             system.pre_process(working_idf)
 
+        # DEFAULT VERBOSE
+        if SimuOpt.VERBOSE.value not in simulation_options.keys():
+            simulation_options[SimuOpt.VERBOSE.value] = "v"
+
         # SIMULATE
         with temporary_directory() as temp_dir:
             working_idf.saveas((Path(temp_dir) / "in.idf").as_posix(), encoding="utf-8")
@@ -291,7 +295,7 @@ Others : {[obj.name for obj in self.systems[SystemCategories.OTHER]]}
             eplus_res = read_eplus_res(Path(temp_dir) / "eplusout.csv")
 
             # POST-PROCESS
-            return get_systems_results(
+            return get_results(
                 idf=working_idf,
                 eplus_res=eplus_res,
                 systems=working_syst,
