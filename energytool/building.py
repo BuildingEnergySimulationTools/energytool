@@ -128,8 +128,7 @@ Heating systems: {[obj.name for obj in self.systems[SystemCategories.HEATING]]}
 Auxiliary: {[obj.name for obj in self.systems[SystemCategories.AUXILIARY]]}
 Cooling systems: {[obj.name for obj in self.systems[SystemCategories.COOLING]]}
 Ventilation system: {[obj.name for obj in self.systems[SystemCategories.VENTILATION]]}
-Artificial lighting system: {
-        [obj.name for obj in self.systems[SystemCategories.LIGHTING]]}
+Artificial lighting system: {[obj.name for obj in self.systems[SystemCategories.LIGHTING]]}
 DHW production: {[obj.name for obj in self.systems[SystemCategories.DHW]]}
 PV production: {[obj.name for obj in self.systems[SystemCategories.PV]]}
 Others: {[obj.name for obj in self.systems[SystemCategories.OTHER]]}
