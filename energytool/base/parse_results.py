@@ -38,11 +38,10 @@ def read_eplus_res(file_path: Path, ref_year: int = None):
     - ValueError: If the specified EnergyPlus result file is not found.
     """
     try:
-        results = pd.read_csv(
-            file_path, index_col=0, parse_dates=True, date_parser=eplus_date_parser
-        )
+        results = pd.read_csv(file_path, index_col=0)
     except FileNotFoundError:
         raise ValueError("EnergyPlus result file not found")
+    results.index = [eplus_date_parser(ind) for ind in results.index]
 
     if ref_year is None:
         ref_year = dt.datetime.today().year
