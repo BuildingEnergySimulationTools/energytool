@@ -11,7 +11,7 @@ from energytool.tools import is_items_in_list
 
 def set_opaque_surface_construction(
     model: Building,
-    description: dict[str : list[dict[str:Any]]],
+    description: dict[str, list[dict[str, Any]]],
     name_filter: str = None,
     surface_type: str = "Wall",
     outside_boundary_condition: str = "Outdoors",
