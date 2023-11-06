@@ -2,7 +2,7 @@ import pandas as pd
 import datetime as dt
 
 
-def format_input_to_list(f_input):
+def to_list(f_input):
     """
     Convert a string into a list
     return f_input if f_input is a list
@@ -16,18 +16,30 @@ def format_input_to_list(f_input):
     elif isinstance(f_input, list):
         return f_input
     else:
-        raise ValueError("Input must be a string an interger a " "float or a list")
+        raise ValueError(
+            f"{f_input} must be an instance of str, int, float or list."
+            f"Got {type(f_input)} instead"
+        )
 
 
-def select_by_strings(items_list, select_by):
-    select_by_list = format_input_to_list(select_by)
+def select_in_list(target_list: list, target: str | list):
+    """
+    Select elements from a list based on a target string or a list of target strings.
 
-    if select_by == "*":
-        return items_list
+    :param target_list: The source list from which elements will be selected.
+    :param target: A string or a list of strings to match against elements in
+    the target_list. If "*", all elements in the target_list are returned.
+
+    :return: A list containing the selected elements from the target_list.
+    """
+    select_by_list = to_list(target)
+
+    if target == "*":
+        return target_list
 
     output_list = []
     for elmt in select_by_list:
-        for items in items_list:
+        for items in target_list:
             if elmt in items:
                 output_list.append(items)
 
@@ -45,13 +57,26 @@ def hourly_lst_from_dict(hourly_dict):
     return val_list
 
 
-def is_list_items_in_list(tested_list, reference_list):
-    return [True if elmt in reference_list else False for elmt in tested_list]
+def is_items_in_list(items: str | list, target_list: list):
+    """
+    This function checks whether one or more items (strings or lists) are present
+    within the target list.
+
+    :param target_list: The list to search for items.
+    :param items: The item(s) to check for presence in the target list. This can be a
+    single string or a list of strings.
+    :return: A list of Boolean values indicating whether each item is present in the
+    target list.
+    """
+    items = to_list(items)
+    return [True if elmt in target_list else False for elmt in items]
 
 
 class Scheduler:
-    def __init__(self, name, year=dt.datetime.today().year):
+    def __init__(self, name, year=None):
         self.name = name
+        if year is None:
+            year = dt.datetime.today().year
         self.year = year
         self.series = pd.Series(
             index=pd.date_range(f"{year}-01-01 00:00:00", freq="H", periods=8760),
@@ -67,7 +92,7 @@ class Scheduler:
         if start.year != self.year or end.year != end.year:
             raise ValueError("start date or end date is out of bound ")
 
-        day_list = format_input_to_list(days)
+        day_list = to_list(days)
         period = self.series.loc[start:end]
 
         selected_timestamp = [idx for idx in period.index if idx.day_name() in day_list]

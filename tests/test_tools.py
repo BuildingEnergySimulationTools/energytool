@@ -10,16 +10,16 @@ class TestTools:
             "control:Zone_2control",
         ]
 
-        to_test = tl.select_by_strings(items_list=test_name_list, select_by="*")
+        to_test = tl.select_in_list(target_list=test_name_list, target="*")
 
         assert to_test == test_name_list
 
-        to_test = tl.select_by_strings(items_list=test_name_list, select_by="Zone_1")
+        to_test = tl.select_in_list(target_list=test_name_list, target="Zone_1")
 
         assert to_test == ["Zone_1:control", "control:Zone_1"]
 
-        to_test = tl.select_by_strings(
-            items_list=test_name_list, select_by=["Zone_1", "Zone_2"]
+        to_test = tl.select_in_list(
+            target_list=test_name_list, target=["Zone_1", "Zone_2"]
         )
 
         assert to_test == [
