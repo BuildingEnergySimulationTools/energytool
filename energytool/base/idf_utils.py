@@ -1,5 +1,3 @@
-from typing import Union, List
-
 import eppy
 from eppy.modeleditor import IDF
 
@@ -21,7 +19,7 @@ def get_objects_name_list(idf: IDF, idf_object: str):
     return [obj.Name for obj in idf.idfobjects[idf_object]]
 
 
-def get_named_objects(idf: IDF, idf_object: str, names: Union[str, list]):
+def get_named_objects(idf: IDF, idf_object: str, names: str | list):
     """
     Get specific named objects of a given type from an EnergyPlus IDF file.
 
@@ -72,7 +70,7 @@ def is_value_in_objects_fieldname(
     idf: IDF,
     idf_object: str,
     field_name: str,
-    values: Union[float, int, str, List[Union[float, int, str]]],
+    values: float | int | str | list[float | int | str],
 ):
     """
     This function checks whether the specified values are present in the specified field
@@ -108,8 +106,8 @@ def set_named_objects_field_values(
     idf: IDF,
     idf_object: str,
     field_name: str,
-    values: Union[str, float, List[Union[str, float]]],
-    idf_object_names: Union[str, list] = "*",
+    values: str | float | list[str | float],
+    idf_object_names: str | list = "*",
 ):
     """
     Set field values for one or more objects in an EnergyPlus IDF file.
@@ -177,7 +175,7 @@ def _set_named_object_field_value(
 
 
 def get_named_objects_field_values(
-    idf: IDF, idf_object: str, field_name: str, names: Union[str, list] = "*"
+    idf: IDF, idf_object: str, field_name: str, names: str | list = "*"
 ):
     """
     This function allows you to retrieve the values of a specific field for one or more
@@ -215,7 +213,7 @@ def _get_named_object_field_value(
             return obj[field_name]
 
 
-def del_named_objects(idf: IDF, idf_object: str, names: Union[str, list] = "*"):
+def del_named_objects(idf: IDF, idf_object: str, names: str | list = "*"):
     """
     Delete specific named objects of a given type from an EnergyPlus IDF file.
 

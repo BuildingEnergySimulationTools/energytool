@@ -1,6 +1,5 @@
 import pandas as pd
 import datetime as dt
-from typing import Union
 
 
 def to_list(f_input):
@@ -23,7 +22,7 @@ def to_list(f_input):
         )
 
 
-def select_in_list(target_list: list, target: Union[str, list]):
+def select_in_list(target_list: list, target: str | list):
     """
     Select elements from a list based on a target string or a list of target strings.
 
@@ -58,7 +57,7 @@ def hourly_lst_from_dict(hourly_dict):
     return val_list
 
 
-def is_items_in_list(items: Union[str, list], target_list: list):
+def is_items_in_list(items: str | list, target_list: list):
     """
     This function checks whether one or more items (strings or lists) are present
     within the target list.
@@ -74,8 +73,10 @@ def is_items_in_list(items: Union[str, list], target_list: list):
 
 
 class Scheduler:
-    def __init__(self, name, year=dt.datetime.today().year):
+    def __init__(self, name, year=None):
         self.name = name
+        if year is None:
+            year = dt.datetime.today().year
         self.year = year
         self.series = pd.Series(
             index=pd.date_range(f"{year}-01-01 00:00:00", freq="H", periods=8760),

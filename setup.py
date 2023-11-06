@@ -39,7 +39,7 @@ setup(
         "numpy>=1.26.0",
         "pandas>=2.1.2",
         "eppy>=0.5.63",
-        "corrai>=0.1.0"
+        "corrai>=0.1.0",
     ],
     extras_require=EXTRAS_REQUIRE,
     packages=find_packages(exclude=["tests*"]),

@@ -1,6 +1,5 @@
 import enum
 from abc import ABC, abstractmethod
-from typing import Union
 
 import eppy.modeleditor
 import numpy as np
@@ -114,7 +113,7 @@ class SimplifiedChiller(System):
     def __init__(
         self,
         name: str,
-        zones: Union[str, list] = "*",
+        zones: str | list = "*",
         cop=2.5,
     ):
         super().__init__(name=name, category=SystemCategories.COOLING)
@@ -164,7 +163,7 @@ class HeaterSimple(System):
     def __init__(
         self,
         name: str,
-        zones: Union[str, list] = "*",
+        zones: str | list = "*",
         cop=1,
     ):
         super().__init__(name=name, category=SystemCategories.HEATING)
@@ -216,7 +215,7 @@ class HeatingAuxiliary(System):
     def __init__(
         self,
         name: str,
-        zones: Union[str, list] = "*",
+        zones: str | list = "*",
         ratio=0.05,
     ):
         super().__init__(name=name, category=SystemCategories.AUXILIARY)
@@ -272,7 +271,7 @@ class AirHandlingUnit(System):
     def __init__(
         self,
         name: str,
-        zones: Union[str, list] = "*",
+        zones: str | list = "*",
         fan_energy_coefficient: float = 0.23,
         heat_recovery_efficiency: float = None,
         ach: float = None,
@@ -381,7 +380,7 @@ class DHWIdealExternal(System):
     def __init__(
         self,
         name: str,
-        zones: Union[str, list] = "*",
+        zones: str | list = "*",
         cop: float = 0.95,
         t_dwh_set_point: float = 60.0,
         t_cold_water: float = 15.0,
@@ -450,7 +449,7 @@ class ArtificialLighting(System):
     def __init__(
         self,
         name: str,
-        zones: Union[str, list] = "*",
+        zones: str | list = "*",
         power_ratio: float = 3.0,
         cop: float = 1,
     ):  # W/m²
@@ -521,10 +520,10 @@ class AHUControl(System):
     def __init__(
         self,
         name: str,
-        zones: Union[str, list] = "*",
+        zones: str | list = "*",
         control_strategy: str = "Schedule",
         schedule_name: str = "ON_24h24h_FULL_YEAR",
-        time_series: Union[pd.DataFrame, pd.Series] = None,
+        time_series: pd.DataFrame | pd.Series = None,
     ):
         super().__init__(name, category=SystemCategories.VENTILATION)
         self.name = name
@@ -579,7 +578,7 @@ class NaturalVentilation(System):
     def __init__(
         self,
         name: str,
-        zones: Union[str, list] = "*",
+        zones: str | list = "*",
         ach=0.7,
         occupancy_schedule=True,
         ventilation_kwargs=None,
@@ -608,7 +607,7 @@ class OtherEquipment(System):
     def __init__(
         self,
         name,
-        zones: Union[str, list] = "*",
+        zones: str | list = "*",
         distribute_load: bool = False,
         cop: float = 1.0,
         design_level_power: float = None,
@@ -737,7 +736,7 @@ class ZoneThermostat(System):
     def __init__(
         self,
         name: str,
-        zones: Union[str, list] = "*",
+        zones: str | list = "*",
         heating_compact_schedule_name: str = None,
         heating_time_series: pd.Series = None,
         cooling_compact_schedule_name: str = None,

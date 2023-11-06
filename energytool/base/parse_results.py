@@ -1,7 +1,6 @@
 import datetime as dt
 import re
 from pathlib import Path
-from typing import Union
 
 import numpy as np
 import pandas as pd
@@ -74,8 +73,8 @@ def variable_contains_regex(elmt_list):
 
 def get_output_variable(
     eplus_res: pd.DataFrame,
-    variables: Union[str, list],
-    key_values: Union[str, list] = "*",
+    variables: str | list,
+    key_values: str | list = "*",
     drop_suffix=True,
 ) -> pd.DataFrame:
     """

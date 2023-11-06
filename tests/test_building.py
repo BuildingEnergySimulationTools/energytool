@@ -43,14 +43,26 @@ class TestBuilding:
         assert res.sum().to_dict() == {
             "HEATING_Energy_[J]": 124442595875.44434,
             "TOTAL_SYSTEM_Energy_[J]": 124442595875.44434,
-            "BLOCK1:APPTX1W:Zone Other Equipment Total Heating Energy [J](Hourly)": 18564769403.136005,
-            "BLOCK1:APPTX1E:Zone Other Equipment Total Heating Energy [J](Hourly)": 18564769403.136005,
-            "BLOCK2:APPTX2W:Zone Other Equipment Total Heating Energy [J](Hourly)": 18564769403.136005,
-            "BLOCK2:APPTX2E:Zone Other Equipment Total Heating Energy [J](Hourly)": 18564769403.136005,
-            "BLOCK1:APPTX1W IDEAL LOADS AIR:Zone Ideal Loads Supply Air Total Heating Energy [J](Hourly)": 15412078533.53048,
-            "BLOCK1:APPTX1E IDEAL LOADS AIR:Zone Ideal Loads Supply Air Total Heating Energy [J](Hourly)": 15855121735.988373,
-            "BLOCK2:APPTX2W IDEAL LOADS AIR:Zone Ideal Loads Supply Air Total Heating Energy [J](Hourly)": 15276675722.295742,
-            "BLOCK2:APPTX2E IDEAL LOADS AIR:Zone Ideal Loads Supply Air Total Heating Energy [J](Hourly) ": 15677421945.907581,
+            "BLOCK1:APPTX1W:"
+            "Zone Other Equipment Total Heating Energy [J](Hourly)": 18564769403.136005,
+            "BLOCK1:APPTX1E:"
+            "Zone Other Equipment Total Heating Energy [J](Hourly)": 18564769403.136005,
+            "BLOCK2:APPTX2W:"
+            "Zone Other Equipment Total Heating Energy [J](Hourly)": 18564769403.136005,
+            "BLOCK2:APPTX2E:"
+            "Zone Other Equipment Total Heating Energy [J](Hourly)": 18564769403.136005,
+            "BLOCK1:APPTX1W IDEAL LOADS AIR:"
+            "Zone Ideal Loads Supply Air Total Heating Energy "
+            "[J](Hourly)": 15412078533.53048,
+            "BLOCK1:APPTX1E IDEAL LOADS AIR:"
+            "Zone Ideal Loads Supply Air Total Heating Energy "
+            "[J](Hourly)": 15855121735.988373,
+            "BLOCK2:APPTX2W IDEAL LOADS AIR:"
+            "Zone Ideal Loads Supply Air Total Heating Energy "
+            "[J](Hourly)": 15276675722.295742,
+            "BLOCK2:APPTX2E IDEAL LOADS AIR:"
+            "Zone Ideal Loads Supply Air Total Heating Energy "
+            "[J](Hourly) ": 15677421945.907581,
         }
 
         param_dict = {

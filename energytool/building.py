@@ -10,7 +10,6 @@ from pathlib import Path
 from eppy.runner.run_functions import run
 import eppy.json_functions as json_functions
 import enum
-from typing import Dict, Union
 
 import energytool.base.idf_utils
 from energytool.base.parse_results import read_eplus_res
@@ -119,20 +118,21 @@ class Building(Model):
 
     def __repr__(self):
         return f"""==Building==
-Number of occupants : {round(get_number_of_people(self.idf), 2)}
-Building surface : {self.surface} m²
-Building volume : {self.volume} m3
-Zone number : {len(self.zone_name_list)}
+Number of occupants: {round(get_number_of_people(self.idf), 2)}
+Building surface: {self.surface} m²
+Building volume: {self.volume} m3
+Zone number: {len(self.zone_name_list)}
 
 ==HVAC systems==
-Heating systems : {[obj.name for obj in self.systems[SystemCategories.HEATING]]}
-Auxiliary : {[obj.name for obj in self.systems[SystemCategories.AUXILIARY]]}
-Cooling systems : {[obj.name for obj in self.systems[SystemCategories.COOLING]]}
-Ventilation system : {[obj.name for obj in self.systems[SystemCategories.VENTILATION]]}
-Artificial lighting system : {[obj.name for obj in self.systems[SystemCategories.LIGHTING]]}
-DHW production : {[obj.name for obj in self.systems[SystemCategories.DHW]]}
-PV production : {[obj.name for obj in self.systems[SystemCategories.PV]]}
-Others : {[obj.name for obj in self.systems[SystemCategories.OTHER]]}
+Heating systems: {[obj.name for obj in self.systems[SystemCategories.HEATING]]}
+Auxiliary: {[obj.name for obj in self.systems[SystemCategories.AUXILIARY]]}
+Cooling systems: {[obj.name for obj in self.systems[SystemCategories.COOLING]]}
+Ventilation system: {[obj.name for obj in self.systems[SystemCategories.VENTILATION]]}
+Artificial lighting system: {
+        [obj.name for obj in self.systems[SystemCategories.LIGHTING]]}
+DHW production: {[obj.name for obj in self.systems[SystemCategories.DHW]]}
+PV production: {[obj.name for obj in self.systems[SystemCategories.PV]]}
+Others: {[obj.name for obj in self.systems[SystemCategories.OTHER]]}
 """
 
     def add_system(self, system: System):
@@ -146,8 +146,8 @@ Others : {[obj.name for obj in self.systems[SystemCategories.OTHER]]}
 
     def simulate(
         self,
-        parameter_dict: Dict[str, Union[str, float, int]] = None,
-        simulation_options: Dict[str, Union[str, float, int]] = None,
+        parameter_dict: dict[str, str | float | int] = None,
+        simulation_options: dict[str, str | float | int] = None,
     ) -> pd.DataFrame:
         """
         Simulate the building model with specified parameters and simulation options.
@@ -189,7 +189,8 @@ Others : {[obj.name for obj in self.systems[SystemCategories.OTHER]]}
             'STOP': '2023-01-31 23:59:59',
             'TIMESTEP': 900
         }
-        results = building.simulate(parameter_dict=parameter_changes, simulation_options=simulation_options)
+        results = building.simulate(parameter_dict=parameter_changes,
+        simulation_options=simulation_options)
 
         """
         working_idf = deepcopy(self.idf)

@@ -3,7 +3,6 @@ import os
 import tempfile
 import uuid
 from pathlib import Path
-from typing import Union
 
 import eppy
 import numpy as np
@@ -26,7 +25,7 @@ except eppy.modeleditor.IDDAlreadySetError:
     pass
 
 
-def get_zones_idealloadsairsystem(idf: IDF, zones: Union[str, list] = "*"):
+def get_zones_idealloadsairsystem(idf: IDF, zones: str | list = "*"):
     """
     Get a list of IdealLoadsAirSystem objects for specified zones in an EnergyPlus
     IDF file.
@@ -66,8 +65,8 @@ def get_zones_idealloadsairsystem(idf: IDF, zones: Union[str, list] = "*"):
 
 def set_run_period(
     idf: IDF,
-    simulation_start: Union[datetime.datetime, pd.Timestamp],
-    simulation_stop: Union[datetime.datetime, pd.Timestamp],
+    simulation_start: datetime.datetime | pd.Timestamp,
+    simulation_stop: datetime.datetime | pd.Timestamp,
 ):
     """
     Configure the IDF run period using datetime objects.
@@ -167,7 +166,7 @@ def del_output_variable(idf, variables):
 
 def add_output_variable(
     idf: IDF,
-    key_values: Union[str, list],
+    key_values: str | list,
     variables,
     reporting_frequency: str = "Hourly",
 ):
@@ -256,7 +255,7 @@ def get_number_of_people(idf, zones="*"):
 
 def add_hourly_schedules_from_df(
     idf: IDF,
-    data: Union[pd.DataFrame, pd.Series],
+    data: pd.DataFrame | pd.Series,
     schedule_type="Dimensionless",
     file_name=None,
     directory=None,
@@ -382,7 +381,7 @@ def add_hourly_schedules_from_df(
 def add_natural_ventilation(
     idf: IDF,
     ach: float,
-    zones: Union[str, list] = "*",
+    zones: str | list = "*",
     occupancy_schedule: bool = True,
     minimum_indoor_temperature: float = 22.0,
     delta_temperature: float = 0,

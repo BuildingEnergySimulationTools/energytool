@@ -54,7 +54,7 @@ def set_opaque_surface_construction(
     if surface_type not in surface_list[0].getfieldidd("Surface_Type")["key"]:
         raise ValueError(
             f"surface_type must be one of "
-            f"{surface_list[0].getfieldidd('Surface_Type')['key']},"
+            f"{surface_list[0].getfieldidd('Surface_Type')['key']}, "
             f"got {surface_type}"
         )
 
@@ -64,7 +64,7 @@ def set_opaque_surface_construction(
     ):
         raise ValueError(
             f"surface_type must be one of "
-            f"{surface_list[0].getfieldidd('Outside_Boundary_Condition')['key']},"
+            f"{surface_list[0].getfieldidd('Outside_Boundary_Condition')['key']}, "
             f"got {outside_boundary_condition}"
         )
 
@@ -140,7 +140,7 @@ def set_external_windows(
 
     windows_names = [win.Name for win in windows]
 
-    win_cons_names = set(win.Construction_Name for win in windows)
+    win_cons_names = {win.Construction_Name for win in windows}
     windows_constructions = [
         idf.getobject("Construction", name) for name in win_cons_names
     ]
@@ -162,7 +162,7 @@ def set_external_windows(
         obj.get_referenced_object("Construction_with_Shading_Name")
         for obj in shading_controls
     ]
-    set_name = set([obj.Name for obj in obj_list])
+    set_name = {obj.Name for obj in obj_list}
 
     shaded_window_constructions = [
         idf.getobject("Construction", name) for name in set_name

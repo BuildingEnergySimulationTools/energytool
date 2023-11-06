@@ -1,5 +1,4 @@
 import enum
-from typing import Dict, List
 
 import numpy as np
 import pandas as pd
@@ -21,7 +20,7 @@ def get_results(
     idf: IDF,
     eplus_res: pd.DataFrame,
     outputs: str,
-    systems: Dict[SystemCategories, List[System]] = None,
+    systems: dict[SystemCategories, list[System]] = None,
 ):
     """
     Retrieve HVAC systems results based on specified output categories.
@@ -57,7 +56,7 @@ def get_results(
 
 def get_sensor_results(
     idf: IDF,
-    systems: Dict[SystemCategories, List[System]],
+    systems: dict[SystemCategories, list[System]],
     eplus_res: pd.DataFrame,
 ):
     result_list = []
@@ -68,7 +67,7 @@ def get_sensor_results(
 
 def get_system_energy_results(
     idf: IDF,
-    systems: Dict[SystemCategories, List[System]],
+    systems: dict[SystemCategories, list[System]],
     eplus_res: pd.DataFrame,
 ):
     """
