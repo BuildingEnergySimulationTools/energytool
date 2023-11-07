@@ -197,6 +197,20 @@ def set_afn_surface_opening_factor(
     description: dict[str, dict[str, Any]],
     name_filter: str = None,
 ):
+    """
+    Modify AirFlowNetwork:Multizone:Surface WindowDoor_Opening_Factor_or_Crack_Factor
+    based on their name.
+
+    :param model: An EnergyPlus building model.
+    :param description: A dictionary containing the new value.
+        the expected dictionary must be of the following form:
+        {
+            "Variant_1": {
+                "WindowDoor_Opening_Factor_or_Crack_Factor": 0.3,
+            },
+        }
+    :param name_filter: An optional filter to match window names.
+    """
     idf = model.idf
 
     openings = idf.idfobjects["AirflowNetwork:MultiZone:Surface"]
