@@ -131,6 +131,7 @@ Ventilation system: {[obj.name for obj in self.systems[SystemCategories.VENTILAT
 Artificial lighting system: {[obj.name for obj in self.systems[SystemCategories.LIGHTING]]}
 DHW production: {[obj.name for obj in self.systems[SystemCategories.DHW]]}
 PV production: {[obj.name for obj in self.systems[SystemCategories.PV]]}
+Sensors: {[obj.name for obj in self.systems[SystemCategories.SENSOR]]}
 Others: {[obj.name for obj in self.systems[SystemCategories.OTHER]]}
 """
 
