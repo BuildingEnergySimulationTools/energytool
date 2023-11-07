@@ -192,7 +192,26 @@ def set_external_windows(
     ]
 
 
-#
+def set_afn_surface_opening_factor(
+    model: Building,
+    description: dict[str, dict[str, Any]],
+    name_filter: str = None,
+):
+    idf = model.idf
+
+    openings = idf.idfobjects["AirflowNetwork:MultiZone:Surface"]
+    if name_filter is not None:
+        openings = [op for op in openings if name_filter in op.Surface_Name]
+
+    new_opening_ratio_name = list(description.keys())[0]
+    new_opening_ratio = description[new_opening_ratio_name][
+        "WindowDoor_Opening_Factor_or_Crack_Factor"
+    ]
+
+    for opening in openings:
+        opening["WindowDoor_Opening_Factor_or_Crack_Factor"] = new_opening_ratio
+
+
 #
 # class EnvelopeShadesModifier:
 #     def __init__(

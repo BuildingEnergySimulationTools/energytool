@@ -12,7 +12,11 @@ from energytool.base.idf_utils import (
     get_named_objects_field_values,
 )
 from energytool.building import Building
-from energytool.modifier import set_opaque_surface_construction, set_external_windows
+from energytool.modifier import (
+    set_opaque_surface_construction,
+    set_external_windows,
+    set_afn_surface_opening_factor,
+)
 
 RESOURCES_PATH = Path(__file__).parent / "resources"
 
@@ -22,67 +26,6 @@ except eppy.modeleditor.IDDAlreadySetError:
     pass
 
 Building.set_idd(RESOURCES_PATH)
-
-# var_dict = {
-#     "EEM1_Wall_int_insulation": {
-#         VariantKeys.MODIFIER: "walls",
-#         VariantKeys.ARGUMENTS: {"boundaries": "external"},
-#         VariantKeys.DESCRIPTION: [
-#             {
-#                 "Name": "Project medium concrete block_.2",
-#                 "Thickness": 0.2,
-#                 "Conductivity": 0.51,
-#                 "Density": 1400,
-#                 "Specific_Heat": 1000,
-#             },
-#             {
-#                 "Name": "Laine_15cm",
-#                 "Thickness": 0.15,
-#                 "Conductivity": 0.032,
-#                 "Density": 40,
-#                 "Specific_Heat": 1000,
-#             },
-#         ],
-#     },
-#     "EEM2_Wall_ext_insulation": {
-#         VariantKeys.MODIFIER: "walls",
-#         VariantKeys.ARGUMENTS: {"names": "Ext_South"},
-#         VariantKeys.DESCRIPTION: [
-#             # Outside Layer
-#             {
-#                 "Name": "Coating",
-#                 "Thickness": 0.01,
-#                 "Conductivity": 0.1,
-#                 "Density": 400,
-#                 "Specific_Heat": 1200,
-#             },
-#             {
-#                 "Name": "Laine_30cm",
-#                 "Thickness": 0.30,
-#                 "Conductivity": 0.032,
-#                 "Density": 40,
-#                 "Specific_Heat": 1000,
-#             },
-#             {
-#                 "Name": "Project medium concrete block_.2",
-#                 "Thickness": 0.2,
-#                 "Conductivity": 0.51,
-#                 "Density": 1400,
-#                 "Specific_Heat": 1000,
-#             },
-#         ],
-#     },
-#     "EEM3_Double_glazing": {
-#         VariantKeys.MODIFIER: "windows",
-#         VariantKeys.ARGUMENTS: {},
-#         VariantKeys.DESCRIPTION: {
-#             "Name": "Double_glazing",
-#             "UFactor": 1.1,
-#             "Solar_Heat_Gain_Coefficient": 0.41,
-#             "Visible_Transmittance": 0.71,
-#         },
-#     },
-# }
 
 
 @pytest.fixture(scope="session")
@@ -210,6 +153,20 @@ def toy_building(tmp_path_factory):
         Shading_Type="ExteriorShade",
         Construction_with_Shading_Name="Construction_Ext_win_1_shade",
         Fenestration_Surface_1_Name="Window_3",
+    )
+
+    toy_idf.newidfobject(
+        key="AirflowNetwork:MultiZone:Surface",
+        Surface_Name="Surface_0",
+        Leakage_Component_Name="Airflow Network Simple Opening 8",
+        WindowDoor_Opening_Factor_or_Crack_Factor=0.46,
+    )
+
+    toy_idf.newidfobject(
+        key="AirflowNetwork:MultiZone:Surface",
+        Surface_Name="Surface_1",
+        Leakage_Component_Name="Airflow Network Simple Opening 8",
+        WindowDoor_Opening_Factor_or_Crack_Factor=0.46,
     )
 
     # Very dirty, instantiate a Building with and idf file
@@ -424,6 +381,20 @@ class TestModifier:
         ) == ["Shade", "Var_2", "Var_1", "Int_win"]
 
         assert True
+
+    def test_set_afn_surface_opening_factor(self, toy_building):
+        set_afn_surface_opening_factor(
+            model=toy_building,
+            description={
+                "opening_modif": {"WindowDoor_Opening_Factor_or_Crack_Factor": 1.0}
+            },
+            name_filter="_0",
+        )
+
+        afn_openings = toy_building.idf.idfobjects["AirflowNetwork:MultiZone:Surface"]
+        assert [
+            val.WindowDoor_Opening_Factor_or_Crack_Factor for val in afn_openings
+        ] == [1.0, 0.46]
 
     # def test_envelope_shades_modifier(self, toy_building):
     #     loc_toy = deepcopy(toy_building)
