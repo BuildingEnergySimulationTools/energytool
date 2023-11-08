@@ -1,8 +1,11 @@
+
 # Energytool
 
-Python module for EnergyPlus :
+[![Code style: black](https://img.shields.io/badge/code%20style-black-000000.svg)](https://github.com/psf/black)
+![Static Badge](https://img.shields.io/badge/python-3.10_%7C_3.12-blue)
+
+Python module to wrap EnergyPlus for CorrAI :
 - <code>Building</code> class to simulate HVAC systems through pre-process and post process methods
-- Multiprocessor batch simulations
-- Sensitivity analysis
 - Basic HVAC model
-- Allows Pandas <code>DataFrame</code> as boundary conditions 
+- Modifier function for parametric simulation
+- Allows Pandas <code>DataFrame</code> as boundary conditions
