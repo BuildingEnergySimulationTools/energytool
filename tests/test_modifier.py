@@ -2,6 +2,8 @@ from copy import deepcopy
 from io import StringIO
 from pathlib import Path
 
+import tempfile
+
 import eppy
 import pytest
 from eppy.modeleditor import IDF
@@ -174,9 +176,9 @@ def toy_building(tmp_path_factory):
     toy_building = Building(idf_path=RESOURCES_PATH / "test.idf")
     toy_building.idf = toy_idf
 
-    toy_building.idf.saveas(
-        Path(r"C:\Users\bdurandestebe\Documents\46_Renov_DSF") / "loc_toy.idf"
-    )
+    with tempfile.NamedTemporaryFile(delete=False, suffix=".idf") as temp_file:
+        temp_file_path = Path(temp_file.name)
+        toy_building.idf.saveas(temp_file_path)
 
     return toy_building
 
