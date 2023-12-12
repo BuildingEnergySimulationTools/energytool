@@ -18,7 +18,7 @@ class TestBuilding:
             "idf.material.Urea Formaldehyde Foam_.1327.Conductivity": 0.05,
             "system.heating.Heater.cop": 0.5,
             "epw_file": (
-                Path(r"C:\EnergyPlusV9-4-0\WeatherData") / "B4R_weather_Paris_2020.epw"
+                    RESOURCES_PATH / "B4R_weather_Paris_2020.epw"
             ).as_posix(),
         }
         simulation_options = {
@@ -72,7 +72,7 @@ class TestBuilding:
 
         simulation_options = {
             "epw_file": (
-                Path(r"C:\EnergyPlusV9-4-0\WeatherData") / "B4R_weather_Paris_2020.epw"
+                RESOURCES_PATH / "B4R_weather_Paris_2020.epw"
             ).as_posix(),
             SimuOpt.START.value: "2009-01-01",
             SimuOpt.STOP.value: "2009-02-01",
