@@ -3,18 +3,20 @@ from pathlib import Path
 
 
 class ExcelParser:
-    def __init__(self, excel_file_path, tab_names, VARIANT_DICT):
+    def __init__(self, excel_file_path, VARIANT_DICT, tab_names=None):
         self.excel_file_path = Path(excel_file_path)
         self.tab_names = tab_names
         self.tables = {}
-        self.VARIANT_DICT = {}
+        self.VARIANT_DICT = VARIANT_DICT
 
     def load_excel_data(self):
         try:
             # Load Excel file and iterate over each tab
             xl = pd.ExcelFile(self.excel_file_path)
 
-            for tab_name in self.tab_names:
+            tabs_to_read = xl.sheet_names if self.tab_names is None else self.tab_names
+
+            for tab_name in tabs_to_read:
                 df = xl.parse(tab_name, skiprows=None, header=None)
 
                 # Identify rows where empty lines are present
