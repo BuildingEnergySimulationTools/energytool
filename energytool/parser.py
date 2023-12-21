@@ -2,10 +2,12 @@ import pandas as pd
 from pathlib import Path
 
 class ExcelParser:
-    def __init__(self, excel_file_path, tab_names):
+    def __init__(self, excel_file_path, tab_names, VARIANT_DICT):
         self.excel_file_path = Path(excel_file_path)
         self.tab_names = tab_names
         self.tables = {}
+        self.VARIANT_DICT = {}
+
 
     def load_excel_data(self):
         try:
@@ -52,3 +54,43 @@ class ExcelParser:
 
     def get_table(self, table_name):
         return self.tables.get(table_name, None)
+
+    def add_existing(self):
+        try:
+            existing_building_df = self.get_table("Existing building")
+
+            for index, row in existing_building_df.iterrows():
+                orientation = row["Opaque_orientation"]
+                composition = [
+                    {"Name": layer}
+                    for column_name, layer in row.items()
+                    if "layer" in column_name.lower() and pd.notna(layer)
+                ]
+
+                # Determine the face filter based on orientation
+                if "south" in orientation.lower():
+                    face_filter = "Face1"
+                elif "west" in orientation.lower():
+                    face_filter = "Face2"
+                elif "north" in orientation.lower():
+                    face_filter = "Face3"
+                elif "east" in orientation.lower():
+                    face_filter = "Face4"
+                else:
+                    face_filter = ""
+
+                # Build the dictionary entry for each orientation
+                variant_key = f"EXISTING_walls_{orientation.lower()}"
+                if variant_key not in self.VARIANT_DICT:
+                    self.VARIANT_DICT[variant_key] = {
+                        "VariantKeys.MODIFIER": f"walls_{orientation.lower()}",
+                        "VariantKeys.ARGUMENTS": {
+                            "name_filter": face_filter
+                        },
+                        "VariantKeys.DESCRIPTION": {
+                            variant_key: [{"Name": layer} for layer in composition]
+                        }
+                    }
+
+        except Exception as e:
+            print(f"Error adding existing data: {e}")
