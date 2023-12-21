@@ -110,3 +110,5 @@ venv.bak/
 
 # Pycharm
 .idea/
+/dev 1.py
+/Cas_test.idf
