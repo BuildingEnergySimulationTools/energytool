@@ -176,6 +176,11 @@ class ExcelParser:
 
             for index, row in variant_building_df.iterrows():
                 orientation = row["Opaque_orientation"]
+
+                if pd.isna(row["layer1"]):
+                    # Skip row if "layer1" is empty
+                    continue
+
                 composition = [
                     {"Name": layer}
                     for column_name, layer in row.items()
@@ -197,7 +202,14 @@ class ExcelParser:
                 mat_info_walls = [self.get_material_opaque_info(layer["Name"]) for layer in composition]
 
                 # Build the dictionary entry for each orientation
-                variant_key = f"RENOVATION_walls_{orientation.lower()}"
+                count = 0
+                original_variant_key = f"RENOVATION_walls_{orientation.lower()}"
+                variant_key = original_variant_key
+
+                while variant_key in self.VARIANT_DICT:
+                    count += 1
+                    variant_key = f"RENOVATION_walls_{orientation.lower()}{count}"
+
                 if variant_key not in self.VARIANT_DICT:
                     self.VARIANT_DICT[variant_key] = {
                         "VariantKeys.MODIFIER": f"walls_{orientation.lower()}",
