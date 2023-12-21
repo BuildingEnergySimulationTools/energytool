@@ -169,3 +169,44 @@ class ExcelParser:
             mat_info_w = []
 
         return mat_info_w
+
+    def add_variant_building(self):
+        try:
+            variant_building_df = self.get_table("Renovation config_wall")
+
+            for index, row in variant_building_df.iterrows():
+                orientation = row["Opaque_orientation"]
+                composition = [
+                    {"Name": layer}
+                    for column_name, layer in row.items()
+                    if "layer" in column_name.lower() and pd.notna(layer)
+                ]
+
+                # Determine the face filter based on orientation
+                if "south" in orientation.lower():
+                    face_filter = "Face1"
+                elif "west" in orientation.lower():
+                    face_filter = "Face2"
+                elif "north" in orientation.lower():
+                    face_filter = "Face3"
+                elif "east" in orientation.lower():
+                    face_filter = "Face4"
+                else:
+                    face_filter = ""
+
+                mat_info_walls = [self.get_material_opaque_info(layer["Name"]) for layer in composition]
+
+                # Build the dictionary entry for each orientation
+                variant_key = f"RENOVATION_walls_{orientation.lower()}"
+                if variant_key not in self.VARIANT_DICT:
+                    self.VARIANT_DICT[variant_key] = {
+                        "VariantKeys.MODIFIER": f"walls_{orientation.lower()}",
+                        "VariantKeys.ARGUMENTS": {
+                            "name_filter": face_filter
+                        },
+                        "VariantKeys.DESCRIPTION": {
+                            variant_key: mat_info_walls
+                        }
+                    }
+        except Exception as e:
+            print(f"Error adding existing data: {e}")
