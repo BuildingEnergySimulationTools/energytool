@@ -1,64 +1,53 @@
 import pandas as pd
 from pathlib import Path
-from corrai.variant import VariantKeys
 
-
-class ExcelVariantFiller:
-    def __init__(self, excel_file_path, tab_name, variant_dict):
+class ExcelParser:
+    def __init__(self, excel_file_path, tab_name):
         self.excel_file_path = Path(excel_file_path)
         self.tab_name = tab_name
-        self.variant_dict = variant_dict
-        self.result_dict = None
+        self.tables = {}
 
     def load_excel_data(self):
         try:
-            # Load the Excel file
+            # Load Excel file and tab
             xl = pd.ExcelFile(self.excel_file_path)
+            df = xl.parse(self.tab_name, skiprows=None, header=None)
 
-            # Parse the specified tab
-            df = xl.parse(self.tab_name)
+            # Identify rows where empty lines are present
+            empty_line_rows = df.isnull().all(axis=1)
+            empty_line_indices = empty_line_rows[empty_line_rows].index
 
-            # Create a dictionary with material information
-            self.result_dict = {}
-            for index, row in df.iterrows():
-                name = row['Name']
-                thickness = row.get('Thickness (m)', None)
-                conductivity = row.get('Conductivity (W/m.K)', None)
-                density = row.get('Density (kg/m3)', None)
-                specific_heat = row.get('Specific Heat (J/kg.K)', None)
+            # Split DataFrame based on empty lines
+            start_idx = 0
+            for end_idx in empty_line_indices:
+                # Exclude empty lines at the beginning
+                if start_idx != end_idx:
+                    # Use the first row as the table name
+                    table_name = df.iloc[start_idx, 0]
+                    table_name = table_name if pd.notnull(table_name) else f"Table_{start_idx + 1}_{end_idx}"
 
-                info = {
-                    "Name": name,
-                    "Thickness": thickness,
-                    "Conductivity": conductivity,
-                    "Density": density,
-                    "Specific_Heat": specific_heat,
-                }
+                    # Extract the table and set the first row as the header
+                    table_df = df.iloc[start_idx:end_idx, 1:]
+                    table_df.columns = table_df.iloc[0]
+                    table_df = table_df.iloc[1:]
 
-                self.result_dict[name] = info
+                    self.tables[table_name] = table_df
+                start_idx = end_idx + 1
 
-        except Exception as e:
-            print(f"An error occurred while loading Excel data: {e}")
+            # Handle the last table if it's not followed by an empty line
+            if start_idx < len(df):
+                table_name = df.iloc[start_idx, 0]
+                table_name = table_name if pd.notnull(table_name) else f"Table_{start_idx + 1}_{len(df)}"
 
-    def fill_variant_dict(self):
-        try:
-            # Check if result_dict is loaded
-            if self.result_dict is None:
-                print("Please call load_excel_data() before fill_variant_dict().")
-                return
+                table_df = df.iloc[start_idx:, 1:]
+                table_df.columns = table_df.iloc[0]
+                table_df = table_df.iloc[1:]
 
-            # Iterate through VARIANT_DICT and update with missing information
-            for variant_key, variant_info in self.variant_dict.items():
-                description = variant_info.get(VariantKeys.DESCRIPTION, {})
-                for sub_key, sub_info in description.items():
-                    if isinstance(sub_info, list):
-                        for item in sub_info:
-                            material_name = item.get("Name")
-                            if material_name in self.result_dict:
-                                material_info = self.result_dict[material_name]
-                                item.update(material_info)
-                            else:
-                                print(f"Material {material_name} not found in result_dict.")
+                self.tables[table_name] = table_df
 
         except Exception as e:
-            print(f"An error occurred while filling VARIANT_DICT: {e}")
+            print(f"Error loading Excel data: {e}")
+
+    def get_table(self, table_name):
+        return self.tables.get(table_name, None)
+
