@@ -1,13 +1,13 @@
 import pandas as pd
 from pathlib import Path
 
+
 class ExcelParser:
     def __init__(self, excel_file_path, tab_names, VARIANT_DICT):
         self.excel_file_path = Path(excel_file_path)
         self.tab_names = tab_names
         self.tables = {}
         self.VARIANT_DICT = {}
-
 
     def load_excel_data(self):
         try:
@@ -55,7 +55,7 @@ class ExcelParser:
     def get_table(self, table_name):
         return self.tables.get(table_name, None)
 
-    def add_existing(self):
+    def add_existing_building(self):
         try:
             existing_building_df = self.get_table("Existing building")
 
@@ -94,3 +94,30 @@ class ExcelParser:
 
         except Exception as e:
             print(f"Error adding existing data: {e}")
+
+    def add_existing_windows(self):
+        try:
+            existing_windows_df = self.get_table("Existing windows")
+
+            for index, row in existing_windows_df.iterrows():
+                orientation = row["Window_orientation"]
+                presence_window = row["Presence_window"]
+                compo_windows = row["compo_windows"]
+
+                if presence_window == 1:
+                    variant_key = variant_key = f"EXISTING_windows_{orientation.lower()}"
+                    if variant_key not in self.VARIANT_DICT:
+                        # Build the dictionary entry for each orientation
+                        variant_key = f"EXISTING_windows_{orientation.lower()}"
+                        if variant_key not in self.VARIANT_DICT:
+                            self.VARIANT_DICT[variant_key] = {
+                                "VariantKeys.MODIFIER": f"windows_{orientation.lower()}",
+                                "VariantKeys.DESCRIPTION": {
+                                    variant_key: [
+                                        {"Name": compo_windows}
+                                    ]
+                                }
+                            }
+        except Exception as e:
+            print(f"Error adding existing data: {e}")
+
