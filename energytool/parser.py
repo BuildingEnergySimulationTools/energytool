@@ -79,6 +79,8 @@ class ExcelParser:
                 else:
                     face_filter = ""
 
+                mat_info_walls = [self.get_material_info(layer["Name"]) for layer in composition]
+
                 # Build the dictionary entry for each orientation
                 variant_key = f"EXISTING_walls_{orientation.lower()}"
                 if variant_key not in self.VARIANT_DICT:
@@ -88,7 +90,7 @@ class ExcelParser:
                             "name_filter": face_filter
                         },
                         "VariantKeys.DESCRIPTION": {
-                            variant_key: [{"Name": layer} for layer in composition]
+                            variant_key: mat_info_walls
                         }
                     }
 
@@ -120,4 +122,27 @@ class ExcelParser:
                             }
         except Exception as e:
             print(f"Error adding existing data: {e}")
+
+    def get_material_info(self, material_name):
+        self.db_mat = self.get_table("db_mat")
+
+        # Check if the material_name exists in the DataFrame
+        if material_name in self.db_mat['Full_names'].values:
+            material_info = self.db_mat[self.db_mat['Full_names'] == material_name].iloc[0]
+
+            # Extract relevant columns
+            mat_info = [
+                {
+                    "Name": material_info['Full_names'],
+                    "Thickness": material_info['Thickness (m)'],
+                    "Conductivity": material_info['Conductivity (W/m.K)'],
+                    "Density": material_info['Density (kg/m3)'],
+                    "Specific_Heat": material_info['Specific Heat (J/kg.K)'],
+                }
+            ]
+        else:
+            print(f"Material '{material_name}' not found in db_mat DataFrame.")
+            mat_info = []
+
+        return mat_info
 
