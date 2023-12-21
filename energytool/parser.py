@@ -79,7 +79,7 @@ class ExcelParser:
                 else:
                     face_filter = ""
 
-                mat_info_walls = [self.get_material_info(layer["Name"]) for layer in composition]
+                mat_info_walls = [self.get_material_opaque_info(layer["Name"]) for layer in composition]
 
                 # Build the dictionary entry for each orientation
                 variant_key = f"EXISTING_walls_{orientation.lower()}"
@@ -106,8 +106,11 @@ class ExcelParser:
                 presence_window = row["Presence_window"]
                 compo_windows = row["compo_windows"]
 
-                if presence_window == 1:
-                    variant_key = variant_key = f"EXISTING_windows_{orientation.lower()}"
+                if presence_window == 1 and compo_windows != 0:
+                    compo_windows_str = str(compo_windows)
+                    mat_info_windows = [self.get_material_window_info(layer["Name"]) for layer in compo_windows_str]
+
+                    variant_key = f"EXISTING_windows_{orientation.lower()}"
                     if variant_key not in self.VARIANT_DICT:
                         # Build the dictionary entry for each orientation
                         variant_key = f"EXISTING_windows_{orientation.lower()}"
@@ -115,15 +118,13 @@ class ExcelParser:
                             self.VARIANT_DICT[variant_key] = {
                                 "VariantKeys.MODIFIER": f"windows_{orientation.lower()}",
                                 "VariantKeys.DESCRIPTION": {
-                                    variant_key: [
-                                        {"Name": compo_windows}
-                                    ]
+                                    variant_key: mat_info_windows
                                 }
                             }
         except Exception as e:
             print(f"Error adding existing data: {e}")
 
-    def get_material_info(self, material_name):
+    def get_material_opaque_info(self, material_name):
         self.db_mat = self.get_table("db_mat")
 
         # Check if the material_name exists in the DataFrame
@@ -146,3 +147,24 @@ class ExcelParser:
 
         return mat_info
 
+    def get_material_window_info(self, material_name):
+        self.db_mat_w = self.get_table("list_compo_window")
+
+        # Check if the material_name exists in the DataFrame
+        if material_name in self.db_mat_w['Full_names'].values:
+            material_info = self.db_mat_w[self.db_mat_w['Full_names'] == material_name].iloc[0]
+
+            # Extract relevant columns
+            mat_info_w = [
+                {
+                    "Name": material_info['Full_names'],
+                    "UFactor": material_info['U'],
+                    "Solar_Heat_Gain_Coefficient": material_info['tl'],
+                    "Visible_Transmittance": material_info['fs'],
+                }
+            ]
+        else:
+            print(f"Material '{material_name}' not found in list_compo_window DataFrame.")
+            mat_info_w = []
+
+        return mat_info_w
