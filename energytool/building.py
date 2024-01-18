@@ -148,6 +148,7 @@ Others: {[obj.name for obj in self.systems[SystemCategories.OTHER]]}
         self,
         parameter_dict: dict[str, str | float | int] = None,
         simulation_options: dict[str, str | float | int] = None,
+        idf_save_path: str | None = None
     ) -> pd.DataFrame:
         """
         Simulate the building model with specified parameters and simulation options.
@@ -294,6 +295,10 @@ Others: {[obj.name for obj in self.systems[SystemCategories.OTHER]]}
             )
 
             eplus_res = read_eplus_res(Path(temp_dir) / "eplusout.csv")
+
+            # Save IDF file after pre-process
+            if idf_save_path:
+                working_idf.saveas(idf_save_path, encoding="utf-8")
 
             # POST-PROCESS
             return get_results(
