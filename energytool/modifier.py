@@ -10,11 +10,11 @@ from energytool.tools import is_items_in_list
 
 
 def set_opaque_surface_construction(
-    model: Building,
-    description: dict[str, list[dict[str, Any]]],
-    name_filter: str = None,
-    surface_type: str = "Wall",
-    outside_boundary_condition: str = "Outdoors",
+        model: Building,
+        description: dict[str, list[dict[str, Any]]],
+        name_filter: str = None,
+        surface_type: str = "Wall",
+        outside_boundary_condition: str = "Outdoors",
 ):
     """
     This function modifies the construction of opaque building surfaces in an EnergyPlus
@@ -59,8 +59,8 @@ def set_opaque_surface_construction(
         )
 
     if (
-        outside_boundary_condition
-        not in surface_list[0].getfieldidd("Outside_Boundary_Condition")["key"]
+            outside_boundary_condition
+            not in surface_list[0].getfieldidd("Outside_Boundary_Condition")["key"]
     ):
         raise ValueError(
             f"surface_type must be one of "
@@ -91,8 +91,8 @@ def set_opaque_surface_construction(
         obj
         for obj in surface_list
         if obj.Surface_Type == surface_type
-        and obj.Outside_Boundary_Condition == outside_boundary_condition
-        and name_filter in obj.Name
+           and obj.Outside_Boundary_Condition == outside_boundary_condition
+           and name_filter in obj.Name
     ]
 
     for surf in surf_to_modify:
@@ -100,10 +100,10 @@ def set_opaque_surface_construction(
 
 
 def set_external_windows(
-    model: Building,
-    description: dict[str, dict[str, Any]],
-    name_filter: str = None,
-    boundary_conditions: str = "Outdoors",
+        model: Building,
+        description: dict[str, dict[str, Any]],
+        name_filter: str = None,
+        boundary_conditions: str = "Outdoors",
 ):
     """
     Replace windows in an EnergyPlus building model with new window descriptions.
@@ -193,9 +193,9 @@ def set_external_windows(
 
 
 def set_afn_surface_opening_factor(
-    model: Building,
-    description: dict[str, dict[str, Any]],
-    name_filter: str = None,
+        model: Building,
+        description: dict[str, dict[str, Any]],
+        name_filter: str = None,
 ):
     """
     Modify AirFlowNetwork:Multizone:Surface WindowDoor_Opening_Factor_or_Crack_Factor
@@ -225,6 +225,38 @@ def set_afn_surface_opening_factor(
     for opening in openings:
         opening["WindowDoor_Opening_Factor_or_Crack_Factor"] = new_opening_ratio
 
+
+def set_blinds_st(
+        model: Building,
+        description: dict[str, dict[str, Any]],
+        name_filter: str = None,
+):
+    """
+    Modify WindowMaterial:Shade Solar_Transmittance based on their name.
+
+    :param model: An EnergyPlus building model.
+    :param description: A dictionary containing the new value.
+        the expected dictionary must be of the following form:
+        {
+            "Variant_1": {
+                "Solar_Transmittance": 1,
+            },
+        }
+    :param name_filter: An optional filter to match window names.
+    """
+    idf = model.idf
+
+    shades = idf.idfobjects["WindowMaterial:Shade"]
+    if name_filter is not None:
+        shades = [sh for sh in shades if name_filter in sh.Surface_Name]
+
+    new_transmittance_name = list(description.keys())[0]
+    new_transmittance = description[new_transmittance_name][
+        "Solar_Transmittance"
+    ]
+
+    for shade in shades:
+        shade["Solar_Transmittance"] = new_transmittance
 
 #
 # class EnvelopeShadesModifier:
