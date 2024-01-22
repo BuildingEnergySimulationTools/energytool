@@ -226,6 +226,144 @@ def set_afn_surface_opening_factor(
         opening["WindowDoor_Opening_Factor_or_Crack_Factor"] = new_opening_ratio
 
 
+def set_blinds_solar_transmittance(
+        model: Building,
+        description: dict[str, dict[str, Any]],
+        name_filter: str = None,
+):
+    """
+    Modify WindowMaterial:Shade Solar_Transmittance based on the given description.
+
+    :param model: An EnergyPlus building model.
+    :param description: A dictionary containing the new values for shades.
+        The expected dictionary must be of the following form:
+        {
+            "Variant_1": [
+                {
+                    "Solar_Transmittance": 0.66
+                }
+            ]
+        }
+    :param name_filter: An optional filter to match window names.
+    """
+    idf = model.idf
+
+    first_entry = next(iter(description.values()), {})
+    len_description = len(first_entry[0].keys())
+
+    shades = idf.idfobjects["WindowMaterial:Shade"]
+
+    new_shaded_window_name = list(description.keys())[0]
+
+    if name_filter is not None:
+        filtered_windows = [window for window in idf.idfobjects["FenestrationSurface:Detailed"] if
+                            name_filter in window.Name]
+
+        construction_names_dict = {window.Name: window.Construction_Name for window in filtered_windows}
+        all_constructions = idf.idfobjects["Construction"]
+        for construction_name, target_name in construction_names_dict.items():
+            for construction in all_constructions:
+                if construction.Name == target_name:
+                    construction_values = [construction[field] for field in construction.fieldnames[2:]]
+                    shades += [shade for shade in shades if
+                               any(construction_value in shade.Name for construction_value in construction_values)
+                               if shade not in shades]
+
+    new_transmittance = description[new_shaded_window_name][0]["Solar_Transmittance"]
+
+    for shade in shades:
+        shade["Solar_Transmittance"] = new_transmittance
+
+
+def set_blinds_schedule(
+        model: Building,
+        description: dict[str, dict[str, Any]],
+        name_filter: str = None
+):
+    """
+    Create/update Schedule based on the given description.
+
+    :param model: An EnergyPlus building model.
+    :param description: A dictionary containing the new values for schedule.
+        The expected dictionary must be of the following form:
+        {
+            "Variant_1": [
+                {
+                    "Scenario": {
+                        "Name": 'Shading_control',
+                        "Schedule_Type_Limits_Name": 'Fractional1',
+                        "Field1": "Through: 01 April",
+                        # ... other fields ...
+                    },
+                    "Limits": {
+                        "Name": 'Fractional1',
+                        "Lower_Limit_Value": 0,
+                        "Upper_Limit_Value": 1,
+                        "Numeric_Type": "Continuous"
+                    }
+                }
+            ]
+        }
+    :param name_filter: An optional filter to match window names.
+    """
+    idf = model.idf
+
+    first_entry = next(iter(description.values()), {})
+    len_description = len(first_entry[0].keys())
+
+    scenarios = idf.idfobjects["WindowShadingControl"]
+
+    new_shaded_window_name = list(description.keys())[0]
+    new_schedule = description[new_shaded_window_name][0]["Scenario"]
+
+    if name_filter is not None:
+        filtered_windows = [window for window in idf.idfobjects["FenestrationSurface:Detailed"] if
+                            name_filter in window.Name]
+
+        construction_names_dict = {window.Name: window.Construction_Name for window in filtered_windows}
+        all_constructions = idf.idfobjects["Construction"]
+        for construction_name, target_name in construction_names_dict.items():
+            for scen in scenarios:
+                if scen["Construction_with_Shading_Name"] == target_name:
+                    scen["Schedule_Name"] = new_schedule["Name"]
+
+    for scen in scenarios:
+        if len(new_schedule) == 1:
+            scen["Schedule_Name"] = new_schedule["Name"]
+
+    if len(new_schedule) > 2:
+        # More than Name or Schedule_Type_Limits_Name is given in Description
+        schedule_kwargs = {
+            "Name": new_schedule["Name"],
+            "Schedule_Type_Limits_Name": new_schedule[
+                "Schedule_Type_Limits_Name"] if "Schedule_Type_Limits_Name" in new_schedule else "Fractional"
+        }
+
+        for idx, info in enumerate(new_schedule.values()):
+            if idx >= 2:
+                schedule_kwargs[f"Field_{idx - 1}"] = info
+
+        existing_st_limits = [entry["Name"] for entry in idf.idfobjects["ScheduleTypeLimits"]]
+        if schedule_kwargs["Schedule_Type_Limits_Name"] not in existing_st_limits and len_description < 3:
+            # Given Schedule_Type_Limits_Name not in IDF and none description given
+            raise ValueError(
+                "ScheduleTypeLimit is not specified in IDF. Define ScheduleTypeLimit fields in Description")
+
+        model.idf.newidfobject("Schedule:Compact", **schedule_kwargs)  # new or replaced ?
+
+        st_limit = schedule_kwargs["Schedule_Type_Limits_Name"]
+        existing_st_limits = [entry["Name"] for entry in idf.idfobjects["ScheduleTypeLimits"]]
+
+        if st_limit not in existing_st_limits and (
+                limits := description.get(new_shaded_window_name, [{}])[0].get("Limits")):
+            limits_kwargs = {
+                "Name": new_schedule["Schedule_Type_Limits_Name"],
+                "Lower_Limit_Value": limits["Lower_Limit_Value"],
+                "Upper_Limit_Value": limits["Upper_Limit_Value"],
+                "Numeric_Type": limits["Numeric_Type"],
+            }
+            model.idf.newidfobject("ScheduleTypeLimits", **limits_kwargs)
+
 def set_blinds_st_and_schedule(
         model: Building,
         description: dict[str, dict[str, Any]],
@@ -270,77 +408,135 @@ def set_blinds_st_and_schedule(
         }
     :param name_filter: An optional filter to match window names.
     """
-    idf = model.idf
+    set_blinds_solar_transmittance(model, description, name_filter)
+    set_blinds_schedule(model, description, name_filter)
 
-    first_entry = next(iter(description.values()), {})
-    len_description = len(first_entry[0].keys())
 
-    shades = idf.idfobjects["WindowMaterial:Shade"]
-    windows = idf.idfobjects["FenestrationSurface:Detailed"]
+# def set_blinds_st_and_schedule(
+#         model: Building,
+#         description: dict[str, dict[str, Any]],
+#         name_filter: str = None,
+# ):
+#     """
+#     Modify WindowMaterial:Shade Solar_Transmittance and create/update Schedule based on the given description.
+#
+#     :param model: An EnergyPlus building model.
+#     :param description: A dictionary containing the new values for shades and schedule.
+#         The expected dictionary must be of the following form:
+#         {
+#             "Variant_1": [
+#                 {
+#                     "Solar_Transmittance": 0.66,
+#                     "Scenario": {
+#                         "Name": 'Shading_control',
+#                         "Schedule_Type_Limits_Name": 'Fractional1',
+#                         "Field1": "Through: 01 April",
+#                         "Field2": "For: AllDays",
+#                         "Field4": "Until: 24:00",
+#                         "Field3": "0.0",
+#                         "Field5": "Through: 30 September",
+#                         "Field6": "For: Weekdays",
+#                         "Field7": "Until: 24:00",
+#                         "Field8": "1.0",
+#                         "Field9": "For: Weekends",
+#                         "Field10": "Until: 24:00",
+#                         "Field11": "0.0",
+#                         "Field12": "For: AllOtherDays",
+#                         "Field13": "Until: 24:00",
+#                         "Field14": "0.0",
+#                     },
+#                     "Limits": {
+#                         "Name": 'Fractional1',
+#                         "Lower_Limit_Value": 0,
+#                         "Upper_Limit_Value": 1,
+#                         "Numeric_Type": "Continuous"
+#                     }
+#                 }
+#             ]
+#         }
+#     :param name_filter: An optional filter to match window names.
+#     """
+#     idf = model.idf
+#
+#     first_entry = next(iter(description.values()), {})
+#     len_description = len(first_entry[0].keys())
+#
+#     shades = idf.idfobjects["WindowMaterial:Shade"]
+#     windows = idf.idfobjects["FenestrationSurface:Detailed"]
+#     scenarios = idf.idfobjects["WindowShadingControl"]
+#
+#     new_shaded_window_name = list(description.keys())[0]
+#     new_schedule = description[new_shaded_window_name][0]["Scenario"]
+#
+#     if name_filter is not None:
+#         filtered_windows = [window for window in windows if name_filter in window.Name]
+#
+#         construction_names_dict = {window.Name: window.Construction_Name for window in filtered_windows}
+#         all_constructions = idf.idfobjects["Construction"]
+#         for construction_name, target_name in construction_names_dict.items():
+#             for construction in all_constructions:
+#                 if construction.Name == target_name:
+#                     construction_values = [construction[field] for field in construction.fieldnames[2:]]
+#                     shades += [shade for shade in shades if
+#                                any(construction_value in shade.Name for construction_value in construction_values)
+#                                if shade not in shades]
+#
+#             for scen in scenarios:
+#                 if scen["Construction_with_Shading_Name"] == target_name:
+#                     scen["Schedule_Name"] = new_schedule["Name"]
+#
+#     new_transmittance = description[new_shaded_window_name][0]["Solar_Transmittance"]
+#
+#     for shade in shades:
+#         shade["Solar_Transmittance"] = new_transmittance
+#
+#     schedule = idf.idfobjects["Schedule:Year"]
+#     existing_shading_control = [entry["Name"] for entry in schedule]
+#
+#     for scen in scenarios:
+#         # Check if schedule exists in IDF if none description is given
+#         if len(new_schedule) == 1 and not new_schedule["Name"] in existing_shading_control:
+#             raise ValueError(
+#                 "Scenario's name not found in IDF. Use existing name or define Schedule fields in description")
+#         if len(new_schedule) == 1:
+#             scen["Schedule_Name"] = new_schedule["Name"]
+#
+#     if len(new_schedule) > 2:
+#         # More than Name or Schedule_Type_Limits_Name is given in Description
+#         schedule_kwargs = {
+#             "Name": new_schedule["Name"],
+#             "Schedule_Type_Limits_Name": new_schedule[
+#                 "Schedule_Type_Limits_Name"] if "Schedule_Type_Limits_Name" in new_schedule else "Fractional"
+#         }
+#
+#         for idx, info in enumerate(new_schedule.values()):
+#             if idx >= 2:
+#                 schedule_kwargs[f"Field_{idx - 1}"] = info
+#
+#         existing_st_limits = [entry["Name"] for entry in idf.idfobjects["ScheduleTypeLimits"]]
+#         if schedule_kwargs["Schedule_Type_Limits_Name"] not in existing_st_limits and len_description < 3:
+#             # Given Schedule_Type_Limits_Name not in IDF and none description given
+#             raise ValueError(
+#                 "ScheduleTypeLimit is not specified in IDF. Define ScheduleTypeLimit fields in Description")
+#
+#         # if not new_schedule["Name"] in existing_shading_control:
+#         #     scen["Schedule_Name"] = new_schedule["Name"]
+#
+#         model.idf.newidfobject("Schedule:Compact", **schedule_kwargs)  # new or replaced ?
+#
+#         st_limit = schedule_kwargs["Schedule_Type_Limits_Name"]
+#         existing_st_limits = [entry["Name"] for entry in idf.idfobjects["ScheduleTypeLimits"]]
+#
+#         if st_limit not in existing_st_limits and (
+#                 limits := description.get(new_shaded_window_name, [{}])[0].get("Limits")):
+#             limits_kwargs = {
+#                 "Name": new_schedule["Schedule_Type_Limits_Name"],
+#                 "Lower_Limit_Value": limits["Lower_Limit_Value"],
+#                 "Upper_Limit_Value": limits["Upper_Limit_Value"],
+#                 "Numeric_Type": limits["Numeric_Type"],
+#             }
+#             model.idf.newidfobject("ScheduleTypeLimits", **limits_kwargs)
 
-    if name_filter is not None:
-        filtered_windows = [window for window in windows if name_filter in window.Name]
-        construction_names_dict = {window.Name: window.Construction_Name for window in filtered_windows}
-        all_constructions = idf.idfobjects["Construction"]
-        for construction_name, target_name in construction_names_dict.items():
-            for construction in all_constructions:
-                if construction.Name == target_name:
-                    construction_values = [construction[field] for field in construction.fieldnames[2:]]
-                    shades += [shade for shade in shades if
-                               any(construction_value in shade.Name for construction_value in construction_values)
-                               if shade not in shades]
-
-    new_shaded_window_name = list(description.keys())[0]
-    new_transmittance = description[new_shaded_window_name][0]["Solar_Transmittance"]
-
-    for shade in shades:
-        shade["Solar_Transmittance"] = new_transmittance
-
-    new_schedule = description[new_shaded_window_name][0]["Scenario"]
-    scenarios = idf.idfobjects["WindowShadingControl"]
-    schedule = idf.idfobjects["Schedule:Year"]
-    existing_shading_control = [entry["Name"] for entry in schedule]
-
-    for scen in scenarios:
-        # Check if schedule exists in IDF if none description is given
-        if len(new_schedule) == 1 and not new_schedule["Name"] in existing_shading_control:
-            raise ValueError(
-                "Scenario's name not found in IDF. Use existing name or define Schedule fields in description")
-        if len(new_schedule) == 1:
-            scen["Schedule_Name"] = new_schedule["Name"]
-
-    if len(new_schedule) > 2:
-        # More than Name or Schedule_Type_Limits_Name is given in Description
-        schedule_kwargs = {
-            "Name": new_schedule["Name"],
-            "Schedule_Type_Limits_Name": new_schedule[
-                "Schedule_Type_Limits_Name"] if "Schedule_Type_Limits_Name" in new_schedule else "Fractional"
-        }
-
-        for idx, info in enumerate(new_schedule.values()):
-            if idx >= 2:
-                schedule_kwargs[f"Field_{idx - 1}"] = info
-
-        existing_st_limits = [entry["Name"] for entry in idf.idfobjects["ScheduleTypeLimits"]]
-        if schedule_kwargs["Schedule_Type_Limits_Name"] not in existing_st_limits and len_description < 3:
-            # Given Schedule_Type_Limits_Name not in IDF and none description given
-            raise ValueError(
-                "ScheduleTypeLimit is not specified in IDF. Define ScheduleTypeLimit fields in Description")
-
-        model.idf.newidfobject("Schedule:Compact", **schedule_kwargs)  # new or replaced ?
-
-        st_limit = schedule_kwargs["Schedule_Type_Limits_Name"]
-        existing_st_limits = [entry["Name"] for entry in idf.idfobjects["ScheduleTypeLimits"]]
-
-        if st_limit not in existing_st_limits and (
-                limits := description.get(new_shaded_window_name, [{}])[0].get("Limits")):
-            limits_kwargs = {
-                "Name": new_schedule["Schedule_Type_Limits_Name"],
-                "Lower_Limit_Value": limits["Lower_Limit_Value"],
-                "Upper_Limit_Value": limits["Upper_Limit_Value"],
-                "Numeric_Type": limits["Numeric_Type"],
-            }
-            model.idf.newidfobject("ScheduleTypeLimits", **limits_kwargs)
 
 #
 # class EnvelopeShadesModifier:
