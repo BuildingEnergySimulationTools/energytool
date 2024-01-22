@@ -232,18 +232,18 @@ def set_blinds_st_and_schedule(
         name_filter: str = None,
 ):
     """
-    Modify WindowMaterial:Shade Solar_Transmittance based on their name.
+    Modify WindowMaterial:Shade Solar_Transmittance and create/update Schedule based on the given description.
 
     :param model: An EnergyPlus building model.
-    :param description: A dictionary containing the new value.
+    :param description: A dictionary containing the new values for shades and schedule.
         The expected dictionary must be of the following form:
         {
             "Variant_1": [
                 {
-                    "Solar_Transmittance": 0.5,
+                    "Solar_Transmittance": 0.66,
                     "Scenario": {
                         "Name": 'Shading_control',
-                        "Schedule_Type_Limits_Name": 'TBD',
+                        "Schedule_Type_Limits_Name": 'Fractional1',
                         "Field1": "Through: 01 April",
                         "Field2": "For: AllDays",
                         "Field4": "Until: 24:00",
@@ -258,6 +258,12 @@ def set_blinds_st_and_schedule(
                         "Field12": "For: AllOtherDays",
                         "Field13": "Until: 24:00",
                         "Field14": "0.0",
+                    },
+                    "Limits": {
+                        "Name": 'Fractional1',
+                        "Lower_Limit_Value": 0,
+                        "Upper_Limit_Value": 1,
+                        "Numeric_Type": "Continuous"
                     }
                 }
             ]
