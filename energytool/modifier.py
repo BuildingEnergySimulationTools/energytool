@@ -270,8 +270,20 @@ def set_blinds_st_and_schedule(
     len_description = len(first_entry[0].keys())
 
     shades = idf.idfobjects["WindowMaterial:Shade"]
+    windows = idf.idfobjects["FenestrationSurface:Detailed"]
+
     if name_filter is not None:
-        shades = [sh for sh in shades if name_filter in sh.Surface_Name]
+        filtered_windows = [window for window in windows if name_filter in window.Name]
+        construction_names_dict = {window.Name: window.Construction_Name for window in filtered_windows}
+        all_constructions = idf.idfobjects["Construction"]
+        for construction_name, target_name in construction_names_dict.items():
+            for construction in all_constructions:
+                if construction.Name == target_name:
+                    construction_values = [construction[field] for field in construction.fieldnames[2:]]
+                    print(construction_values)
+                    shades += [shade for shade in shades if
+                               any(construction_value in shade.Name for construction_value in construction_values)
+                               if shade not in shades]
 
     new_shaded_window_name = list(description.keys())[0]
     new_transmittance = description[new_shaded_window_name][0]["Solar_Transmittance"]
@@ -326,7 +338,6 @@ def set_blinds_st_and_schedule(
             }
             model.idf.newidfobject("ScheduleTypeLimits", **limits_kwargs)
 
-## TODO : check zone as well
 
 #
 # class EnvelopeShadesModifier:
