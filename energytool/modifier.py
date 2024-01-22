@@ -286,7 +286,6 @@ def set_blinds_st_and_schedule(
             for construction in all_constructions:
                 if construction.Name == target_name:
                     construction_values = [construction[field] for field in construction.fieldnames[2:]]
-                    print(construction_values)
                     shades += [shade for shade in shades if
                                any(construction_value in shade.Name for construction_value in construction_values)
                                if shade not in shades]
@@ -323,8 +322,7 @@ def set_blinds_st_and_schedule(
                 schedule_kwargs[f"Field_{idx - 1}"] = info
 
         existing_st_limits = [entry["Name"] for entry in idf.idfobjects["ScheduleTypeLimits"]]
-
-        if schedule_kwargs["Schedule_Type_Limits_Name"] not in existing_st_limits and len_description < 2:
+        if schedule_kwargs["Schedule_Type_Limits_Name"] not in existing_st_limits and len_description < 3:
             # Given Schedule_Type_Limits_Name not in IDF and none description given
             raise ValueError(
                 "ScheduleTypeLimit is not specified in IDF. Define ScheduleTypeLimit fields in Description")
@@ -334,8 +332,8 @@ def set_blinds_st_and_schedule(
         st_limit = schedule_kwargs["Schedule_Type_Limits_Name"]
         existing_st_limits = [entry["Name"] for entry in idf.idfobjects["ScheduleTypeLimits"]]
 
-        if st_limit not in existing_st_limits:
-            limits = description[new_shaded_window_name][0]["Limits"]
+        if st_limit not in existing_st_limits and (
+                limits := description.get(new_shaded_window_name, [{}])[0].get("Limits")):
             limits_kwargs = {
                 "Name": new_schedule["Schedule_Type_Limits_Name"],
                 "Lower_Limit_Value": limits["Lower_Limit_Value"],
@@ -343,7 +341,6 @@ def set_blinds_st_and_schedule(
                 "Numeric_Type": limits["Numeric_Type"],
             }
             model.idf.newidfobject("ScheduleTypeLimits", **limits_kwargs)
-
 
 #
 # class EnvelopeShadesModifier:
