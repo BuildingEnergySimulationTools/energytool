@@ -9,12 +9,25 @@ from energytool.building import Building
 from energytool.tools import is_items_in_list
 
 
+def reverse_kwargs(construction_kwargs):
+    construction_name = construction_kwargs["Name"]
+
+    construction_layers = [value for key, value in construction_kwargs.items() if key != "Name" and value]
+
+    reversed_layers = construction_layers[::-1]
+
+    reversed_kwargs = {"Name": construction_name, "Outside_Layer": reversed_layers[0]}
+    reversed_kwargs.update({f"Layer_{idx + 2}": layer for idx, layer in enumerate(reversed_layers[1:])})
+
+    return reversed_kwargs
+
+
 def set_opaque_surface_construction(
         model: Building,
         description: dict[str, list[dict[str, Any]]],
         name_filter: str = None,
         surface_type: str = "Wall",
-        outside_boundary_condition: str = "Outdoors",
+        # outside_boundary_condition: str = "Outdoors",
 ):
     """
     This function modifies the construction of opaque building surfaces in an EnergyPlus
@@ -58,15 +71,15 @@ def set_opaque_surface_construction(
             f"got {surface_type}"
         )
 
-    if (
-            outside_boundary_condition
-            not in surface_list[0].getfieldidd("Outside_Boundary_Condition")["key"]
-    ):
-        raise ValueError(
-            f"surface_type must be one of "
-            f"{surface_list[0].getfieldidd('Outside_Boundary_Condition')['key']}, "
-            f"got {outside_boundary_condition}"
-        )
+    # if (
+    #         outside_boundary_condition
+    #         not in surface_list[0].getfieldidd("Outside_Boundary_Condition")["key"]
+    # ):
+    #     raise ValueError(
+    #         f"surface_type must be one of "
+    #         f"{surface_list[0].getfieldidd('Outside_Boundary_Condition')['key']}, "
+    #         f"got {outside_boundary_condition}"
+    #     )
 
     for material in new_composition:
         if "Roughness" not in material.keys():
@@ -87,11 +100,33 @@ def set_opaque_surface_construction(
 
         model.idf.newidfobject("Construction", **construction_kwargs)
 
+        # In case of layer in front of wall (e.g., double-skin), need of a "reverse" building surface
+        construction_to_reverse = [
+            obj.Construction_Name
+            for obj in surface_list
+            if name_filter in obj.Outside_Boundary_Condition_Object
+        ]
+
+        reversed_kwargs = reverse_kwargs(construction_kwargs)
+        for construction_name in construction_to_reverse:
+            construction_object = model.idf.getobject("Construction", construction_name)
+            num_layers = min(len(reversed_kwargs), len(construction_object.fieldnames) - 1)
+            for idx, (key, value) in enumerate(reversed_kwargs.items()):
+                if idx < num_layers:
+                    construction_object[construction_object.fieldnames[idx + 1]] = value
+                else:
+                    break
+            construction_object["Name"] = construction_name
+
+            for field in construction_object.fieldnames[num_layers + 1:]:
+                if field in construction_object:
+                    construction_object.pop(field)
+
     surf_to_modify = [
         obj
         for obj in surface_list
         if obj.Surface_Type == surface_type
-           and obj.Outside_Boundary_Condition == outside_boundary_condition
+           # and obj.Outside_Boundary_Condition == outside_boundary_condition
            and name_filter in obj.Name
     ]
 
@@ -280,12 +315,9 @@ def set_blinds_solar_transmittance(
             for n in range(1, 10):
                 if scen[f"Fenestration_Surface_{n}_Name"] == window_name:
                     construction_name = scen.Construction_with_Shading_Name
-                    print(construction_name)
                     for construction in all_constructions:
                         if construction.Name == construction_name:
-                            print(True)
                             construction_values = [construction[field] for field in construction.fieldnames[2:]]
-                            print(construction_values)
                             for shade in shades:
                                 if any(construction_value == shade.Name for construction_value in
                                        construction_values if construction_value):
