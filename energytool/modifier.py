@@ -138,6 +138,7 @@ def set_external_windows(
         model: Building,
         description: dict[str, dict[str, Any]],
         name_filter: str = None,
+        surface_name_filter: str = None,
         boundary_conditions: str = "Outdoors",
 ):
     """
@@ -170,8 +171,10 @@ def set_external_windows(
         idf, boundary_condition=boundary_conditions
     )
 
-    if name_filter is not None:
-        windows = [win for win in windows if name_filter in win.Name]
+    if name_filter is not None or surface_name_filter is not None:
+        windows = [win for win in windows if
+                   (name_filter is None and surface_name_filter in win.Building_Surface_Name) or
+                   (surface_name_filter is None and name_filter in win.Name)]
 
     windows_names = [win.Name for win in windows]
 
@@ -231,6 +234,7 @@ def set_afn_surface_opening_factor(
         model: Building,
         description: dict[str, dict[str, Any]],
         name_filter: str = None,
+        surface_name_filter: str = None,
 ):
     """
     Modify AirFlowNetwork:Multizone:Surface WindowDoor_Opening_Factor_or_Crack_Factor
@@ -249,8 +253,11 @@ def set_afn_surface_opening_factor(
     idf = model.idf
 
     openings = idf.idfobjects["AirflowNetwork:MultiZone:Surface"]
-    if name_filter is not None:
-        openings = [op for op in openings if name_filter in op.Surface_Name]
+
+    if name_filter is not None or surface_name_filter is not None:
+        openings = [op for op in openings if
+                    (surface_name_filter is None and name_filter in op.Surface_Name) or
+                    (name_filter is None and surface_name_filter in op.Surface_Name)]
 
     new_opening_ratio_name = list(description.keys())[0]
     new_opening_ratio = description[new_opening_ratio_name][
@@ -265,6 +272,8 @@ def set_blinds_solar_transmittance(
         model: Building,
         description: dict[str, dict[str, Any]],
         name_filter: str = None,
+        surface_name_filter: str = None,
+
 ):
     """
     Modify WindowMaterial:Shade Solar_Transmittance based on the given description.
@@ -293,17 +302,21 @@ def set_blinds_solar_transmittance(
 
     if name_filter is None:
         name_filter = ""
+    if surface_name_filter is None:
+        surface_name_filter = ""
 
-    # if name_filter:
     filtered_windows = [window for window in idf.idfobjects["FenestrationSurface:Detailed"] if
-                        name_filter in window.Name or name_filter in window.Building_Surface_Name]
+                        (surface_name_filter == "" and name_filter in window.Name)
+                        or (name_filter == "" and surface_name_filter in window.Building_Surface_Name)]
 
     construction_names_dict = {window.Name: window.Construction_Name for window in filtered_windows}
 
-    # Check if construction_name of filtered window includes a shade
+    # Check if construction_name of filtered window includes a shade or a shaded version
+
     for window_name, target_name in construction_names_dict.items():
+        print(target_name)
         for construction in all_constructions:
-            if construction.Name == target_name:
+            if construction.Name == target_name or construction.Name == target_name + "_Shaded":
                 construction_values = [construction[field] for field in construction.fieldnames[2:]]
                 for shade in shades:
                     if any(construction_value == shade.Name for construction_value in construction_values if
@@ -332,7 +345,8 @@ def set_blinds_solar_transmittance(
 def set_blinds_schedule(
         model: Building,
         description: dict[str, dict[str, Any]],
-        name_filter: str = None
+        name_filter: str = None,
+        surface_name_filter: str = None,
 ):
     """
     Create/update Schedule based on the given description.
@@ -375,9 +389,10 @@ def set_blinds_schedule(
             raise ValueError(
                 "Scenario's name not found in IDF. Use existing name or define Schedule fields in description")
 
-    if name_filter:
+    if name_filter or surface_name_filter:
         filtered_windows = [window for window in idf.idfobjects["FenestrationSurface:Detailed"] if
-                            name_filter in window.Name or name_filter in window.Building_Surface_Name]
+                            (surface_name_filter is None and name_filter in window.Name)
+                            or (name_filter is None and surface_name_filter in window.Building_Surface_Name)]
         construction_names_dict = {window.Name: window.Construction_Name for window in filtered_windows}
     else:
         construction_names_dict = {window.Name: window.Construction_Name
@@ -475,6 +490,9 @@ def set_blinds_st_and_schedule(
     """
     set_blinds_solar_transmittance(model, description, name_filter)
     set_blinds_schedule(model, description, name_filter)
+
+
+
 
 #
 # class EnvelopeShadesModifier:
