@@ -148,9 +148,10 @@ def set_external_windows(
     name and boundary conditions, and replaces them with new window descriptions.
     It also handles associated constructions and materials.
 
+    Parameters:
     :param model: An EnergyPlus building model.
     :param description: A dictionary containing the new window description(s).
-        the expected dictionary must be of the following form:
+        The expected dictionary must be of the following form:
         {
             "Variant_1": {
                 "Name": "Var_1",
@@ -160,8 +161,9 @@ def set_external_windows(
             },
         }
     :param name_filter: An optional filter to match window names.
+    :param surface_name_filter: An optional filter to match window surface names.
     :param boundary_conditions: The boundary condition for the windows
-    (default is "Outdoors").
+        (default is "Outdoors").
 
     """
     idf = model.idf
@@ -217,7 +219,9 @@ def set_external_windows(
             if construction[field] in name_to_replace:
                 construction[field] = new_window["Name"]
 
-    idf.newidfobject(key="WindowMaterial:SimpleGlazingSystem", **new_window)
+    # Add the new window material to the IDF
+    if new_window["Name"] not in [win.Name for win in idf.idfobjects["WindowMaterial:SimpleGlazingSystem"]]:
+        idf.newidfobject(key="WindowMaterial:SimpleGlazingSystem", **new_window)
 
     used_mat_list = [
         val for cons in idf.idfobjects["CONSTRUCTION"] for val in cons.fieldvalues[2:]
@@ -249,6 +253,7 @@ def set_afn_surface_opening_factor(
             },
         }
     :param name_filter: An optional filter to match window names.
+    :param surface_name_filter: An optional filter to match window surface names.
     """
     idf = model.idf
 
@@ -289,6 +294,7 @@ def set_blinds_solar_transmittance(
             ]
         }
     :param name_filter: An optional filter to match window names.
+    :param surface_name_filter: An optional filter to match window surface names.
     """
     idf = model.idf
 
@@ -314,7 +320,6 @@ def set_blinds_solar_transmittance(
     # Check if construction_name of filtered window includes a shade or a shaded version
 
     for window_name, target_name in construction_names_dict.items():
-        print(target_name)
         for construction in all_constructions:
             if construction.Name == target_name or construction.Name == target_name + "_Shaded":
                 construction_values = [construction[field] for field in construction.fieldnames[2:]]
@@ -373,6 +378,7 @@ def set_blinds_schedule(
             ]
         }
     :param name_filter: An optional filter to match window names.
+    :param surface_name_filter: An optional filter to match window surface names.
     """
     idf = model.idf
 
@@ -448,6 +454,7 @@ def set_blinds_st_and_schedule(
         model: Building,
         description: dict[str, dict[str, Any]],
         name_filter: str = None,
+        surface_name_filter: str = None,
 ):
     """
     Modify WindowMaterial:Shade Solar_Transmittance and create/update Schedule based on the given description.
@@ -487,6 +494,7 @@ def set_blinds_st_and_schedule(
             ]
         }
     :param name_filter: An optional filter to match window names.
+    :param surface_name_filter: An optional filter to match window surface names.
     """
     set_blinds_solar_transmittance(model, description, name_filter)
     set_blinds_schedule(model, description, name_filter)
@@ -517,6 +525,7 @@ def set_windows(
             },
         }
     :param name_filter: An optional filter to match window names.
+    :param surface_name_filter: An optional filter to match window surface names.
     :param boundary_conditions: The boundary condition for the windows
     (default is "Outdoors").
 
