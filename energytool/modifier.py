@@ -339,7 +339,6 @@ def set_blinds_solar_transmittance(
                            construction_value):
                         selected_shades.append(shade)
 
-
         # Also, check "WINDOWSHADINGCONTROL" construction associated to filtered windows
         for scen in scenarios:
             for n in range(1, 10):
@@ -406,10 +405,12 @@ def set_blinds_schedule(
     compact = idf.idfobjects["Schedule:Compact"]
     existing_shading_control = [entry["Name"] for entry in schedule] + [entry["Name"] for entry in compact]
 
-    for _ in scenarios:
-        if len(new_schedule) < 5 and not new_schedule["Name"] in existing_shading_control:
-            raise ValueError(
-                "Scenario's name not found in IDF. Use existing name or define Schedule fields in description")
+    name_in_existing = any(new_schedule["Name"] in entry for entry in existing_shading_control)
+
+    if not name_in_existing and "Field_1" not in new_schedule:
+        raise ValueError("Scenario's name not found in IDF. "
+                         "Use existing name or define Schedule "
+                         "fields in description")
 
     if name_filter or surface_name_filter:
         filtered_windows = [window for window in idf.idfobjects["FenestrationSurface:Detailed"] if
@@ -428,7 +429,9 @@ def set_blinds_schedule(
                 if scen[f"Fenestration_Surface_{n}_Name"] == wind_name:
                     scen["Schedule_Name"] = new_schedule["Name"]
 
-    if len(new_schedule) >= 4:
+    required_fields = ["Name", "Schedule_Type_Limits_Name"]
+
+    if any(field not in required_fields for field in new_schedule):
         # More than Name or Schedule_Type_Limits_Name is given in Description
         schedule_kwargs = {
             "Name": new_schedule["Name"],
@@ -514,7 +517,6 @@ def set_blinds_st_and_schedule(
     """
     set_blinds_solar_transmittance(model, description, name_filter, surface_name_filter)
     set_blinds_schedule(model, description, name_filter, surface_name_filter)
-
 
 # def set_windows(
 #         model: Building,
