@@ -84,8 +84,8 @@ class Building(Model):
     """
 
     def __init__(
-        self,
-        idf_path,
+            self,
+            idf_path,
     ):
         self.idf = IDF(str(idf_path))
         self._idf_path = str(idf_path)
@@ -145,10 +145,10 @@ Others: {[obj.name for obj in self.systems[SystemCategories.OTHER]]}
                     del self.systems[cat][i]
 
     def simulate(
-        self,
-        parameter_dict: dict[str, str | float | int] = None,
-        simulation_options: dict[str, str | float | int] = None,
-        idf_save_path: str | None = None
+            self,
+            parameter_dict: dict[str, str | float | int] = None,
+            simulation_options: dict[str, str | float | int] = None,
+            idf_save_path: Path | None = None
     ) -> pd.DataFrame:
         """
         Simulate the building model with specified parameters and simulation options.
@@ -168,6 +168,11 @@ Others: {[obj.name for obj in self.systems[SystemCategories.OTHER]]}
             These options can include the choice of weather file, run period,
             time step, and desired outputs.
             See SimuOpt enum for allowed simulation options
+
+        :param idf_save_path: (Optional) A Path where the modified
+        IDF (Input Data File) will be saved after applying the specified
+        parameter changes.
+        If not provided, the modified IDF will not be saved separately.
 
         :return: A pandas DataFrame containing the simulation results, which may
             include energy consumption, indoor conditions, and other relevant data
@@ -298,7 +303,7 @@ Others: {[obj.name for obj in self.systems[SystemCategories.OTHER]]}
 
             # Save IDF file after pre-process
             if idf_save_path:
-                working_idf.saveas(idf_save_path, encoding="utf-8")
+                self.save(idf_save_path)
 
             # POST-PROCESS
             return get_results(
@@ -307,3 +312,12 @@ Others: {[obj.name for obj in self.systems[SystemCategories.OTHER]]}
                 systems=working_syst,
                 outputs=simulation_options[SimuOpt.OUTPUTS.value],
             )
+
+    def save(self, file_path: Path):
+        """
+        Save the current parameters of the model to a file.
+
+        :param file_path: The file path where the parameters will be saved.
+        """
+        self.idf.saveas(file_path.as_posix(), encoding="utf-8")
+
