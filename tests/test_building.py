@@ -1,4 +1,5 @@
 from pathlib import Path
+from tempfile import TemporaryDirectory
 
 from energytool.building import Building, SimuOpt
 from energytool.outputs import OutputCategories
@@ -114,3 +115,16 @@ class TestBuilding:
             "Zone Ideal Loads Supply Air Total Heating Energy "
             "[J](Hourly) ": 3636379021.517704,
         }
+
+    def test_save(self):
+        with TemporaryDirectory() as temp_dir:
+            file_path = Path(temp_dir)
+            test_build = Building(idf_path=RESOURCES_PATH / "test.idf")
+
+            # Save the model
+            test_build.save(file_path / "test_model.idf")
+
+            # Check if the saved file exists with the correct name
+            saved_file_path = file_path / "test_model.idf"
+            assert saved_file_path.exists()
+
