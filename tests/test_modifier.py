@@ -20,7 +20,8 @@ from energytool.modifier import (
     set_afn_surface_opening_factor,
     set_blinds_solar_transmittance,
     set_blinds_schedule,
-    set_blinds_st_and_schedule
+    set_blinds_st_and_schedule,
+    reverse_kwargs
 )
 
 RESOURCES_PATH = Path(__file__).parent / "resources"
@@ -433,8 +434,9 @@ class TestModifier:
 
         # Check that original shading control has now Fractional1 as ScheduleTypeLimits
         schedule_compact_list = loc_toy.idf.idfobjects["Schedule:Compact"]
-        shading_control = next((schedule for schedule in schedule_compact_list if schedule["Name"] == 'Shading_control'),
-                               None)
+        shading_control = next(
+            (schedule for schedule in schedule_compact_list if schedule["Name"] == 'Shading_control'),
+            None)
         assert shading_control["Schedule_Type_Limits_Name"] == 'Fractional1'
 
     def test_opaque_surface_modifier(self, toy_building):
@@ -620,11 +622,11 @@ class TestModifier:
         assert get_named_objects_field_values(
             loc_toy.idf, "Construction", "Layer_2"
         ) == [
-            "Var_2",
-            "",
-            "",
-            "",
-        ]
+                   "Var_2",
+                   "",
+                   "",
+                   "",
+               ]
 
         set_external_windows(loc_toy2, var_0, name_filter="_0")
         # test = loc_toy.idf.idfobjects["FenestrationSurface:Detailed"]
@@ -641,7 +643,6 @@ class TestModifier:
             loc_toy2.idf, "Construction", "Outside_Layer"
         ) == ['Blinds', 'Ext_win_1', 'Var_1', 'Int_win']
 
-
     def test_set_afn_surface_opening_factor(self, toy_building):
         set_afn_surface_opening_factor(
             model=toy_building,
@@ -655,6 +656,52 @@ class TestModifier:
         assert [
                    val.WindowDoor_Opening_Factor_or_Crack_Factor for val in afn_openings
                ] == [1.0, 0.46]
+
+    def test_reverse_kwargs(self):
+        construction_kwargs = {
+            "Name": "test_construction",
+            "Outside_Layer": "Layer_1",
+            "Layer_2": "Layer_2",
+            "Layer_3": "Layer_3",
+        }
+
+        reversed_kwargs = reverse_kwargs(construction_kwargs)
+
+        # same number of layers
+        assert reversed_kwargs == {
+            "Name": "test_construction",
+            "Outside_Layer": "Layer_3",
+            "Layer_2": "Layer_2",
+            "Layer_3": "Layer_1",
+        }
+
+        construction_kwargs = {
+            "Name": "test_construction",
+            "Outside_Layer": "Layer_1",
+            "Layer_2": "Layer_2",
+        }
+
+        reversed_kwargs = reverse_kwargs(construction_kwargs)
+
+        # higher number of layers
+        assert reversed_kwargs == {
+            "Name": "test_construction",
+            "Outside_Layer": "Layer_2",
+            "Layer_2": "Layer_1",
+        }
+
+        construction_kwargs = {
+            "Name": "test_construction",
+            "Outside_Layer": "Layer_1",
+        }
+
+        reversed_kwargs = reverse_kwargs(construction_kwargs)
+
+        # lower number of layers
+        assert reversed_kwargs == {
+            "Name": "test_construction",
+            "Outside_Layer": "Layer_1",
+        }
 
     # def test_envelope_shades_modifier(self, toy_building):
     #     loc_toy = deepcopy(toy_building)
