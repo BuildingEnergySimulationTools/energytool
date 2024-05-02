@@ -4,7 +4,7 @@ from abc import ABC, abstractmethod
 import eppy.modeleditor
 import numpy as np
 import pandas as pd
-from corrai.utils import as_1_column_dataframe
+from corrai.base.utils import as_1_column_dataframe
 from eppy.modeleditor import IDF
 
 import energytool.base.parse_results
