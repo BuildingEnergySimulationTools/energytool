@@ -92,43 +92,17 @@ def set_opaque_surface_construction(
         if material["Name"] not in get_objects_name_list(model.idf, "Material"):
             model.idf.newidfobject("Material", **material)
 
+    construction_kwargs = {
+        "Name": new_construction_name,
+        "Outside_Layer": new_composition[0]["Name"],
+    }
+
+    if len(new_composition) > 1:
+        for idx, mat in enumerate(new_composition[1:]):
+            construction_kwargs[f"Layer_{idx + 2}"] = mat["Name"]
+
     if new_construction_name not in get_objects_name_list(model.idf, "Construction"):
-        construction_kwargs = {
-            "Name": new_construction_name,
-            "Outside_Layer": new_composition[0]["Name"],
-        }
-
-        if len(new_composition) > 1:
-            for idx, mat in enumerate(new_composition[1:]):
-                construction_kwargs[f"Layer_{idx + 2}"] = mat["Name"]
-
         model.idf.newidfobject("Construction", **construction_kwargs)
-
-        # In case of layer in front of wall (e.g., double-skin), need of a "reverse" building surface
-        construction_to_reverse = [
-            obj.Construction_Name
-            for obj in surface_list
-            if name_filter in obj.Outside_Boundary_Condition_Object
-               and (getattr(obj.Outside_Boundary_Condition_Object, 'Outside_Boundary_Condition',
-                            None) == outside_boundary_condition
-                    if outside_boundary_condition is not None else True)
-
-        ]
-
-        reversed_kwargs = reverse_kwargs(construction_kwargs)
-        for construction_name in construction_to_reverse:
-            construction_object = model.idf.getobject("Construction", construction_name)
-            num_layers = min(len(reversed_kwargs), len(construction_object.fieldnames) - 1)
-            for idx, (key, value) in enumerate(reversed_kwargs.items()):
-                if idx < num_layers:
-                    construction_object[construction_object.fieldnames[idx + 1]] = value
-                else:
-                    break
-            construction_object["Name"] = construction_name
-
-            for field in construction_object.fieldnames[num_layers + 1:]:
-                if field in construction_object:
-                    construction_object.pop(field)
 
     surf_to_modify = [
         obj
@@ -141,6 +115,31 @@ def set_opaque_surface_construction(
 
     for surf in surf_to_modify:
         surf.Construction_Name = new_construction_name
+
+    construction_to_reverse = [
+        obj.Construction_Name
+        for obj in surface_list
+        if name_filter in obj.Outside_Boundary_Condition_Object
+           and (getattr(obj.Outside_Boundary_Condition_Object, 'Outside_Boundary_Condition',
+                        None) == outside_boundary_condition
+                if outside_boundary_condition is not None else True)
+           and obj.Surface_Type == surface_type
+    ]
+
+    reversed_kwargs = reverse_kwargs(construction_kwargs)
+    for construction_name in construction_to_reverse:
+        construction_object = model.idf.getobject("Construction", construction_name)
+        num_layers = min(len(reversed_kwargs), len(construction_object.fieldnames) - 1)
+        for idx, (key, value) in enumerate(reversed_kwargs.items()):
+            if idx < num_layers:
+                construction_object[construction_object.fieldnames[idx + 1]] = value
+            else:
+                break
+        construction_object["Name"] = construction_name
+
+        for field in construction_object.fieldnames[num_layers + 1:]:
+            if field in construction_object:
+                construction_object.pop(field)
 
 
 def set_external_windows(
