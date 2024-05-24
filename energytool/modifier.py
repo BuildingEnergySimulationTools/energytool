@@ -30,33 +30,38 @@ def set_opaque_surface_construction(
         outside_boundary_condition: str = None,
 ):
     """
-    This function modifies the construction of opaque building surfaces in an EnergyPlus
-    IDF file.
-    It is supposed to be used as a modifier for the corrai variant framework
+       This function modifies the construction of opaque building surfaces in an EnergyPlus IDF file.
+       It is intended for use as a modifier for the corrai variant framework.
 
-    :param model: energytool Building object.
-    :param description: A dictionary describing the construction materials and
-        properties. The argument must be of the form :
-        {
-            "construction_name": [
-                {
-                    "Name": "material_1_name",
-                    "Thickness": 0.01,
-                    ...
-                },
-                {
-                    "Name": "material_2_name",
-                    "Thickness": 0.5,
-                    ...
-                }
-            ]
-        }
-    :param name_filter: An optional filter for surface names.
-    :param surface_type: The type of surface to modify
-        (default is 'Wall').
-    :param outside_boundary_condition: The outside boundary condition
-        (default is None).
-    """
+       :param model: energytool Building object.
+       :param description: A dictionary describing the construction
+       materials and properties. The argument must be of the form:
+           {
+               "construction_name": [
+                   {
+                       "Name": "material_1_name",
+                       "Thickness": 0.01,
+                       ...
+                   },
+                   {
+                       "Name": "material_2_name",
+                       "Thickness": 0.5,
+                       ...
+                   }
+               ]
+           }
+       :param name_filter: An optional filter for surface names.
+       :param surface_type: The type of surface to modify (default is 'Wall').
+       :param outside_boundary_condition: The outside boundary condition (default is None).
+
+       This function first identifies the surfaces to modify based on the provided parameters.
+       It then modifies the construction of these surfaces according
+       to the provided construction description.
+
+       If a new construction is created during this process, its properties are stored in kwargs.
+       These kwargs are then reversed to ensure consistency for any surfaces
+       that require the inversion of their construction.
+       """
     if name_filter is None:
         name_filter = ""
 
