@@ -386,6 +386,100 @@ def add_hourly_schedules_from_df(
         )
 
 
+def create_schedule_day_hourly(column):
+    unique_days = {}
+    schedule_objects = []
+    day_count = 1
+
+    for date, group in column.groupby(column.index.date):
+        day_values = group.tolist()
+        day_key = tuple(day_values)
+
+        if day_key not in unique_days:
+            day_name = f"Day_{day_count}"
+            unique_days[day_key] = day_name
+            day_count += 1
+
+            schedule_day_hourly = f"""
+Schedule:Day:Hourly,
+    {day_name},                !- Name
+    Fraction,                !- Schedule Type Limits Name
+"""
+            for hour, value in enumerate(day_values, start=1):
+                ending = ";" if hour == 24 else ","
+                schedule_day_hourly += f"    {value}{ending}          !- Hour {hour}\n"
+
+            schedule_objects.append(schedule_day_hourly)
+
+    return schedule_objects, unique_days
+
+
+def create_schedule_week_daily(column, unique_days):
+    unique_weeks = {}
+    week_objects = []
+    week_count = 1
+
+    column_dates = column.index.date
+    for week_start in pd.date_range(start=column.index.min(), end=column.index.max(), freq='W-SUN'):
+        week_end = week_start + pd.Timedelta(days=6)
+        week_range = pd.date_range(start=week_start, end=week_end, freq='D')
+
+        week_key = []
+        last_valid_day_key = None
+
+        for day in week_range:
+            if day.date() in column_dates:
+                day_values = column.loc[column.index.date == day.date()].tolist()
+                day_key = tuple(day_values)
+                last_valid_day_key = day_key
+            else:
+                day_key = last_valid_day_key
+
+            week_key.append(day_key)
+
+        week_key = tuple(week_key)
+
+        if week_key not in unique_weeks:
+            week_name = f"Week_{week_count}"
+            unique_weeks[week_key] = week_name
+            week_count += 1
+
+            schedule_week_daily = f"""
+Schedule:Week:Daily,
+    {week_name},                !- Name
+"""
+            days_of_week = ["Sunday Schedule:Day Name",
+                            "Monday Schedule:Day Name",
+                            "Tuesday Schedule:Day Name",
+                            "Wednesday Schedule:Day Name",
+                            "Thursday Schedule:Day Name",
+                            "Friday Schedule:Day Name",
+                            "Saturday Schedule:Day Name"]
+            for i, day_key in enumerate(week_key):
+                if day_key:
+                    day_name = unique_days[day_key]
+                else:
+                    day_name = "Day_Empty"  # Placeholder for empty days if needed
+                schedule_week_daily += f"    {day_name},          !- {days_of_week[i]} Schedule:Day Name\n"
+
+            # Add entries for additional days
+            additional_days = ["Holiday Schedule:Day Name",
+                               "SummerDesignDay Schedule:Day Name",
+                               "WinterDesignDay Schedule:Day Name",
+                               "CustomDay1 Schedule:Day Name",
+                               "CustomDay2 Schedule:Day Name"]
+            for day in additional_days:
+                schedule_week_daily += f"    {day_name},          !- {day}\n"
+
+            # Correct the last entry's semicolon
+            schedule_week_daily = schedule_week_daily.rstrip(",\n") + ";\n"
+
+            week_objects.append(schedule_week_daily)
+
+    return week_objects, unique_weeks
+
+
+
 def add_natural_ventilation(
     idf: IDF,
     ach: float,
