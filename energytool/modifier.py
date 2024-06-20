@@ -283,6 +283,26 @@ def set_afn_surface_opening_factor(
     for opening in openings:
         opening["WindowDoor_Opening_Factor_or_Crack_Factor"] = new_opening_ratio
 
+    actuators = idf.idfobjects["EnergyManagementSystem:Actuator"]
+    programs = idf.idfobjects["EnergyManagementSystem:Program"]
+
+    for actuator in actuators:
+        for opening in openings:
+            if opening["Surface_Name"] == actuator["Actuated_Component_Unique_Name"]:
+                actuator_name = actuator["Name"]
+                for program in programs:
+                    for field_name, field_value in zip(program.fieldnames, program.fieldvalues):
+                        if f"SET {actuator_name} " in field_value:
+                            value_str = field_value.split(f"SET {actuator_name} ")[
+                                1].strip()
+                            if value_str.startswith('='):
+                                value_str = value_str[1:].strip()
+                                current_value = float(value_str)
+                                if current_value > 0:
+                                    new_program_line = f"SET {actuator_name} {new_opening_ratio}"
+                                    index = program.fieldvalues.index(field_value)
+                                    program.fieldvalues[index] = new_program_line
+
 
 def set_blinds_solar_transmittance(
         model: Building,
@@ -517,6 +537,7 @@ def set_blinds_st_and_schedule(
     """
     set_blinds_solar_transmittance(model, description, name_filter, surface_name_filter)
     set_blinds_schedule(model, description, name_filter, surface_name_filter)
+
 
 # def set_windows(
 #         model: Building,
