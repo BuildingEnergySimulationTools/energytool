@@ -366,6 +366,32 @@ def set_blinds_solar_transmittance(
             shade["Solar_Reflectance"] = new_reflectance
 
 
+def set_schedule_constant(
+        model: Building,
+        description: dict[str, dict[str, Any]],
+):
+    idf = model.idf
+
+    schedule_constant = idf.idfobjects["SCHEDULE:CONSTANT"]
+    new_schedule = list(description.keys())[0]
+    schedule_exists = False
+
+    for sched in schedule_constant:
+        if sched["Name"] == description[new_schedule]["Name"]:
+            sched["Hourly_Value"] = description[new_schedule]["Value"]
+            schedule_exists = True
+            break  # Exit loop once found and modified
+
+    if not schedule_exists:
+        limits_kwargs = {
+            "Name": description[new_schedule]["Name"],
+            "Schedule_Type_Limits_Name": description[new_schedule]["Type"],
+            "Hourly_Value": description[new_schedule]["Value"],
+        }
+        model.idf.newidfobject("SCHEDULE:CONSTANT", **limits_kwargs)
+
+
+
 def set_blinds_schedule(
         model: Building,
         description: dict[str, dict[str, Any]],
