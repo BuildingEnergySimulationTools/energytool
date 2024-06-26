@@ -303,7 +303,7 @@ def set_afn_surface_opening_factor(
                                 value_str = value_str[1:].strip()
                                 current_value = float(value_str)
                                 if current_value > 0:
-                                    new_program_line = f"SET {actuator_name} {new_opening_ratio}"
+                                    new_program_line = f"SET {actuator_name} = {new_opening_ratio}"
                                     index = program.fieldvalues.index(field_value)
                                     program.fieldvalues[index] = new_program_line
 
