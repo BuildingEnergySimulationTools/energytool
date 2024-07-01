@@ -21,6 +21,7 @@ from energytool.modifier import (
     set_blinds_solar_transmittance,
     set_blinds_schedule,
     set_schedule_constant,
+    update_idf_objects,
     reverse_kwargs
 )
 
@@ -258,6 +259,30 @@ def toy_building(tmp_path_factory):
 
 
 class TestModifier:
+
+    def test_update_idf_objects(self, toy_building):
+        loc_toy = deepcopy(toy_building)
+
+        description_update = {
+            "ScheduleUpdate": {
+                "Field_4": 0.5,
+            }
+        }
+
+        update_idf_objects(
+            model=loc_toy,
+            description=description_update,
+            idfobject_type="SCHEDULE:COMPACT",
+            name_filter="winter"
+        )
+
+        schedule_info = loc_toy.idf.idfobjects["SCHEDULE:COMPACT"]
+
+        assert any(
+            sched.Name == "Shading_control_winter_&_summer" and sched.Field_4 == 0.5
+            for sched in schedule_info
+        )
+
 
     def test_set_schedule_constant(self, toy_building):
         loc_toy = deepcopy(toy_building)
