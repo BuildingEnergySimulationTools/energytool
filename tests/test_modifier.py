@@ -20,7 +20,7 @@ from energytool.modifier import (
     set_afn_surface_opening_factor,
     set_blinds_solar_transmittance,
     set_blinds_schedule,
-    set_blinds_st_and_schedule,
+    set_schedule_constant,
     reverse_kwargs
 )
 
@@ -258,6 +258,57 @@ def toy_building(tmp_path_factory):
 
 
 class TestModifier:
+
+    def test_set_schedule_constant(self, toy_building):
+        loc_toy = deepcopy(toy_building)
+
+        description_schedules_compact = {
+            "Schedule1": {
+                "Name": "Transparent_surface",
+                "Schedule_Type_Limits_Name": "Fractional",
+                "Hourly_Value": 1,
+            },
+            "Schedule2": {
+                "Name": "Opaque_surface",
+                "Schedule_Type_Limits_Name": "Fractional",
+                "Hourly_Value": 0,
+            },
+        }
+
+        set_schedule_constant(
+            model=loc_toy,
+            description=description_schedules_compact,
+        )
+
+        schedule_info = loc_toy.idf.idfobjects["SCHEDULE:CONSTANT"]
+
+        assert any(
+            sched.Name == "Transparent_surface" and sched.Hourly_Value == 1
+            for sched in schedule_info
+        )
+
+        assert any(
+            sched.Name == "Opaque_surface" and sched.Hourly_Value == 0
+            for sched in schedule_info
+        )
+
+        description_update = {
+            "Schedule1": {
+                "Name": "Transparent_surface",
+                "Schedule_Type_Limits_Name": "Fractional",
+                "Hourly_Value": 0.5,
+            }
+        }
+
+        set_schedule_constant(
+            model=loc_toy,
+            description=description_update,
+        )
+
+        assert any(
+            sched.Name == "Transparent_surface" and sched.Hourly_Value == 0.5
+            for sched in schedule_info
+        )
 
     def test_set_blinds_solar_transmittance(self, toy_building):
         loc_toy = deepcopy(toy_building)

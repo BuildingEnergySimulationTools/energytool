@@ -373,23 +373,23 @@ def set_schedule_constant(
     idf = model.idf
 
     schedule_constant = idf.idfobjects["SCHEDULE:CONSTANT"]
-    new_schedule = list(description.keys())[0]
-    schedule_exists = False
 
-    for sched in schedule_constant:
-        if sched["Name"] == description[new_schedule]["Name"]:
-            sched["Hourly_Value"] = description[new_schedule]["Value"]
-            schedule_exists = True
-            break  # Exit loop once found and modified
+    for schedule_name, schedule_fields in description.items():
+        schedule_exists = False
 
-    if not schedule_exists:
-        limits_kwargs = {
-            "Name": description[new_schedule]["Name"],
-            "Schedule_Type_Limits_Name": description[new_schedule]["Type"],
-            "Hourly_Value": description[new_schedule]["Value"],
-        }
-        model.idf.newidfobject("SCHEDULE:CONSTANT", **limits_kwargs)
+        for sched in schedule_constant:
+            if sched["Name"] == schedule_fields["Name"]:
+                sched["Hourly_Value"] = schedule_fields["Hourly_Value"]
+                schedule_exists = True
+                break  # Exit loop once found and modified
 
+        if not schedule_exists:
+            new_schedule = {
+                "Name": schedule_fields["Name"],
+                "Schedule_Type_Limits_Name": schedule_fields["Schedule_Type_Limits_Name"],
+                "Hourly_Value": schedule_fields["Hourly_Value"],
+            }
+            model.idf.newidfobject("SCHEDULE:CONSTANT", **new_schedule)
 
 def set_blinds_schedule(
         model: Building,
