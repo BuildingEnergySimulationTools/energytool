@@ -2,7 +2,7 @@
 # Energytool
 
 <p align="center">
-  <img src="https://raw.githubusercontent.com/BuildingEnergySimulationTools/energytool/main/logo_energytool.svg" alt="CorrAI" width="200"/>
+  <img src="https://raw.githubusercontent.com/BuildingEnergySimulationTools/energytool/main/logo_energytool.svg" alt="Energytool" width="200"/>
 </p>
 
 
