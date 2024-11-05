@@ -417,6 +417,34 @@ def set_blinds_solar_transmittance(
             shade["Solar_Reflectance"] = new_reflectance
 
 
+def set_schedule_constant(
+    model: Building,
+    description: dict[str, dict[str, Any]],
+):
+    idf = model.idf
+
+    schedule_constant = idf.idfobjects["SCHEDULE:CONSTANT"]
+
+    for schedule_name, schedule_fields in description.items():
+        schedule_exists = False
+
+        for sched in schedule_constant:
+            if sched["Name"] == schedule_fields["Name"]:
+                sched["Hourly_Value"] = schedule_fields["Hourly_Value"]
+                schedule_exists = True
+                break  # Exit loop once found and modified
+
+        if not schedule_exists:
+            new_schedule = {
+                "Name": schedule_fields["Name"],
+                "Schedule_Type_Limits_Name": schedule_fields[
+                    "Schedule_Type_Limits_Name"
+                ],
+                "Hourly_Value": schedule_fields["Hourly_Value"],
+            }
+            model.idf.newidfobject("SCHEDULE:CONSTANT", **new_schedule)
+
+
 def set_blinds_schedule(
     model: Building,
     description: dict[str, dict[str, Any]],
@@ -507,9 +535,11 @@ def set_blinds_schedule(
         # More than Name or Schedule_Type_Limits_Name is given in Description
         schedule_kwargs = {
             "Name": new_schedule["Name"],
-            "Schedule_Type_Limits_Name": new_schedule["Schedule_Type_Limits_Name"]
-            if "Schedule_Type_Limits_Name" in new_schedule
-            else "Fractional",
+            "Schedule_Type_Limits_Name": (
+                new_schedule["Schedule_Type_Limits_Name"]
+                if "Schedule_Type_Limits_Name" in new_schedule
+                else "Fractional"
+            ),
         }
 
         for idx, info in enumerate(new_schedule.values()):
@@ -551,6 +581,58 @@ def set_blinds_schedule(
                 "Numeric_Type": limits["Numeric_Type"],
             }
             model.idf.newidfobject("ScheduleTypeLimits", **limits_kwargs)
+
+
+def update_idf_objects(
+    model: Building,
+    description: dict[str, dict[str, Any]],
+    idfobject_type: str,
+    name_filter: str = None,
+):
+    """
+    Updates or creates objects in an IDF based on the provided description.
+
+    This function updates the fields of existing objects in an IDF or creates new objects
+    if no matching objects are found. A partial name filter can be used to update only
+    the objects whose names contain the specified filter.
+
+    Parameters:
+    model (Building): The building model containing the IDF.
+    description (dict[str, dict[str, Any]]): A dictionary describing the objects to be updated or created.
+        Example:
+            description = {
+                "Schedule1": {
+                    "Name": "Schedule_test1",
+                    "Schedule_Type_Limits_Name": "Fractional",
+                    "Hourly_Value": 0.77,
+                },
+            }
+    idfobject_type (str): The type of IDF object to be updated or created.
+    name_filter (str, optional): A partial name filter to match objects for updating. Defaults to None.
+
+    """
+    idf = model.idf
+    idf_objects = idf.idfobjects[idfobject_type]
+
+    for obj_name, obj_fields in description.items():
+        obj_name_filter = obj_fields.get("Name")
+        obj_exists = False
+
+        for obj in idf_objects:
+            if name_filter is not None and name_filter in obj["Name"]:
+                for field, value in obj_fields.items():
+                    if field != "Name":
+                        obj[field] = value
+                obj_exists = True
+            elif name_filter is None and obj["Name"] == obj_name_filter:
+                for field, value in obj_fields.items():
+                    if field != "Name":
+                        obj[field] = value
+                obj_exists = True
+
+        if not obj_exists and name_filter is None:
+            new_obj_kwargs = {field: value for field, value in obj_fields.items()}
+            model.idf.newidfobject(idfobject_type, **new_obj_kwargs)
 
 
 def set_blinds_st_and_schedule(

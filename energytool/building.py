@@ -248,9 +248,10 @@ Others: {[obj.name for obj in self.systems[SystemCategories.OTHER]]}
                 "'epw_path' have been used in both parameter_dict and "
                 "simulation_options"
             )
-
+        ref_year = None
         if SimuOpt.START.value in simulation_options.keys():
             start = pd.to_datetime(simulation_options[SimuOpt.START.value])
+            ref_year = start.year
             try:
                 end = pd.to_datetime(simulation_options[SimuOpt.STOP.value])
             except KeyError:
@@ -299,7 +300,9 @@ Others: {[obj.name for obj in self.systems[SystemCategories.OTHER]]}
                 ep_version=f"{idd_ref[0]}-{idd_ref[1]}-{idd_ref[2]}",
             )
 
-            eplus_res = read_eplus_res(Path(temp_dir) / "eplusout.csv")
+            eplus_res = read_eplus_res(
+                Path(temp_dir) / "eplusout.csv", ref_year=ref_year
+            )
 
             # Save IDF file after pre-process
             if idf_save_path:

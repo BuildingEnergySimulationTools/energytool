@@ -357,8 +357,16 @@ def add_hourly_schedules_from_df(
 
     full_path = os.path.realpath(os.path.join(directory, file_name))
 
+    if len(data) != 8760 and len(data) != 8784:
+        print(
+            "Warning: the length of your data must either be 8760 or 8784. 8760 by Default"
+        )
+        number_hour = 8760
+    else:
+        number_hour = len(data)
+
     # In case we have data spanning over several years. Reorganise
-    data.index = [idx.replace(year=2009) for idx in data.index]
+    # data.index = [idx.replace(year=2009) for idx in data.index]
     data.sort_index(inplace=True)
     data.to_csv(full_path, index=False, sep=",")
 
@@ -372,7 +380,7 @@ def add_hourly_schedules_from_df(
             File_Name=full_path,
             Column_Number=idx + 1,
             Rows_to_Skip_at_Top=1,
-            Number_of_Hours_of_Data=8760,
+            Number_of_Hours_of_Data=number_hour,
             Column_Separator="Comma",
             Interpolate_to_Timestep="No",
         )
