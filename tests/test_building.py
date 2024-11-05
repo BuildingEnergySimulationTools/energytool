@@ -18,9 +18,7 @@ class TestBuilding:
         param_dict = {
             "idf.material.Urea Formaldehyde Foam_.1327.Conductivity": 0.05,
             "system.heating.Heater.cop": 0.5,
-            "epw_file": (
-                    RESOURCES_PATH / "B4R_weather_Paris_2020.epw"
-            ).as_posix(),
+            "epw_file": (RESOURCES_PATH / "B4R_weather_Paris_2020.epw").as_posix(),
         }
         simulation_options = {
             SimuOpt.OUTPUTS.value: f"{OutputCategories.SYSTEM.value}|{OutputCategories.RAW.value}"
@@ -72,9 +70,7 @@ class TestBuilding:
         }
 
         simulation_options = {
-            "epw_file": (
-                RESOURCES_PATH / "B4R_weather_Paris_2020.epw"
-            ).as_posix(),
+            "epw_file": (RESOURCES_PATH / "B4R_weather_Paris_2020.epw").as_posix(),
             SimuOpt.START.value: "2009-01-01",
             SimuOpt.STOP.value: "2009-02-01",
             SimuOpt.TIMESTEP.value: 15 * 60,
@@ -127,4 +123,3 @@ class TestBuilding:
             # Check if the saved file exists with the correct name
             saved_file_path = file_path / "test_model.idf"
             assert saved_file_path.exists()
-

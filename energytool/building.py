@@ -84,8 +84,8 @@ class Building(Model):
     """
 
     def __init__(
-            self,
-            idf_path,
+        self,
+        idf_path,
     ):
         self.idf = IDF(str(idf_path))
         self._idf_path = str(idf_path)
@@ -145,10 +145,10 @@ Others: {[obj.name for obj in self.systems[SystemCategories.OTHER]]}
                     del self.systems[cat][i]
 
     def simulate(
-            self,
-            parameter_dict: dict[str, str | float | int] = None,
-            simulation_options: dict[str, str | float | int] = None,
-            idf_save_path: Path | None = None
+        self,
+        parameter_dict: dict[str, str | float | int] = None,
+        simulation_options: dict[str, str | float | int] = None,
+        idf_save_path: Path | None = None,
     ) -> pd.DataFrame:
         """
         Simulate the building model with specified parameters and simulation options.
@@ -321,4 +321,3 @@ Others: {[obj.name for obj in self.systems[SystemCategories.OTHER]]}
         :param file_path: The file path where the parameters will be saved.
         """
         self.idf.saveas(file_path.as_posix(), encoding="utf-8")
-

@@ -153,7 +153,6 @@ def toy_building(tmp_path_factory):
     #     Fenestration_Surface_1_Name="Window_1",
     # )
 
-
     toy_idf.newidfobject(
         key="WINDOWSHADINGCONTROL",
         Name="zone_0_Shading_control",
@@ -182,7 +181,7 @@ def toy_building(tmp_path_factory):
         Infrared_Hemispherical_Emissivity=0.8,
         Infrared_Transmittance=0.1,
         Thickness=0.01,
-        Conductivity=0.5
+        Conductivity=0.5,
     )
 
     toy_idf.newidfobject(
@@ -199,7 +198,7 @@ def toy_building(tmp_path_factory):
     toy_idf.newidfobject(
         key="Schedule:Compact",
         Name="Shading_control_bis",
-        Schedule_Type_Limits_Name='Fractional',
+        Schedule_Type_Limits_Name="Fractional",
         Field_1="Through: 01 April",
         Field_2="For: AllDays",
         Field_3="Until: 24:00",
@@ -207,13 +206,13 @@ def toy_building(tmp_path_factory):
         Field_5="Through:September",
         Field_6="For: AllOtherDays",
         Field_7="Until: 24:00",
-        Field_8=0.0
+        Field_8=0.0,
     )
 
     toy_idf.newidfobject(
         key="Schedule:Compact",
         Name="Shading_control_winter_&_summer",
-        Schedule_Type_Limits_Name='Fractional',
+        Schedule_Type_Limits_Name="Fractional",
         Field_1="Through: 01 April",
         Field_2="For: AllDays",
         Field_3="Until: 24:00",
@@ -221,7 +220,7 @@ def toy_building(tmp_path_factory):
         Field_5="Through:September",
         Field_6="For: AllOtherDays",
         Field_7="Until: 24:00",
-        Field_8=1.0
+        Field_8=1.0,
     )
 
     toy_idf.newidfobject(
@@ -229,7 +228,7 @@ def toy_building(tmp_path_factory):
         Name="Fractional",
         Lower_Limit_Value=0,
         Upper_Limit_Value=1,
-        Numeric_Type="Continuous"
+        Numeric_Type="Continuous",
     )
 
     toy_idf.newidfobject(
@@ -355,7 +354,7 @@ class TestModifier:
         shade_info = loc_toy.idf.idfobjects["WindowMaterial:Shade"]
 
         assert shade_info[1].fieldvalues[0:10] == [
-            'WINDOWMATERIAL:SHADE',
+            "WINDOWMATERIAL:SHADE",
             "Blinds",
             0.66,
             0.2,
@@ -364,47 +363,32 @@ class TestModifier:
             0.8,
             0.1,
             0.01,
-            0.5
+            0.5,
         ]
 
         variant_base2 = {
-            "Variant_1": [
-                {
-                    "Solar_Transmittance": 0.66,
-                    "Solar_Reflectance": 0.12
-                }
-            ]
+            "Variant_1": [{"Solar_Transmittance": 0.66, "Solar_Reflectance": 0.12}]
         }
 
         set_blinds_solar_transmittance(
-            model=loc_toy,
-            description=variant_base2,
-            name_filter="1"
+            model=loc_toy, description=variant_base2, name_filter="1"
         )
 
         assert shade_info[1].fieldvalues[0:4] == [
-            'WINDOWMATERIAL:SHADE',
+            "WINDOWMATERIAL:SHADE",
             "Blinds",
             0.66,
             0.12,
         ]
 
-        variant_base3 = {
-            "Variant_1": [
-                {
-                    "Solar_Reflectance": 0.11
-                }
-            ]
-        }
+        variant_base3 = {"Variant_1": [{"Solar_Reflectance": 0.11}]}
 
         set_blinds_solar_transmittance(
-            model=loc_toy,
-            description=variant_base3,
-            name_filter="1"
+            model=loc_toy, description=variant_base3, name_filter="1"
         )
 
         assert shade_info[1].fieldvalues[0:4] == [
-            'WINDOWMATERIAL:SHADE',
+            "WINDOWMATERIAL:SHADE",
             "Blinds",
             0.66,
             0.11,
@@ -417,30 +401,27 @@ class TestModifier:
             "Variant_1": [
                 {
                     "Scenario": {
-                        "Name": 'Shading_control_bis',
+                        "Name": "Shading_control_bis",
                     },
-
                 }
             ]
         }
 
         name_filter = "_2"
         set_blinds_schedule(
-            model=loc_toy,
-            description=variant_1,
-            name_filter=name_filter
+            model=loc_toy, description=variant_1, name_filter=name_filter
         )
 
         schedules = loc_toy.idf.idfobjects["WindowShadingControl"]
         for schedule in schedules:
             if name_filter in schedule.Fenestration_Surface_1_Name:
-                assert schedule.Schedule_Name == 'Shading_control_bis'
+                assert schedule.Schedule_Name == "Shading_control_bis"
 
         variant_2 = {
             "Variant_1": [
                 {
                     "Scenario": {
-                        "Name": 'Shading_control',
+                        "Name": "Shading_control",
                         "Field1": "Through: 01 April",
                         "Field2": "For: AllDays",
                         "Field3": "Until: 24:00",
@@ -456,27 +437,30 @@ class TestModifier:
 
         loc_toy = deepcopy(toy_building)
 
-        set_blinds_schedule(
-            model=loc_toy,
-            description=variant_2,
-            name_filter="1"
-        )
+        set_blinds_schedule(model=loc_toy, description=variant_2, name_filter="1")
 
         # Check that the field values are changed
         schedule_list = loc_toy.idf.idfobjects["Schedule:Compact"]
-        n = next((index for index, schedule in enumerate(schedule_list) if schedule["Name"] == 'Shading_control'), None)
+        n = next(
+            (
+                index
+                for index, schedule in enumerate(schedule_list)
+                if schedule["Name"] == "Shading_control"
+            ),
+            None,
+        )
         assert schedule_list[n]["Field_8"] == 1.0
         assert schedule_list[n]["Field_4"] == 0.0
 
         # Check that Fractional is used by Default
-        assert schedule_list[n]["Schedule_Type_Limits_Name"] == 'Fractional'
+        assert schedule_list[n]["Schedule_Type_Limits_Name"] == "Fractional"
 
         variant_3 = {
             "Variant_1": [
                 {
                     "Scenario": {
-                        "Name": 'Shading_control',
-                        "Schedule_Type_Limits_Name": 'Fractional1',
+                        "Name": "Shading_control",
+                        "Schedule_Type_Limits_Name": "Fractional1",
                         "Field1": "Through: 01 April",
                         "Field2": "For: AllDays",
                         "Field3": "Until: 24:00",
@@ -487,33 +471,34 @@ class TestModifier:
                         "Field8": 1.0,
                     },
                     "Limits": {
-                        "Name": 'Fractional1',
+                        "Name": "Fractional1",
                         "Lower_Limit_Value": 0,
                         "Upper_Limit_Value": 1,
-                        "Numeric_Type": "Continuous"
-                    }
+                        "Numeric_Type": "Continuous",
+                    },
                 }
             ]
         }
 
         loc_toy = deepcopy(toy_building)
 
-        set_blinds_schedule(
-            model=loc_toy,
-            description=variant_3,
-            name_filter="1"
-        )
+        set_blinds_schedule(model=loc_toy, description=variant_3, name_filter="1")
 
         limit_list = loc_toy.idf.idfobjects["ScheduleTypeLimits"]
         # Check that Fractional1 exists
-        assert any(limit["Name"] == 'Fractional1' for limit in limit_list)
+        assert any(limit["Name"] == "Fractional1" for limit in limit_list)
 
         # Check that original shading control has now Fractional1 as ScheduleTypeLimits
         schedule_compact_list = loc_toy.idf.idfobjects["Schedule:Compact"]
         shading_control = next(
-            (schedule for schedule in schedule_compact_list if schedule["Name"] == 'Shading_control'),
-            None)
-        assert shading_control["Schedule_Type_Limits_Name"] == 'Fractional1'
+            (
+                schedule
+                for schedule in schedule_compact_list
+                if schedule["Name"] == "Shading_control"
+            ),
+            None,
+        )
+        assert shading_control["Schedule_Type_Limits_Name"] == "Fractional1"
 
     def test_opaque_surface_modifier(self, toy_building):
         loc_toy = deepcopy(toy_building)
@@ -613,10 +598,10 @@ class TestModifier:
         assert energytool.base.idf_utils.get_objects_name_list(
             loc_toy.idf, "Material"
         ) == [
-                   "Coating",
-                   "Laine_15cm",
-                   "Coating_2",
-               ]
+            "Coating",
+            "Laine_15cm",
+            "Coating_2",
+        ]
 
         # Test name filter
         set_opaque_surface_construction(
@@ -657,14 +642,14 @@ class TestModifier:
         set_external_windows(loc_toy, var_0)
 
         assert loc_toy.idf.idfobjects["WINDOWMATERIAL:SIMPLEGLAZINGSYSTEM"][
-                   -1
-               ].fieldvalues == [
-                   "WINDOWMATERIAL:SIMPLEGLAZINGSYSTEM",
-                   "Var_1",
-                   1,
-                   0.1,
-                   0.1,
-               ]
+            -1
+        ].fieldvalues == [
+            "WINDOWMATERIAL:SIMPLEGLAZINGSYSTEM",
+            "Var_1",
+            1,
+            0.1,
+            0.1,
+        ]
 
         assert get_named_objects_field_values(
             loc_toy.idf, "Construction", "Outside_Layer"
@@ -673,23 +658,23 @@ class TestModifier:
         assert get_named_objects_field_values(
             loc_toy.idf, "Construction", "Layer_2"
         ) == [
-                   "Var_1",
-                   "",
-                   "",
-                   "",
-               ]
+            "Var_1",
+            "",
+            "",
+            "",
+        ]
 
         set_external_windows(loc_toy, var_1)
 
         assert loc_toy.idf.idfobjects["WINDOWMATERIAL:SIMPLEGLAZINGSYSTEM"][
-                   -1
-               ].fieldvalues == [
-                   "WINDOWMATERIAL:SIMPLEGLAZINGSYSTEM",
-                   "Var_2",
-                   2,
-                   0.2,
-                   0.2,
-               ]
+            -1
+        ].fieldvalues == [
+            "WINDOWMATERIAL:SIMPLEGLAZINGSYSTEM",
+            "Var_2",
+            2,
+            0.2,
+            0.2,
+        ]
 
         assert get_named_objects_field_values(
             loc_toy.idf, "Construction", "Outside_Layer"
@@ -698,11 +683,11 @@ class TestModifier:
         assert get_named_objects_field_values(
             loc_toy.idf, "Construction", "Layer_2"
         ) == [
-                   "Var_2",
-                   "",
-                   "",
-                   "",
-               ]
+            "Var_2",
+            "",
+            "",
+            "",
+        ]
 
         set_external_windows(loc_toy2, var_0, name_filter="_0")
         # test = loc_toy.idf.idfobjects["FenestrationSurface:Detailed"]
@@ -713,11 +698,11 @@ class TestModifier:
         # Construction_Ext_win_2
         assert get_objects_name_list(
             loc_toy2.idf, "WINDOWMATERIAL:SIMPLEGLAZINGSYSTEM"
-        ) == ['Ext_win_1', 'Int_win', 'Var_1']
+        ) == ["Ext_win_1", "Int_win", "Var_1"]
 
         assert get_named_objects_field_values(
             loc_toy2.idf, "Construction", "Outside_Layer"
-        ) == ['Blinds', 'Ext_win_1', 'Var_1', 'Int_win']
+        ) == ["Blinds", "Ext_win_1", "Var_1", "Int_win"]
 
     def test_set_afn_surface_opening_factor(self, toy_building):
         set_afn_surface_opening_factor(
@@ -730,8 +715,8 @@ class TestModifier:
 
         afn_openings = toy_building.idf.idfobjects["AirflowNetwork:MultiZone:Surface"]
         assert [
-                   val.WindowDoor_Opening_Factor_or_Crack_Factor for val in afn_openings
-               ] == [1.0, 0.46]
+            val.WindowDoor_Opening_Factor_or_Crack_Factor for val in afn_openings
+        ] == [1.0, 0.46]
 
     def test_reverse_kwargs(self):
         construction_kwargs = {
