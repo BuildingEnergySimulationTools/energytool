@@ -22,7 +22,7 @@ from energytool.modifier import (
     set_blinds_schedule,
     set_schedule_constant,
     update_idf_objects,
-    reverse_kwargs
+    reverse_kwargs,
 )
 
 RESOURCES_PATH = Path(__file__).parent / "resources"
@@ -258,7 +258,6 @@ def toy_building(tmp_path_factory):
 
 
 class TestModifier:
-
     def test_update_idf_objects(self, toy_building):
         loc_toy = deepcopy(toy_building)
 
@@ -272,7 +271,7 @@ class TestModifier:
             model=loc_toy,
             description=description_update,
             idfobject_type="SCHEDULE:COMPACT",
-            name_filter="winter"
+            name_filter="winter",
         )
 
         schedule_info = loc_toy.idf.idfobjects["SCHEDULE:COMPACT"]
@@ -281,7 +280,6 @@ class TestModifier:
             sched.Name == "Shading_control_winter_&_summer" and sched.Field_4 == 0.5
             for sched in schedule_info
         )
-
 
     def test_set_schedule_constant(self, toy_building):
         loc_toy = deepcopy(toy_building)
@@ -337,18 +335,10 @@ class TestModifier:
     def test_set_blinds_solar_transmittance(self, toy_building):
         loc_toy = deepcopy(toy_building)
 
-        variant_base = {
-            "Variant_1": [
-                {
-                    "Solar_Transmittance": 0.66
-                }
-            ]
-        }
+        variant_base = {"Variant_1": [{"Solar_Transmittance": 0.66}]}
 
         set_blinds_solar_transmittance(
-            model=loc_toy,
-            description=variant_base,
-            name_filter="1"
+            model=loc_toy, description=variant_base, name_filter="1"
         )
 
         shade_info = loc_toy.idf.idfobjects["WindowMaterial:Shade"]

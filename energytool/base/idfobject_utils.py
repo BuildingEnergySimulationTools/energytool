@@ -358,7 +358,9 @@ def add_hourly_schedules_from_df(
     full_path = os.path.realpath(os.path.join(directory, file_name))
 
     if len(data) != 8760 and len(data) != 8784:
-        print("Warning: the length of your data must either be 8760 or 8784. 8760 by Default")
+        print(
+            "Warning: the length of your data must either be 8760 or 8784. 8760 by Default"
+        )
         number_hour = 8760
     else:
         number_hour = len(data)
