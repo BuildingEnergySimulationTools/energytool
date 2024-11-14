@@ -19,11 +19,6 @@ from energytool.tools import to_list, is_items_in_list
 
 RESOURCES_PATH = Path(__file__).parent.parent / "resources"
 
-try:
-    IDF.setiddname((RESOURCES_PATH / "Energy+.idd").as_posix())
-except eppy.modeleditor.IDDAlreadySetError:
-    pass
-
 
 def get_zones_idealloadsairsystem(idf: IDF, zones: str | list = "*"):
     """
@@ -420,9 +415,11 @@ def create_schedule_week_daily(column, unique_days):
     week_count = 1
 
     column_dates = column.index.date
-    for week_start in pd.date_range(start=column.index.min(), end=column.index.max(), freq='W-SUN'):
+    for week_start in pd.date_range(
+        start=column.index.min(), end=column.index.max(), freq="W-SUN"
+    ):
         week_end = week_start + pd.Timedelta(days=6)
-        week_range = pd.date_range(start=week_start, end=week_end, freq='D')
+        week_range = pd.date_range(start=week_start, end=week_end, freq="D")
 
         week_key = []
         last_valid_day_key = None
@@ -448,26 +445,32 @@ def create_schedule_week_daily(column, unique_days):
 Schedule:Week:Daily,
     {week_name},                !- Name
 """
-            days_of_week = ["Sunday Schedule:Day Name",
-                            "Monday Schedule:Day Name",
-                            "Tuesday Schedule:Day Name",
-                            "Wednesday Schedule:Day Name",
-                            "Thursday Schedule:Day Name",
-                            "Friday Schedule:Day Name",
-                            "Saturday Schedule:Day Name"]
+            days_of_week = [
+                "Sunday Schedule:Day Name",
+                "Monday Schedule:Day Name",
+                "Tuesday Schedule:Day Name",
+                "Wednesday Schedule:Day Name",
+                "Thursday Schedule:Day Name",
+                "Friday Schedule:Day Name",
+                "Saturday Schedule:Day Name",
+            ]
             for i, day_key in enumerate(week_key):
                 if day_key:
                     day_name = unique_days[day_key]
                 else:
                     day_name = "Day_Empty"  # Placeholder for empty days if needed
-                schedule_week_daily += f"    {day_name},          !- {days_of_week[i]} Schedule:Day Name\n"
+                schedule_week_daily += (
+                    f"    {day_name},          !- {days_of_week[i]} Schedule:Day Name\n"
+                )
 
             # Add entries for additional days
-            additional_days = ["Holiday Schedule:Day Name",
-                               "SummerDesignDay Schedule:Day Name",
-                               "WinterDesignDay Schedule:Day Name",
-                               "CustomDay1 Schedule:Day Name",
-                               "CustomDay2 Schedule:Day Name"]
+            additional_days = [
+                "Holiday Schedule:Day Name",
+                "SummerDesignDay Schedule:Day Name",
+                "WinterDesignDay Schedule:Day Name",
+                "CustomDay1 Schedule:Day Name",
+                "CustomDay2 Schedule:Day Name",
+            ]
             for day in additional_days:
                 schedule_week_daily += f"    {day_name},          !- {day}\n"
 
@@ -477,7 +480,6 @@ Schedule:Week:Daily,
             week_objects.append(schedule_week_daily)
 
     return week_objects, unique_weeks
-
 
 
 def add_natural_ventilation(
@@ -557,10 +559,6 @@ def add_natural_ventilation(
             Delta_Temperature=delta_temperature,
             **kwargs,
         )
-
-
-def get_resources_idf():
-    return IDF(RESOURCES_PATH / "resources_idf.idf")
 
 
 def get_n50_from_q4(q4, heated_volume, outside_surface, n=2 / 3):

@@ -12,56 +12,60 @@ from energytool.tools import is_items_in_list
 def reverse_kwargs(construction_kwargs):
     construction_name = construction_kwargs["Name"]
 
-    construction_layers = [value for key, value in construction_kwargs.items() if key != "Name" and value]
+    construction_layers = [
+        value for key, value in construction_kwargs.items() if key != "Name" and value
+    ]
 
     reversed_layers = construction_layers[::-1]
 
     reversed_kwargs = {"Name": construction_name, "Outside_Layer": reversed_layers[0]}
-    reversed_kwargs.update({f"Layer_{idx + 2}": layer for idx, layer in enumerate(reversed_layers[1:])})
+    reversed_kwargs.update(
+        {f"Layer_{idx + 2}": layer for idx, layer in enumerate(reversed_layers[1:])}
+    )
 
     return reversed_kwargs
 
 
 def set_opaque_surface_construction(
-        model: Building,
-        description: dict[str, list[dict[str, Any]]],
-        name_filter: str = None,
-        surface_type: str = "Wall",
-        outside_boundary_condition: str = None,
+    model: Building,
+    description: dict[str, list[dict[str, Any]]],
+    name_filter: str = None,
+    surface_type: str = "Wall",
+    outside_boundary_condition: str = None,
 ):
     """
-       This function modifies the construction of opaque building surfaces in an EnergyPlus IDF file.
-       It is intended for use as a modifier for the corrai variant framework.
+    This function modifies the construction of opaque building surfaces in an EnergyPlus IDF file.
+    It is intended for use as a modifier for the corrai variant framework.
 
-       :param model: energytool Building object.
-       :param description: A dictionary describing the construction
-       materials and properties. The argument must be of the form:
-           {
-               "construction_name": [
-                   {
-                       "Name": "material_1_name",
-                       "Thickness": 0.01,
-                       ...
-                   },
-                   {
-                       "Name": "material_2_name",
-                       "Thickness": 0.5,
-                       ...
-                   }
-               ]
-           }
-       :param name_filter: An optional filter for surface names.
-       :param surface_type: The type of surface to modify (default is 'Wall').
-       :param outside_boundary_condition: The outside boundary condition (default is None).
+    :param model: energytool Building object.
+    :param description: A dictionary describing the construction
+    materials and properties. The argument must be of the form:
+        {
+            "construction_name": [
+                {
+                    "Name": "material_1_name",
+                    "Thickness": 0.01,
+                    ...
+                },
+                {
+                    "Name": "material_2_name",
+                    "Thickness": 0.5,
+                    ...
+                }
+            ]
+        }
+    :param name_filter: An optional filter for surface names.
+    :param surface_type: The type of surface to modify (default is 'Wall').
+    :param outside_boundary_condition: The outside boundary condition (default is None).
 
-       This function first identifies the surfaces to modify based on the provided parameters.
-       It then modifies the construction of these surfaces according
-       to the provided construction description.
+    This function first identifies the surfaces to modify based on the provided parameters.
+    It then modifies the construction of these surfaces according
+    to the provided construction description.
 
-       If a new construction is created during this process, its properties are stored in kwargs.
-       These kwargs are then reversed to ensure consistency for any surfaces
-       that require the inversion of their construction.
-       """
+    If a new construction is created during this process, its properties are stored in kwargs.
+    These kwargs are then reversed to ensure consistency for any surfaces
+    that require the inversion of their construction.
+    """
     if name_filter is None:
         name_filter = ""
 
@@ -70,7 +74,8 @@ def set_opaque_surface_construction(
     surface_list = model.idf.idfobjects["BuildingSurface:Detailed"]
 
     if all(
-            surface_type not in obj.getfieldidd("Surface_Type")["key"] for obj in surface_list
+        surface_type not in obj.getfieldidd("Surface_Type")["key"]
+        for obj in surface_list
     ):
         raise ValueError(
             f"surface_type must be one of "
@@ -80,9 +85,10 @@ def set_opaque_surface_construction(
 
     if outside_boundary_condition is not None:
         if any(
-                outside_boundary_condition not in obj.getfieldidd("Outside_Boundary_Condition")["key"]
-                for obj in surface_list
-                if name_filter in obj.Name
+            outside_boundary_condition
+            not in obj.getfieldidd("Outside_Boundary_Condition")["key"]
+            for obj in surface_list
+            if name_filter in obj.Name
         ):
             raise ValueError(
                 f"outside_boundary_condition must be one of "
@@ -113,9 +119,12 @@ def set_opaque_surface_construction(
         obj
         for obj in surface_list
         if obj.Surface_Type == surface_type
-           and (obj.Outside_Boundary_Condition
-                == outside_boundary_condition if outside_boundary_condition is not None else True)
-           and name_filter in obj.Name
+        and (
+            obj.Outside_Boundary_Condition == outside_boundary_condition
+            if outside_boundary_condition is not None
+            else True
+        )
+        and name_filter in obj.Name
     ]
 
     for surf in surf_to_modify:
@@ -125,10 +134,17 @@ def set_opaque_surface_construction(
         obj.Construction_Name
         for obj in surface_list
         if name_filter in obj.Outside_Boundary_Condition_Object
-           and (getattr(obj.Outside_Boundary_Condition_Object, 'Outside_Boundary_Condition',
-                        None) == outside_boundary_condition
-                if outside_boundary_condition is not None else True)
-           and obj.Surface_Type == surface_type
+        and (
+            getattr(
+                obj.Outside_Boundary_Condition_Object,
+                "Outside_Boundary_Condition",
+                None,
+            )
+            == outside_boundary_condition
+            if outside_boundary_condition is not None
+            else True
+        )
+        and obj.Surface_Type == surface_type
     ]
 
     reversed_kwargs = reverse_kwargs(construction_kwargs)
@@ -142,17 +158,17 @@ def set_opaque_surface_construction(
                 break
         construction_object["Name"] = construction_name
 
-        for field in construction_object.fieldnames[num_layers + 1:]:
+        for field in construction_object.fieldnames[num_layers + 1 :]:
             if field in construction_object:
                 construction_object.pop(field)
 
 
 def set_external_windows(
-        model: Building,
-        description: dict[str, dict[str, Any]],
-        name_filter: str = None,
-        surface_name_filter: str = None,
-        boundary_conditions: str = None,
+    model: Building,
+    description: dict[str, dict[str, Any]],
+    name_filter: str = None,
+    surface_name_filter: str = None,
+    boundary_conditions: str = None,
 ):
     """
     Replace windows in an EnergyPlus building model with new window descriptions.
@@ -190,9 +206,14 @@ def set_external_windows(
         windows = idf.idfobjects["FENESTRATIONSURFACE:DETAILED"]
 
     if name_filter is not None or surface_name_filter is not None:
-        windows = [win for win in windows if
-                   (name_filter is None and surface_name_filter in win.Building_Surface_Name) or
-                   (surface_name_filter is None and name_filter in win.Name)]
+        windows = [
+            win
+            for win in windows
+            if (
+                name_filter is None and surface_name_filter in win.Building_Surface_Name
+            )
+            or (surface_name_filter is None and name_filter in win.Name)
+        ]
     windows_names = [win.Name for win in windows]
 
     win_cons_names = {win.Construction_Name for win in windows}
@@ -235,7 +256,9 @@ def set_external_windows(
                 construction[field] = new_window["Name"]
 
     # Add the new window material to the IDF
-    if new_window["Name"] not in [win.Name for win in idf.idfobjects["WindowMaterial:SimpleGlazingSystem"]]:
+    if new_window["Name"] not in [
+        win.Name for win in idf.idfobjects["WindowMaterial:SimpleGlazingSystem"]
+    ]:
         idf.newidfobject(key="WindowMaterial:SimpleGlazingSystem", **new_window)
 
     used_mat_list = [
@@ -250,10 +273,10 @@ def set_external_windows(
 
 
 def set_afn_surface_opening_factor(
-        model: Building,
-        description: dict[str, dict[str, Any]],
-        name_filter: str = None,
-        surface_name_filter: str = None,
+    model: Building,
+    description: dict[str, dict[str, Any]],
+    name_filter: str = None,
+    surface_name_filter: str = None,
 ):
     """
     Modify AirFlowNetwork:Multizone:Surface WindowDoor_Opening_Factor_or_Crack_Factor
@@ -275,9 +298,12 @@ def set_afn_surface_opening_factor(
     openings = idf.idfobjects["AirflowNetwork:MultiZone:Surface"]
 
     if name_filter is not None or surface_name_filter is not None:
-        openings = [op for op in openings if
-                    (surface_name_filter is None and name_filter in op.Surface_Name) or
-                    (name_filter is None and surface_name_filter in op.Surface_Name)]
+        openings = [
+            op
+            for op in openings
+            if (surface_name_filter is None and name_filter in op.Surface_Name)
+            or (name_filter is None and surface_name_filter in op.Surface_Name)
+        ]
 
     new_opening_ratio_name = list(description.keys())[0]
     new_opening_ratio = description[new_opening_ratio_name][
@@ -289,10 +315,10 @@ def set_afn_surface_opening_factor(
 
 
 def set_blinds_solar_transmittance(
-        model: Building,
-        description: dict[str, dict[str, Any]],
-        name_filter: str = None,
-        surface_name_filter: str = None,
+    model: Building,
+    description: dict[str, dict[str, Any]],
+    name_filter: str = None,
+    surface_name_filter: str = None,
 ):
     """
     Modify WindowMaterial:Shade Solar_Transmittance (or/and Reflectance) based on the given description.
@@ -326,21 +352,37 @@ def set_blinds_solar_transmittance(
     if surface_name_filter is None:
         surface_name_filter = ""
 
-    filtered_windows = [window for window in idf.idfobjects["FenestrationSurface:Detailed"] if
-                        (surface_name_filter == "" and name_filter in window.Name)
-                        or (name_filter == "" and surface_name_filter in window.Building_Surface_Name)
-                        or (surface_name_filter == "" and name_filter == "")
-                        or (surface_name_filter in window.Building_Surface_Name and name_filter in window.Name)]
-    construction_names_dict = {window.Name: window.Construction_Name for window in filtered_windows}
+    filtered_windows = [
+        window
+        for window in idf.idfobjects["FenestrationSurface:Detailed"]
+        if (surface_name_filter == "" and name_filter in window.Name)
+        or (name_filter == "" and surface_name_filter in window.Building_Surface_Name)
+        or (surface_name_filter == "" and name_filter == "")
+        or (
+            surface_name_filter in window.Building_Surface_Name
+            and name_filter in window.Name
+        )
+    ]
+    construction_names_dict = {
+        window.Name: window.Construction_Name for window in filtered_windows
+    }
 
     # Check if construction_name of filtered window includes a shade or a shaded version
     for window_name, target_name in construction_names_dict.items():
         for construction in all_constructions:
-            if construction.Name == target_name or construction.Name == target_name + "_Shaded":
-                construction_values = [construction[field] for field in construction.fieldnames[2:]]
+            if (
+                construction.Name == target_name
+                or construction.Name == target_name + "_Shaded"
+            ):
+                construction_values = [
+                    construction[field] for field in construction.fieldnames[2:]
+                ]
                 for shade in shades:
-                    if any(construction_value == shade.Name for construction_value in construction_values if
-                           construction_value):
+                    if any(
+                        construction_value == shade.Name
+                        for construction_value in construction_values
+                        if construction_value
+                    ):
                         selected_shades.append(shade)
 
         # Also, check "WINDOWSHADINGCONTROL" construction associated to filtered windows
@@ -350,13 +392,21 @@ def set_blinds_solar_transmittance(
                     construction_name = scen.Construction_with_Shading_Name
                     for construction in all_constructions:
                         if construction.Name == construction_name:
-                            construction_values = [construction[field] for field in construction.fieldnames[2:]]
+                            construction_values = [
+                                construction[field]
+                                for field in construction.fieldnames[2:]
+                            ]
                             for shade in shades:
-                                if any(construction_value == shade.Name for construction_value in
-                                       construction_values if construction_value):
+                                if any(
+                                    construction_value == shade.Name
+                                    for construction_value in construction_values
+                                    if construction_value
+                                ):
                                     selected_shades.append(shade)
 
-    new_transmittance = description[new_shaded_window_name][0].get("Solar_Transmittance")
+    new_transmittance = description[new_shaded_window_name][0].get(
+        "Solar_Transmittance"
+    )
     new_reflectance = description[new_shaded_window_name][0].get("Solar_Reflectance")
 
     for shade in selected_shades:
@@ -364,6 +414,7 @@ def set_blinds_solar_transmittance(
             shade["Solar_Transmittance"] = new_transmittance
         if new_reflectance is not None:
             shade["Solar_Reflectance"] = new_reflectance
+
 
 def set_schedule_constant(
     model: Building,
@@ -390,10 +441,10 @@ def set_schedule_constant(
 
 
 def set_blinds_schedule(
-        model: Building,
-        description: dict[str, dict[str, Any]],
-        name_filter: str = None,
-        surface_name_filter: str = None,
+    model: Building,
+    description: dict[str, dict[str, Any]],
+    name_filter: str = None,
+    surface_name_filter: str = None,
 ):
     """
     Create/update Schedule based on the given description.
@@ -430,23 +481,39 @@ def set_blinds_schedule(
 
     schedule = idf.idfobjects["Schedule:Year"]
     compact = idf.idfobjects["Schedule:Compact"]
-    existing_shading_control = [entry["Name"] for entry in schedule] + [entry["Name"] for entry in compact]
+    existing_shading_control = [entry["Name"] for entry in schedule] + [
+        entry["Name"] for entry in compact
+    ]
 
-    name_in_existing = any(new_schedule["Name"] in entry for entry in existing_shading_control)
+    name_in_existing = any(
+        new_schedule["Name"] in entry for entry in existing_shading_control
+    )
 
     if not name_in_existing and "Field_1" not in new_schedule:
-        raise ValueError("Scenario's name not found in IDF. "
-                         "Use existing name or define Schedule "
-                         "fields in description")
+        raise ValueError(
+            "Scenario's name not found in IDF. "
+            "Use existing name or define Schedule "
+            "fields in description"
+        )
 
     if name_filter or surface_name_filter:
-        filtered_windows = [window for window in idf.idfobjects["FenestrationSurface:Detailed"] if
-                            (surface_name_filter is None and name_filter in window.Name)
-                            or (name_filter is None and surface_name_filter in window.Building_Surface_Name)]
-        construction_names_dict = {window.Name: window.Construction_Name for window in filtered_windows}
+        filtered_windows = [
+            window
+            for window in idf.idfobjects["FenestrationSurface:Detailed"]
+            if (surface_name_filter is None and name_filter in window.Name)
+            or (
+                name_filter is None
+                and surface_name_filter in window.Building_Surface_Name
+            )
+        ]
+        construction_names_dict = {
+            window.Name: window.Construction_Name for window in filtered_windows
+        }
     else:
-        construction_names_dict = {window.Name: window.Construction_Name
-                                   for window in idf.idfobjects["FenestrationSurface:Detailed"]}
+        construction_names_dict = {
+            window.Name: window.Construction_Name
+            for window in idf.idfobjects["FenestrationSurface:Detailed"]
+        }
 
     for wind_name, construction_name in construction_names_dict.items():
         for scen in scenarios:
@@ -477,19 +544,29 @@ def set_blinds_schedule(
                 if idx >= 1:
                     schedule_kwargs[f"Field_{idx}"] = info
 
-        existing_st_limits = [entry["Name"] for entry in idf.idfobjects["ScheduleTypeLimits"]]
-        if "Limits" not in description[new_shaded_window_name][0] and schedule_kwargs[
-            "Schedule_Type_Limits_Name"] not in existing_st_limits:
+        existing_st_limits = [
+            entry["Name"] for entry in idf.idfobjects["ScheduleTypeLimits"]
+        ]
+        if (
+            "Limits" not in description[new_shaded_window_name][0]
+            and schedule_kwargs["Schedule_Type_Limits_Name"] not in existing_st_limits
+        ):
             raise ValueError(
-                "ScheduleTypeLimit is not specified in IDF. Define ScheduleTypeLimit fields in Description")
+                "ScheduleTypeLimit is not specified in IDF. Define ScheduleTypeLimit fields in Description"
+            )
 
-        model.idf.newidfobject("Schedule:Compact", **schedule_kwargs)  # new or replaced ?
+        model.idf.newidfobject(
+            "Schedule:Compact", **schedule_kwargs
+        )  # new or replaced ?
 
         st_limit = schedule_kwargs["Schedule_Type_Limits_Name"]
-        existing_st_limits = [entry["Name"] for entry in idf.idfobjects["ScheduleTypeLimits"]]
+        existing_st_limits = [
+            entry["Name"] for entry in idf.idfobjects["ScheduleTypeLimits"]
+        ]
 
         if st_limit not in existing_st_limits and (
-                limits := description.get(new_shaded_window_name, [{}])[0].get("Limits")):
+            limits := description.get(new_shaded_window_name, [{}])[0].get("Limits")
+        ):
             limits_kwargs = {
                 "Name": new_schedule["Schedule_Type_Limits_Name"],
                 "Lower_Limit_Value": limits["Lower_Limit_Value"],
@@ -500,10 +577,10 @@ def set_blinds_schedule(
 
 
 def set_blinds_st_and_schedule(
-        model: Building,
-        description: dict[str, dict[str, Any]],
-        name_filter: str = None,
-        surface_name_filter: str = None,
+    model: Building,
+    description: dict[str, dict[str, Any]],
+    name_filter: str = None,
+    surface_name_filter: str = None,
 ):
     """
     Modify WindowMaterial:Shade Solar_Transmittance and create/update Schedule based on the given description.
@@ -593,6 +670,7 @@ def update_idf_objects(
         if not obj_exists and name_filter is None:
             new_obj_kwargs = {field: value for field, value in obj_fields.items()}
             model.idf.newidfobject(idfobject_type, **new_obj_kwargs)
+
 
 # def set_windows(
 #         model: Building,

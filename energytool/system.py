@@ -1,5 +1,6 @@
 import enum
 from abc import ABC, abstractmethod
+from pathlib import Path
 
 import eppy.modeleditor
 import numpy as np
@@ -19,7 +20,6 @@ from energytool.base.idfobject_utils import (
     get_zones_idealloadsairsystem,
     add_output_variable,
     get_number_of_people,
-    get_resources_idf,
     add_hourly_schedules_from_df,
     add_natural_ventilation,
 )
@@ -27,7 +27,15 @@ from energytool.base.parse_results import get_output_variable
 from energytool.base.units import Units
 from energytool.tools import select_in_list, to_list
 
-RESOURCE_IDF = get_resources_idf()
+RESOURCE_IDF_PATH = Path(__file__).parent / "resources"
+
+
+def get_resources_idf(ref_idf: IDF):
+    try:
+        IDF.setiddname(ref_idf.iddname)
+    except eppy.modeleditor.IDDAlreadySetError:
+        pass
+    return IDF(RESOURCE_IDF_PATH / "resources_idf.idf")
 
 
 class SystemCategories(enum.Enum):
@@ -537,8 +545,9 @@ class AHUControl(System):
         if self.control_strategy == "Schedule":
             # Get schedule in resources file
             idf_schedules = idf.idfobjects["Schedule:Compact"]
+            resources_idf = get_resources_idf(idf)
             schedule_to_copy = get_named_objects(
-                RESOURCE_IDF, "Schedule:Compact", self.schedule_name
+                resources_idf, "Schedule:Compact", self.schedule_name
             )
 
             # Copy in building idf if not already present
@@ -668,7 +677,8 @@ class OtherEquipment(System):
                 self.schedule_name = "ON_24h24h_FULL_YEAR"
 
                 # Get schedule in resources file
-                schedule_to_copy = RESOURCE_IDF.getobject(
+                resources_idf = get_resources_idf(idf)
+                schedule_to_copy = resources_idf.getobject(
                     "Schedule:Compact", self.schedule_name
                 )
 
@@ -802,8 +812,9 @@ class ZoneThermostat(System):
 
         if self.heating_time_series is None:
             if self.heating_compact_schedule_name is None:
+                resource_idf = get_resources_idf(idf)
                 copy_named_object_from_idf(
-                    RESOURCE_IDF,
+                    resource_idf,
                     idf,
                     "Schedule:Compact",
                     "-60C_heating_setpoint",
@@ -831,8 +842,9 @@ class ZoneThermostat(System):
 
         if self.cooling_time_series is None:
             if self.cooling_compact_schedule_name is None:
+                resource_idf = get_resources_idf(idf)
                 copy_named_object_from_idf(
-                    RESOURCE_IDF,
+                    resource_idf,
                     idf,
                     "Schedule:Compact",
                     "100C_cooling_setpoint",
@@ -860,8 +872,9 @@ class ZoneThermostat(System):
             self.cooling_schedule_name = self.cooling_time_series.name
 
         if self.overwrite_heating_availability or self.overwrite_cooling_availability:
+            resource_idf = get_resources_idf(idf)
             copy_named_object_from_idf(
-                RESOURCE_IDF,
+                resource_idf,
                 idf,
                 "Schedule:Compact",
                 "ON_24h24h_FULL_YEAR",
