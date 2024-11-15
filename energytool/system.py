@@ -1,4 +1,5 @@
 import enum
+import json
 from abc import ABC, abstractmethod
 from pathlib import Path
 
@@ -12,9 +13,7 @@ import energytool.base.parse_results
 from energytool.base.idf_utils import (
     get_objects_name_list,
     set_named_objects_field_values,
-    get_named_objects,
     del_named_objects,
-    copy_named_object_from_idf,
 )
 from energytool.base.idfobject_utils import (
     get_zones_idealloadsairsystem,
@@ -27,15 +26,9 @@ from energytool.base.parse_results import get_output_variable
 from energytool.base.units import Units
 from energytool.tools import select_in_list, to_list
 
-RESOURCE_IDF_PATH = Path(__file__).parent / "resources"
 
-
-def get_resources_idf(ref_idf: IDF):
-    try:
-        IDF.setiddname(ref_idf.iddname)
-    except eppy.modeleditor.IDDAlreadySetError:
-        pass
-    return IDF(RESOURCE_IDF_PATH / "resources_idf.idf")
+with open(Path(__file__).parent / "resources/idf_objects.json", "r") as file:
+    RESOURCE_IDF_DICT = json.load(file)
 
 
 class SystemCategories(enum.Enum):
@@ -544,19 +537,16 @@ class AHUControl(System):
     def pre_process(self, idf: IDF):
         if self.control_strategy == "Schedule":
             # Get schedule in resources file
-            idf_schedules = idf.idfobjects["Schedule:Compact"]
-            resources_idf = get_resources_idf(idf)
-            schedule_to_copy = get_named_objects(
-                resources_idf, "Schedule:Compact", self.schedule_name
-            )
+            if self.schedule_name not in get_objects_name_list(idf, "Schedule:Compact"):
+                try:
+                    idf.newidfobject(**RESOURCE_IDF_DICT[self.schedule_name])
+                except KeyError:
+                    raise ValueError(
+                        f"Schedule name {self.schedule_name} not found"
+                        f"in idf or in resource idf_objects"
+                    )
 
-            # Copy in building idf if not already present
-            if schedule_to_copy[0].Name not in get_objects_name_list(
-                idf, "Schedule:Compact"
-            ):
-                idf_schedules.append(schedule_to_copy[0])
-
-            schedule_name = schedule_to_copy[0].Name
+            schedule_name = self.schedule_name
 
         elif self.control_strategy == "DataFrame":
             add_hourly_schedules_from_df(idf, self.data_frame)
@@ -672,22 +662,13 @@ class OtherEquipment(System):
 
         # No time series was passed
         if self.time_series is None:
-            # No compact schedule name is provided
+            # No compact schedule name is provided default to On 24/24
             if self.compact_schedule_name is None:
                 self.schedule_name = "ON_24h24h_FULL_YEAR"
-
-                # Get schedule in resources file
-                resources_idf = get_resources_idf(idf)
-                schedule_to_copy = resources_idf.getobject(
-                    "Schedule:Compact", self.schedule_name
-                )
-
-                # Copy in building idf if not already present
-                idf_schedules = idf.idfobjects["Schedule:Compact"]
-                if schedule_to_copy.Name not in get_objects_name_list(
+                if self.schedule_name not in get_objects_name_list(
                     idf, "Schedule:Compact"
                 ):
-                    idf_schedules.append(schedule_to_copy)
+                    idf.newidfobject(**RESOURCE_IDF_DICT["ON_24h24h_FULL_YEAR"])
 
             # Compact schedule name is provided, but it can't be found
             elif not idf.getobject("Schedule:Compact", self.compact_schedule_name):
@@ -812,14 +793,9 @@ class ZoneThermostat(System):
 
         if self.heating_time_series is None:
             if self.heating_compact_schedule_name is None:
-                resource_idf = get_resources_idf(idf)
-                copy_named_object_from_idf(
-                    resource_idf,
-                    idf,
-                    "Schedule:Compact",
-                    "-60C_heating_setpoint",
-                )
                 self.heating_schedule_name = "-60C_heating_setpoint"
+                idf.newidfobject(**RESOURCE_IDF_DICT["-60C_heating_setpoint"])
+
             elif not idf.getobject(
                 "Schedule:Compact", self.heating_compact_schedule_name
             ):
@@ -842,14 +818,8 @@ class ZoneThermostat(System):
 
         if self.cooling_time_series is None:
             if self.cooling_compact_schedule_name is None:
-                resource_idf = get_resources_idf(idf)
-                copy_named_object_from_idf(
-                    resource_idf,
-                    idf,
-                    "Schedule:Compact",
-                    "100C_cooling_setpoint",
-                )
                 self.cooling_schedule_name = "100C_cooling_setpoint"
+                idf.newidfobject(**RESOURCE_IDF_DICT["100C_cooling_setpoint"])
             elif not idf.getobject(
                 "Schedule:Compact", self.cooling_compact_schedule_name
             ):
@@ -872,13 +842,7 @@ class ZoneThermostat(System):
             self.cooling_schedule_name = self.cooling_time_series.name
 
         if self.overwrite_heating_availability or self.overwrite_cooling_availability:
-            resource_idf = get_resources_idf(idf)
-            copy_named_object_from_idf(
-                resource_idf,
-                idf,
-                "Schedule:Compact",
-                "ON_24h24h_FULL_YEAR",
-            )
+            idf.newidfobject(**RESOURCE_IDF_DICT["ON_24h24h_FULL_YEAR"])
 
         if self.overwrite_heating_availability:
             set_named_objects_field_values(
