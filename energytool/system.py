@@ -19,6 +19,7 @@ from energytool.base.idfobject_utils import (
     get_zones_idealloadsairsystem,
     add_output_variable,
     get_number_of_people,
+    get_resources_idf,
     add_hourly_schedules_from_df,
     add_natural_ventilation,
 )
@@ -26,6 +27,9 @@ from energytool.base.parse_results import get_output_variable
 from energytool.base.units import Units
 from energytool.tools import select_in_list, to_list
 
+RESOURCE_IDF = get_resources_idf()
+
+RESOURCES_PATH = Path(__file__).parent / "resources"
 
 with open(Path(__file__).parent / "resources/idf_objects.json", "r") as file:
     RESOURCE_IDF_DICT = json.load(file)

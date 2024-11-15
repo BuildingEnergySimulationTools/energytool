@@ -19,6 +19,11 @@ from energytool.tools import to_list, is_items_in_list
 
 RESOURCES_PATH = Path(__file__).parent.parent / "resources"
 
+try:
+    IDF.setiddname((RESOURCES_PATH / "Energy+.idd").as_posix())
+except eppy.modeleditor.IDDAlreadySetError:
+    pass
+
 
 def get_zones_idealloadsairsystem(idf: IDF, zones: str | list = "*"):
     """
@@ -386,7 +391,7 @@ def create_schedule_day_hourly(column):
     schedule_objects = []
     day_count = 1
 
-    for date, group in column.groupby(column.index.date):
+    for _, group in column.groupby(column.index.date):
         day_values = group.tolist()
         day_key = tuple(day_values)
 
@@ -559,6 +564,10 @@ def add_natural_ventilation(
             Delta_Temperature=delta_temperature,
             **kwargs,
         )
+
+
+def get_resources_idf():
+    return IDF(RESOURCES_PATH / "resources_idf.idf")
 
 
 def get_n50_from_q4(q4, heated_volume, outside_surface, n=2 / 3):
