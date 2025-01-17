@@ -107,8 +107,99 @@ class Overshoot28(System):
 
         return calculate_discomfort(eplus_results, temp_threshold=self.temp_threshold)
 
+class LightAutonomy(System):
+    """
+    Represents a system to calculate lighting autonomy per zone.
 
+    :param name: Name of the system.
+    :param zones: Zones or spaces to monitor. Can be "*" for all zones or a list of zones.
+    :param lux_threshold: Minimum lux level required for lighting autonomy.
+    :param light_schedule_name: Name of the light schedule to retrieve from "Schedule Value".
+    """
 
+    def __init__(
+        self,
+        name: str,
+        zones: str | list = "*",
+        lux_threshold: float = 200,
+        light_schedule_name: str = None,
+    ):
+        super().__init__(name=name, category=SystemCategories.SENSOR)
+        self.zones = zones
+        self.lux_threshold = lux_threshold
+        self.light_schedule_name = light_schedule_name
+
+    def pre_process(self, idf: IDF):
+        """
+        Adds the necessary output variables for illuminance, occupancy, and light schedule.
+
+        :param idf: The EnergyPlus input data.
+        """
+        # Add output variable for Daylighting Reference Point Illuminance
+
+        # Add output variable for the specified light schedule
+        add_output_variable(
+            idf=idf,
+            key_values=self.light_schedule_name,
+            variables="Schedule Value",
+        )
+
+        add_output_variable(
+            idf=idf,
+            key_values=self.zones,
+            variables="Daylighting Reference Point 1 Illuminance",
+        )
+
+        # Add output variable for Zone People Occupant Count
+        add_output_variable(
+            idf=idf,
+            key_values=self.zones,
+            variables="Zone People Occupant Count",
+        )
+
+    def post_process(self, idf: IDF = None, eplus_results: pd.DataFrame = None):
+        """
+        Calculates lighting autonomy based on illuminance, occupancy, and schedule.
+
+        :param idf: The EnergyPlus input data (not used in this method).
+        :param eplus_results: DataFrame containing EnergyPlus simulation results.
+        :return: DataFrame with additional columns for lighting autonomy per zone.
+        """
+        schedule = get_output_variable(
+            eplus_res=eplus_results,
+            key_values=self.light_schedule_name,
+            variables="Schedule Value",
+        )
+
+        # Get the occupancy data
+        occupancy = get_output_variable(
+            eplus_res=eplus_results,
+            key_values=self.zones,
+            variables="Zone People Occupant Count",
+        )
+
+        # Get the illuminance data
+        illuminance = get_output_variable(
+            eplus_res=eplus_results,
+            key_values=self.zones,
+            variables="Daylighting Reference Point 1 Illuminance",
+        )
+
+        # Calculate lighting autonomy for each zone
+        is_occupied = occupancy > 0
+        is_schedule_active = schedule > 0
+
+        results = pd.DataFrame(index=illuminance.index)
+        for col in illuminance.columns:
+            results[f"autonomy_{col}"] = (
+                    (illuminance[col] >= self.lux_threshold)
+                    & is_occupied[col]
+                    & is_schedule_active.squeeze()
+            ).astype(int)
+
+            results[f"occupancy_{col}"] = occupancy[col]
+
+        return results
 
 class Sensor(System):
     """
