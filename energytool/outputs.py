@@ -12,7 +12,6 @@ from energytool.system import System, SystemCategories
 class OutputCategories(enum.Enum):
     RAW = "RAW"
     SYSTEM = "SYSTEM"
-    OVERSHOOT_28 = "OVERSHOOT_28"
     SENSOR = "SENSOR"
 
 
@@ -47,6 +46,8 @@ def get_results(
             results = get_sensor_results(idf, systems, eplus_res)
             if results is not None:
                 to_return.append(results)
+
+
         else:
             raise ValueError(f"{output_cat} not recognized or not yet implemented")
 

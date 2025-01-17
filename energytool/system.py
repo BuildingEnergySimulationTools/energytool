@@ -23,6 +23,7 @@ from energytool.base.idfobject_utils import (
     add_hourly_schedules_from_df,
     add_natural_ventilation,
 )
+from energytool.base.indicator_functions import calculate_discomfort
 from energytool.base.parse_results import get_output_variable
 from energytool.base.units import Units
 from energytool.tools import select_in_list, to_list
@@ -59,6 +60,54 @@ class System(ABC):
     def post_process(self, idf: IDF = None, eplus_results: pd.DataFrame = None):
         """Operations happening after the simulation"""
         pass
+
+
+class Overshoot28(System):
+    """
+    Represents the thermal discomfort system for zones exceeding a temperature threshold.
+
+    :param name: Name of the system.
+    :param zones: Zones or spaces to monitor. Can be "*" for all zones or a list of zones.
+    :param temp_threshold: Temperature threshold for thermal discomfort.
+    """
+
+    def __init__(self, name: str, zones: str | list = "*", temp_threshold: float = 28.0):
+        super().__init__(name=name, category=SystemCategories.SENSOR)
+        self.zones = zones
+        self.temp_threshold = temp_threshold
+
+    def pre_process(self, idf: IDF):
+        """
+        Adds the necessary output variables to monitor operative temperature and occupancy.
+        """
+        # Add output variable for Zone Operative Temperature
+        add_output_variable(
+            idf=idf,
+            key_values=self.zones,
+            variables="Zone Operative Temperature",
+        )
+
+        # Add output variable for Zone People Occupant Count
+        add_output_variable(
+            idf=idf,
+            key_values=self.zones,
+            variables="Zone People Occupant Count",
+        )
+
+    def post_process(self, idf: IDF = None, eplus_results: pd.DataFrame = None):
+        """
+        Calculates thermal discomfort based on operative temperature and occupancy.
+
+        :param idf: The EnergyPlus input data (not used in this method).
+        :param eplus_results: DataFrame containing EnergyPlus simulation results.
+        :return: DataFrame with additional columns for thermal discomfort.
+        """
+        if eplus_results is None or eplus_results.empty:
+            raise ValueError("EnergyPlus results are required for post-process")
+
+        return calculate_discomfort(eplus_results, temp_threshold=self.temp_threshold)
+
+
 
 
 class Sensor(System):
