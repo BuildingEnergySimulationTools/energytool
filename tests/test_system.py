@@ -1,27 +1,12 @@
 from copy import deepcopy
 from pathlib import Path
 
-import numpy as np
-import pandas as pd
 import pytest
-from eppy.modeleditor import IDF
 
 from energytool.base.idf_utils import get_named_objects_field_values
-from energytool.base.idfobject_utils import get_objects_name_list
 from energytool.base.parse_results import read_eplus_res
 from energytool.building import Building
-from energytool.system import (
-    SystemCategories,
-    HeaterSimple,
-    HeatingAuxiliary,
-    AirHandlingUnit,
-    DHWIdealExternal,
-    ArtificialLighting,
-    AHUControl,
-    OtherEquipment,
-    ZoneThermostat,
-    Sensor,
-)
+from energytool.system import *
 
 RESOURCES_PATH = Path(__file__).parent / "resources"
 
@@ -34,6 +19,79 @@ def idf(tmp_path_factory):
 
 
 class TestSystems:
+    def test_overshoot28(self):
+        test_build = Building(idf_path=RESOURCES_PATH / "test.idf")
+
+        overshoot_temp = 20
+
+        test_build.add_system(
+            Sensor(
+                name="ZOP",
+                variables="Zone Operative Temperature",
+                key_values="*",
+            )
+        )
+        test_build.add_system(
+            Overshoot28(
+                name="thermal comfort",
+                temp_threshold=overshoot_temp,
+                occupancy_in_output=True
+            )
+        )
+
+        result = test_build.simulate(
+            parameter_dict={},
+            simulation_options={
+                "epw_file": (RESOURCES_PATH / "Paris_2020.epw").as_posix(),
+                "outputs": "SENSOR",
+                "verbose": "v",
+            },
+        )
+
+        Top = result["BLOCK1:APPTX1W_Zone Operative Temperature"] >= overshoot_temp
+        Occ = result["occupancy_BLOCK1:APPTX1W"] > 0
+
+        assert [res==1 for res in result.loc[Top & Occ, "discomfort_BLOCK1:APPTX1W"]]
+
+
+    def test_light_autonomy(self):
+        test_build = Building(idf_path=RESOURCES_PATH / "test.idf")
+
+        lux_threshold = 200
+
+        test_build.add_system(
+            Sensor(
+                name="Daylighting RefPoint",
+                variables="Daylighting Reference Point 1 Illuminance",
+                key_values="*",
+            )
+        )
+
+        test_build.add_system(
+            LightAutonomy(
+                name="Autonomy",
+                zones="Block1:ApptX1W",
+                lux_threshold=lux_threshold,
+                light_schedule_name="B4R_sc_Residential_Light",
+                occupancy_in_output=True
+            )
+        )
+
+        result = test_build.simulate(
+            parameter_dict={},
+            simulation_options={
+                "epw_file": (RESOURCES_PATH / "Paris_2020.epw").as_posix(),
+                "outputs": "SENSOR",
+                "verbose": "v",
+            },
+        )
+
+        Daylight = result["BLOCK1:APPTX1W_Daylighting Reference Point 1 Illuminance"] >= lux_threshold
+        Occ = result["occupancy_BLOCK1:APPTX1W"] > 0
+
+        assert [res==1 for res in result.loc[Daylight & Occ, "autonomy_BLOCK1:APPTX1W"]]
+
+
     def test_sensor(self):
         test_build = Building(idf_path=RESOURCES_PATH / "test.idf")
         test_build.add_system(

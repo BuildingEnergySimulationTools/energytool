@@ -1,19 +1,16 @@
 from pathlib import Path
-
-import pandas as pd
 import pytest
 
 from energytool.base.parse_results import (
-    read_eplus_res,
     zone_contains_regex,
-    get_output_variable,
 )
 from energytool.building import Building
+from energytool.base.parse_results import read_eplus_res
+from energytool.system import *
 
 RESOURCES_PATH = Path(__file__).parent / "resources"
 
 Building.set_idd(RESOURCES_PATH)
-
 
 @pytest.fixture()
 def expected_res_df():
@@ -26,8 +23,40 @@ def expected_res_df():
     to_return.index.freq = "H"
     return to_return
 
+@pytest.fixture(scope="session")
+def idf(tmp_path_factory):
+    return IDF((RESOURCES_PATH / "test.idf").as_posix())
+
 
 class TestEplusPostProcess:
+    def test_no_duplicates(self):
+        test_build = Building(idf_path=RESOURCES_PATH / "test.idf")
+        test_build.add_system(
+            Sensor(
+                name="ZOP",
+                variables="Zone Operative Temperature",
+                key_values="*",
+            )
+        )
+        test_build.add_system(
+            Sensor(
+                name="ZOP_duplicate",
+                variables="Zone Operative Temperature",
+                key_values="*",
+            )
+        )
+        result = test_build.simulate(
+            parameter_dict={},
+            simulation_options={
+                "epw_file": (RESOURCES_PATH / "Paris_2020.epw").as_posix(),
+                "outputs": "SENSOR",
+                "verbose": "v",
+            },
+        )
+        assert (
+                result.columns.tolist().count("BLOCK1:APPTX1W_Zone Operative Temperature") == 1
+        )
+
     def test_zone_contains_regex(self):
         test_list = ["z1", "z2"]
 
