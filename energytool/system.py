@@ -69,12 +69,21 @@ class Overshoot28(System):
     :param name: Name of the system.
     :param zones: Zones or spaces to monitor. Can be "*" for all zones or a list of zones.
     :param temp_threshold: Temperature threshold for thermal discomfort.
+    :param occupancy_in_output: Set to True for Zone People Occupant Count in output df.
     """
 
-    def __init__(self, name: str, zones: str | list = "*", temp_threshold: float = 28.0):
+    def __init__(
+            self,
+            name: str,
+            zones: str | list = "*",
+            temp_threshold: float = 28.0,
+            occupancy_in_output=False,
+    ):
         super().__init__(name=name, category=SystemCategories.SENSOR)
         self.zones = zones
         self.temp_threshold = temp_threshold
+        self.occupancy_in_output = occupancy_in_output
+
 
     def pre_process(self, idf: IDF):
         """
@@ -102,10 +111,28 @@ class Overshoot28(System):
         :param eplus_results: DataFrame containing EnergyPlus simulation results.
         :return: DataFrame with additional columns for thermal discomfort.
         """
-        if eplus_results is None or eplus_results.empty:
-            raise ValueError("EnergyPlus results are required for post-process")
+        operative_temperature = get_output_variable(
+            eplus_res=eplus_results,
+            key_values=self.zones,
+            variables="Zone Operative Temperature",
+        )
 
-        return calculate_discomfort(eplus_results, temp_threshold=self.temp_threshold)
+        occupancy = get_output_variable(
+            eplus_res=eplus_results,
+            key_values=self.zones,
+            variables="Zone People Occupant Count",
+        )
+
+        results = pd.DataFrame(index=operative_temperature.index)
+
+        for col in operative_temperature.columns:
+            results[f"discomfort_{col}"] = (
+                    (operative_temperature[col] >= self.temp_threshold) & (occupancy[col] > 0)
+            ).astype(int)
+            if self.occupancy_in_output:
+                results[f"occupancy_{col}"] = occupancy[col]
+
+        return results
 
 class LightAutonomy(System):
     """
@@ -115,6 +142,7 @@ class LightAutonomy(System):
     :param zones: Zones or spaces to monitor. Can be "*" for all zones or a list of zones.
     :param lux_threshold: Minimum lux level required for lighting autonomy.
     :param light_schedule_name: Name of the light schedule to retrieve from "Schedule Value".
+    :param occupancy_in_output: Set to True for Zone People Occupant Count in output df.
     """
 
     def __init__(
@@ -123,11 +151,13 @@ class LightAutonomy(System):
         zones: str | list = "*",
         lux_threshold: float = 200,
         light_schedule_name: str = None,
+        occupancy_in_output = False,
     ):
         super().__init__(name=name, category=SystemCategories.SENSOR)
         self.zones = zones
         self.lux_threshold = lux_threshold
         self.light_schedule_name = light_schedule_name
+        self.occupancy_in_output = occupancy_in_output
 
     def pre_process(self, idf: IDF):
         """
@@ -196,8 +226,8 @@ class LightAutonomy(System):
                     & is_occupied[col]
                     & is_schedule_active.squeeze()
             ).astype(int)
-
-            results[f"occupancy_{col}"] = occupancy[col]
+            if self.occupancy_in_output:
+                results[f"occupancy_{col}"] = occupancy[col]
 
         return results
 
