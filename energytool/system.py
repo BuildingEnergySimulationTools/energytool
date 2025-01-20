@@ -23,7 +23,6 @@ from energytool.base.idfobject_utils import (
     add_hourly_schedules_from_df,
     add_natural_ventilation,
 )
-from energytool.base.indicator_functions import calculate_discomfort
 from energytool.base.parse_results import get_output_variable
 from energytool.base.units import Units
 from energytool.tools import select_in_list, to_list
