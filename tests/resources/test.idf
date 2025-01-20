@@ -5019,6 +5019,47 @@ OtherEquipment,
     ELECTRIC EQUIPMENT#Block2:ApptX2E#02;  !- End-Use Subcategory
 
 
+!-   ===========  ALL OBJECTS IN CLASS: DAYLIGHTING:CONTROLS ===========
+
+Daylighting:Controls,
+    Block1:ApptX1W,           !- Name
+    Block1:ApptX1W,          !- Zone Name
+    SplitFlux,               !- Daylighting Method
+    On,                      !- Availability Schedule Name
+    Continuous,              !- Lighting Control Type
+    0.1,                     !- Minimum Input Power Fraction for Continuous or ContinuousOff Dimming Control
+    0.1,                     !- Minimum Light Output Fraction for Continuous or ContinuousOff Dimming Control
+    1,                       !- Number of Stepped Control Steps
+    1,                       !- Probability Lighting will be Reset When Needed in Manual Stepped Control
+    Block1:ApptX1W Ref Point 1,  !- Glare Calculation Daylighting Reference Point Name
+    0,                       !- Glare Calculation Azimuth Angle of View Direction Clockwise from Zone y-Axis {deg}
+    22,                      !- Maximum Allowable Discomfort Glare Index
+    1.0,                     !- DElight Gridding Resolution {m2}
+    Block1:ApptX1W Ref Point 1,  !- Daylighting Reference Point 1 Name
+    1,                       !- Fraction of Zone Controlled by Reference Point 1
+    400,                     !- Illuminance Setpoint at Reference Point 1 {lux}
+    Block1:ApptX1W Ref Point 2,  !- Daylighting Reference Point 2 Name
+    0,                       !- Fraction of Zone Controlled by Reference Point 2
+    300;                     !- Illuminance Setpoint at Reference Point 2 {lux}
+
+
+!-   ===========  ALL OBJECTS IN CLASS: DAYLIGHTING:REFERENCEPOINT ===========
+
+Daylighting:ReferencePoint,
+    Block1:ApptX1W Ref Point 1,  !- Name
+    Block1:ApptX1W,          !- Zone Name
+    -2.5,                    !- X-Coordinate of Reference Point {m}
+    0,                       !- Y-Coordinate of Reference Point {m}
+    0.8;                     !- Z-Coordinate of Reference Point {m}
+
+Daylighting:ReferencePoint,
+    Block1:ApptX1W Ref Point 2,  !- Name
+    Block1:ApptX1W,          !- Zone Name
+    -2,                      !- X-Coordinate of Reference Point {m}
+    0,                       !- Y-Coordinate of Reference Point {m}
+    0.8;                     !- Z-Coordinate of Reference Point {m}
+
+
 !-   ===========  ALL OBJECTS IN CLASS: OUTPUTCONTROL:ILLUMINANCEMAP:STYLE ===========
 
 OutputControl:IlluminanceMap:Style,

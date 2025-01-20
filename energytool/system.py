@@ -61,6 +61,175 @@ class System(ABC):
         pass
 
 
+class Overshoot28(System):
+    """
+    Represents the thermal discomfort system for zones exceeding a temperature threshold.
+
+    :param name: Name of the system.
+    :param zones: Zones or spaces to monitor. Can be "*" for all zones or a list of zones.
+    :param temp_threshold: Temperature threshold for thermal discomfort.
+    :param occupancy_in_output: Set to True for Zone People Occupant Count in output df.
+    """
+
+    def __init__(
+            self,
+            name: str,
+            zones: str | list = "*",
+            temp_threshold: float = 28.0,
+            occupancy_in_output=False,
+    ):
+        super().__init__(name=name, category=SystemCategories.SENSOR)
+        self.zones = zones
+        self.temp_threshold = temp_threshold
+        self.occupancy_in_output = occupancy_in_output
+
+
+    def pre_process(self, idf: IDF):
+        """
+        Adds the necessary output variables to monitor operative temperature and occupancy.
+        """
+        # Add output variable for Zone Operative Temperature
+        add_output_variable(
+            idf=idf,
+            key_values=self.zones,
+            variables="Zone Operative Temperature",
+        )
+
+        # Add output variable for Zone People Occupant Count
+        add_output_variable(
+            idf=idf,
+            key_values=self.zones,
+            variables="Zone People Occupant Count",
+        )
+
+    def post_process(self, idf: IDF = None, eplus_results: pd.DataFrame = None):
+        """
+        Calculates thermal discomfort based on operative temperature and occupancy.
+
+        :param idf: The EnergyPlus input data (not used in this method).
+        :param eplus_results: DataFrame containing EnergyPlus simulation results.
+        :return: DataFrame with additional columns for thermal discomfort.
+        """
+        operative_temperature = get_output_variable(
+            eplus_res=eplus_results,
+            key_values=self.zones,
+            variables="Zone Operative Temperature",
+        )
+
+        occupancy = get_output_variable(
+            eplus_res=eplus_results,
+            key_values=self.zones,
+            variables="Zone People Occupant Count",
+        )
+
+        results = pd.DataFrame(index=operative_temperature.index)
+
+        for col in operative_temperature.columns:
+            results[f"discomfort_{col}"] = (
+                    (operative_temperature[col] >= self.temp_threshold) & (occupancy[col] > 0)
+            ).astype(int)
+            if self.occupancy_in_output:
+                results[f"occupancy_{col}"] = occupancy[col]
+
+        return results
+
+class LightAutonomy(System):
+    """
+    Represents a system to calculate lighting autonomy per zone.
+
+    :param name: Name of the system.
+    :param zones: Zones or spaces to monitor. Can be "*" for all zones or a list of zones.
+    :param lux_threshold: Minimum lux level required for lighting autonomy.
+    :param light_schedule_name: Name of the light schedule to retrieve from "Schedule Value".
+    :param occupancy_in_output: Set to True for Zone People Occupant Count in output df.
+    """
+
+    def __init__(
+        self,
+        name: str,
+        zones: str | list = "*",
+        lux_threshold: float = 200,
+        light_schedule_name: str = None,
+        occupancy_in_output = False,
+    ):
+        super().__init__(name=name, category=SystemCategories.SENSOR)
+        self.zones = zones
+        self.lux_threshold = lux_threshold
+        self.light_schedule_name = light_schedule_name
+        self.occupancy_in_output = occupancy_in_output
+
+    def pre_process(self, idf: IDF):
+        """
+        Adds the necessary output variables for illuminance, occupancy, and light schedule.
+
+        :param idf: The EnergyPlus input data.
+        """
+        # Add output variable for Daylighting Reference Point Illuminance
+
+        # Add output variable for the specified light schedule
+        add_output_variable(
+            idf=idf,
+            key_values=self.light_schedule_name,
+            variables="Schedule Value",
+        )
+
+        add_output_variable(
+            idf=idf,
+            key_values=self.zones,
+            variables="Daylighting Reference Point 1 Illuminance",
+        )
+
+        # Add output variable for Zone People Occupant Count
+        add_output_variable(
+            idf=idf,
+            key_values=self.zones,
+            variables="Zone People Occupant Count",
+        )
+
+    def post_process(self, idf: IDF = None, eplus_results: pd.DataFrame = None):
+        """
+        Calculates lighting autonomy based on illuminance, occupancy, and schedule.
+
+        :param idf: The EnergyPlus input data (not used in this method).
+        :param eplus_results: DataFrame containing EnergyPlus simulation results.
+        :return: DataFrame with additional columns for lighting autonomy per zone.
+        """
+        schedule = get_output_variable(
+            eplus_res=eplus_results,
+            key_values=self.light_schedule_name,
+            variables="Schedule Value",
+        )
+
+        # Get the occupancy data
+        occupancy = get_output_variable(
+            eplus_res=eplus_results,
+            key_values=self.zones,
+            variables="Zone People Occupant Count",
+        )
+
+        # Get the illuminance data
+        illuminance = get_output_variable(
+            eplus_res=eplus_results,
+            key_values=self.zones,
+            variables="Daylighting Reference Point 1 Illuminance",
+        )
+
+        # Calculate lighting autonomy for each zone
+        is_occupied = occupancy > 0
+        is_schedule_active = schedule > 0
+
+        results = pd.DataFrame(index=illuminance.index)
+        for col in illuminance.columns:
+            results[f"autonomy_{col}"] = (
+                    (illuminance[col] >= self.lux_threshold)
+                    & is_occupied[col]
+                    & is_schedule_active.squeeze()
+            ).astype(int)
+            if self.occupancy_in_output:
+                results[f"occupancy_{col}"] = occupancy[col]
+
+        return results
+
 class Sensor(System):
     """
     Add output:variables to the idf, get the results in post process.

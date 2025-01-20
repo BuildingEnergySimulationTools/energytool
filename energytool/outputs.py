@@ -1,10 +1,8 @@
 import enum
 
-import numpy as np
 import pandas as pd
 from eppy.modeleditor import IDF
 
-from energytool.base.parse_results import get_output_variable
 from energytool.base.units import Units
 from energytool.system import System, SystemCategories
 
@@ -12,7 +10,6 @@ from energytool.system import System, SystemCategories
 class OutputCategories(enum.Enum):
     RAW = "RAW"
     SYSTEM = "SYSTEM"
-    OVERSHOOT_28 = "OVERSHOOT_28"
     SENSOR = "SENSOR"
 
 
@@ -47,11 +44,16 @@ def get_results(
             results = get_sensor_results(idf, systems, eplus_res)
             if results is not None:
                 to_return.append(results)
+
+
         else:
             raise ValueError(f"{output_cat} not recognized or not yet implemented")
 
     if to_return:
-        return pd.concat(to_return, axis=1)
+        concatenated = pd.concat(to_return, axis=1)
+        concatenated = concatenated.loc[:, ~concatenated.columns.duplicated()] # to avoid duplicates
+
+        return concatenated
 
 
 def get_sensor_results(
@@ -115,38 +117,3 @@ def get_system_energy_results(
             axis=1
         )
         return sys_nrj_res_df
-
-
-def overshoot_thermal_comfort(self):
-    if self.energyplus_results.empty:
-        raise ValueError("No energyplus results available")
-
-    year = self.building_results.index[0].year
-    begin_loc = f"{year}-{self.month_summer_begins}"
-    end_loc = f"{year}-{self.month_summer_ends}"
-
-    zones_top = get_output_variable(
-        self.energyplus_results,
-        "Zone Operative Temperature",
-        self.zone_name_list,
-    )
-
-    zones_occupation = get_output_variable(
-        self.energyplus_results,
-        "Zone People Occupant Count",
-        self.zone_name_list,
-    )
-
-    zones_top = zones_top.loc[begin_loc:end_loc, :]
-    zones_occupation = zones_occupation.loc[begin_loc:end_loc, :]
-
-    zones_top_hot = zones_top > self.summer_comfort_top
-    zones_is_someone = zones_occupation > 0
-
-    shared_zones = list(set(zones_top_hot) & set(zones_is_someone))
-
-    zone_hot_and_someone = np.logical_and(
-        zones_top_hot[shared_zones], zones_is_someone[shared_zones]
-    )
-
-    return (zone_hot_and_someone.sum() / zones_is_someone.sum()) * 100
