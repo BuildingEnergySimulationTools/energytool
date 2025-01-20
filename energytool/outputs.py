@@ -50,7 +50,10 @@ def get_results(
             raise ValueError(f"{output_cat} not recognized or not yet implemented")
 
     if to_return:
-        return pd.concat(to_return, axis=1)
+        concatenated = pd.concat(to_return, axis=1)
+        concatenated = concatenated.loc[:, ~concatenated.columns.duplicated()] # to avoid duplicates
+
+        return concatenated
 
 
 def get_sensor_results(
