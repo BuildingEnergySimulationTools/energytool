@@ -170,6 +170,45 @@ Others: {[obj.name for obj in self.systems[SystemCategories.OTHER]]}
                 if sys.name == system_name:
                     del self.systems[cat][i]
 
+    def get_param_init_value(
+            self,
+            parameter_name_list: list[str] = None,
+    ):
+        """
+        Returns the initial value of the parameters of the model.
+
+        :param parameter_name_list: list of parameter names (str) like
+               "idf.Material.SomeMat.Thickness" or "system.heating.Heater.cop"
+        :return: list of corresponding nominal values
+        """
+        working_idf = deepcopy(self.idf)
+
+        values = []
+
+        for full_key in parameter_name_list:
+            split_key = full_key.split(".")
+
+            if split_key[0] == ParamCategories.IDF.value:
+                value = getidfvalue(working_idf, full_key)
+                values.append(value)
+
+            elif split_key[0] == ParamCategories.SYSTEM.value:
+                if split_key[1].upper() in [sys.value for sys in SystemCategories]:
+                    sys_category = SystemCategories(split_key[1].upper())
+                    system_obj = self.systems[sys_category][split_key[2]]
+                    value = getattr(system_obj, split_key[3])
+                    values.append(value)
+                else:
+                    raise ValueError(f"Unknown system category in key: {full_key}")
+
+            elif split_key[0] == ParamCategories.EPW_FILE.value:
+                values.append(str(self.weather.epw_path))
+
+            else:
+                raise ValueError(f"Unsupported parameter category in key: {full_key}")
+
+        return values
+
     def simulate(
         self,
         parameter_dict: dict[str, str | float | int] = None,
