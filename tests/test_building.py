@@ -123,3 +123,20 @@ class TestBuilding:
             # Check if the saved file exists with the correct name
             saved_file_path = file_path / "test_model.idf"
             assert saved_file_path.exists()
+
+
+    def test_get_initial_value(self):
+        test_build = Building(idf_path=RESOURCES_PATH / "test.idf")
+        string_search = "idf.DesignSpecification:OutdoorAir.Block1:ApptX1E.Outdoor_Air_Flow_Air_Changes_per_Hour"
+        init_value = test_build.get_param_init_value(string_search)
+
+        assert(init_value == 3)
+
+        string_search_two_params=[
+            "idf.Sizing:Zone.Block1:ApptX1E.Zone_Heating_Sizing_Factor",
+            "idf.DesignSpecification:OutdoorAir.Block1:ApptX1E.Outdoor_Air_Flow_Air_Changes_per_Hour"
+        ]
+
+        init_values = test_build.get_param_init_value(string_search_two_params)
+
+        assert(init_values == [1.25, 3])

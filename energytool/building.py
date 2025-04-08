@@ -172,17 +172,22 @@ Others: {[obj.name for obj in self.systems[SystemCategories.OTHER]]}
 
     def get_param_init_value(
             self,
-            parameter_name_list: list[str] = None,
+            parameter_name_list: str | list[str] = None,
     ):
         """
-        Returns the initial value of the parameters of the model.
+        Returns the initial value(s) of one or more parameters of the model.
 
-        :param parameter_name_list: list of parameter names (str) like
-               "idf.Material.SomeMat.Thickness" or "system.heating.Heater.cop"
-        :return: list of corresponding nominal values
+        :param parameter_name_list: A string or list of parameter names (str), like
+            "idf.Material.SomeMat.Thickness" or "system.heating.Heater.cop"
+        :return: a list of values if input is a list, or a single value if input is a string
         """
-        working_idf = deepcopy(self.idf)
+        if isinstance(parameter_name_list, str):
+            is_single = True
+            parameter_name_list = [parameter_name_list]
+        else:
+            is_single = False
 
+        working_idf = deepcopy(self.idf)
         values = []
 
         for full_key in parameter_name_list:
@@ -207,7 +212,7 @@ Others: {[obj.name for obj in self.systems[SystemCategories.OTHER]]}
             else:
                 raise ValueError(f"Unsupported parameter category in key: {full_key}")
 
-        return values
+        return values[0] if is_single else values
 
     def simulate(
         self,
