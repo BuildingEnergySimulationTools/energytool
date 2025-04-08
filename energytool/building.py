@@ -2,6 +2,7 @@ import eppy
 import pandas as pd
 from eppy.modeleditor import IDF
 from corrai.base.model import Model
+from corrai.learning.sampling import expand_parameter_dict
 
 from copy import deepcopy
 
@@ -57,6 +58,31 @@ def temporary_directory():
 
     finally:
         shutil.rmtree(temp_dir)
+
+
+def getidfvalue(idf, param_key: str):
+    """
+    Get value from IDF object using a dotted key string, compatible with Eppy.
+    Supports wildcard '*' for object name.
+    """
+    idftag, obj_type, obj_name, field = json_functions.key2elements(param_key)
+
+    if idftag != "idf":
+        raise ValueError(f"Unsupported prefix '{idftag}' in key: {param_key}")
+
+    if obj_name == "*":
+        idfobjs = idf.idfobjects[obj_type.upper()]
+        return [obj[field] for obj in idfobjs if field in obj.fieldnames]
+    else:
+        obj = idf.getobject(obj_type.upper(), obj_name)
+        if obj is None:
+            raise KeyError(f"Object '{obj_name}' of type '{obj_type}' not found in IDF.")
+        if field not in obj.fieldnames:
+            raise KeyError(f"Field '{field}' not found in object '{obj_name}'.")
+        return obj[field]
+
+
+
 
 
 class Building(Model):
@@ -149,6 +175,7 @@ Others: {[obj.name for obj in self.systems[SystemCategories.OTHER]]}
         parameter_dict: dict[str, str | float | int] = None,
         simulation_options: dict[str, str | float | int] = None,
         idf_save_path: Path | None = None,
+        param_mapping : dict = None,
     ) -> pd.DataFrame:
         """
         Simulate the building model with specified parameters and simulation options.
@@ -205,6 +232,8 @@ Others: {[obj.name for obj in self.systems[SystemCategories.OTHER]]}
         epw_path = None
         if parameter_dict is None:
             parameter_dict = {}
+        if param_mapping:
+            parameter_dict = expand_parameter_dict(parameter_dict, param_mapping)
 
         for key in parameter_dict:
             split_key = key.split(".")
