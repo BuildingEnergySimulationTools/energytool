@@ -13,6 +13,8 @@ from energytool.base.idf_utils import (
     get_objects_name_list,
     get_named_objects_field_values,
 )
+from energytool.system import HeaterSimple
+from energytool.system import System, SystemCategories
 from energytool.building import Building
 from energytool.modifier import (
     set_opaque_surface_construction,
@@ -21,6 +23,7 @@ from energytool.modifier import (
     set_blinds_solar_transmittance,
     set_blinds_schedule,
     set_schedule_constant,
+    set_system,
     update_idf_objects,
     reverse_kwargs,
 )
@@ -753,6 +756,37 @@ class TestModifier:
             "Name": "test_construction",
             "Outside_Layer": "Layer_1",
         }
+
+    def test_set_system(self, toy_building):
+        test_build = Building(idf_path=RESOURCES_PATH / "test.idf")
+
+        # Step 1: add two heating systems manually
+        heater_1 = HeaterSimple(name="simple_heater", cop=2.0)
+        pac = HeaterSimple(name="PAC", cop=4.0)
+
+        test_build.add_system(heater_1)
+        test_2 = deepcopy(test_build)
+
+        test_build.add_system(pac)
+
+        # Check that both are present
+        heating_system_names = [sys.name for sys in test_build.systems[SystemCategories.HEATING]]
+        assert "simple_heater" in heating_system_names
+        assert "PAC" in heating_system_names
+
+        # Step 2: overwrite simple_heater via set_system
+        replacement_heater = HeaterSimple(name="simple_heater", cop=3.0)
+        set_system(test_2, {"variant_1": replacement_heater})
+
+        # Check that only simple_heater remains
+        heating_system_names_updated = [sys.name for sys in test_2.systems[SystemCategories.HEATING]]
+        assert "simple_heater" in heating_system_names_updated
+        assert "PAC" not in heating_system_names_updated
+
+        # Optional: verify that the cop has been updated
+        assert [sys.cop for sys in test_2.systems[SystemCategories.HEATING]] == [3.0]
+        assert [sys.cop for sys in test_build.systems[SystemCategories.HEATING]] == [2.0, 4.0]
+
 
     # def test_envelope_shades_modifier(self, toy_building):
     #     loc_toy = deepcopy(toy_building)

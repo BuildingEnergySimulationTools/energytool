@@ -366,7 +366,7 @@ def add_hourly_schedules_from_df(
         number_hour = len(data)
 
     # In case we have data spanning over several years. Reorganise
-    # data.index = [idx.replace(year=2009) for idx in data.index]
+    data.index = [idx.replace(year=2009) for idx in data.index]
     data.sort_index(inplace=True)
     data.to_csv(full_path, index=False, sep=",")
 

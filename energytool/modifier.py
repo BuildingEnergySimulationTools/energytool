@@ -215,7 +215,6 @@ def set_external_windows(
             or (surface_name_filter is None and name_filter in win.Name)
         ]
     windows_names = [win.Name for win in windows]
-
     win_cons_names = {win.Construction_Name for win in windows}
     windows_constructions = [
         idf.getobject("Construction", name) for name in win_cons_names
@@ -684,3 +683,14 @@ def set_blinds_st_and_schedule(
     """
     set_blinds_solar_transmittance(model, description, name_filter, surface_name_filter)
     set_blinds_schedule(model, description, name_filter, surface_name_filter)
+
+
+def set_system(model, description, **kwargs):
+    system = list(description.values())[0]
+    system_name = kwargs.get("system_name", system.name)
+
+    # Remove existing system with the same name if needed
+    model.del_system(system_name)
+
+    # Add new system
+    model.add_system(system)

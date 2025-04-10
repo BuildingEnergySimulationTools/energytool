@@ -2,6 +2,7 @@ import eppy
 import pandas as pd
 from eppy.modeleditor import IDF
 from corrai.base.model import Model
+from corrai.learning.sampling import expand_parameter_dict
 
 from copy import deepcopy
 
@@ -144,11 +145,56 @@ Others: {[obj.name for obj in self.systems[SystemCategories.OTHER]]}
                 if sys.name == system_name:
                     del self.systems[cat][i]
 
+    def get_param_init_value(
+            self,
+            parameter_name_list: str | list[str] = None,
+    ):
+        """
+        Returns the initial value(s) of one or more parameters of the model.
+
+        :param parameter_name_list: A string or list of parameter names (str), like
+            "idf.Material.SomeMat.Thickness" or "system.heating.Heater.cop"
+        :return: a list of values if input is a list, or a single value if input is a string
+        """
+        if isinstance(parameter_name_list, str):
+            is_single = True
+            parameter_name_list = [parameter_name_list]
+        else:
+            is_single = False
+
+        working_idf = deepcopy(self.idf)
+        values = []
+
+        for full_key in parameter_name_list:
+            split_key = full_key.split(".")
+
+            if split_key[0] == ParamCategories.IDF.value:
+                value = energytool.base.idf_utils.getidfvalue(working_idf, full_key)
+                values.append(value)
+
+            elif split_key[0] == ParamCategories.SYSTEM.value:
+                if split_key[1].upper() in [sys.value for sys in SystemCategories]:
+                    sys_category = SystemCategories(split_key[1].upper())
+                    system_obj = self.systems[sys_category][split_key[2]]
+                    value = getattr(system_obj, split_key[3])
+                    values.append(value)
+                else:
+                    raise ValueError(f"Unknown system category in key: {full_key}")
+
+            elif split_key[0] == ParamCategories.EPW_FILE.value:
+                values.append(str(self.weather.epw_path))
+
+            else:
+                raise ValueError(f"Unsupported parameter category in key: {full_key}")
+
+        return values[0] if is_single else values
+
     def simulate(
         self,
         parameter_dict: dict[str, str | float | int] = None,
         simulation_options: dict[str, str | float | int] = None,
         idf_save_path: Path | None = None,
+        param_mapping : dict = None,
     ) -> pd.DataFrame:
         """
         Simulate the building model with specified parameters and simulation options.
@@ -205,6 +251,8 @@ Others: {[obj.name for obj in self.systems[SystemCategories.OTHER]]}
         epw_path = None
         if parameter_dict is None:
             parameter_dict = {}
+        if param_mapping:
+            parameter_dict = expand_parameter_dict(parameter_dict, param_mapping)
 
         for key in parameter_dict:
             split_key = key.split(".")

@@ -12,6 +12,7 @@ from energytool.base.idf_utils import (
     get_named_objects,
     get_named_objects_field_values,
     del_named_objects,
+    getidfvalue,
 )
 
 TEST_RESOURCES_PATH = Path(__file__).parent.parent / "resources"
@@ -35,6 +36,25 @@ def toy_idf(tmp_path_factory):
 
 
 class TestIdfObjectUtils:
+
+    def test_getidfvalue(self, toy_idf):
+        key = "idf.Zone.Zone_0.Floor_Area"
+        assert getidfvalue(toy_idf, key) == 10
+
+        set_named_objects_field_values(toy_idf, "Zone", "Floor_Area", 42)
+        key = "idf.Zone.*.Floor_Area"
+        assert getidfvalue(toy_idf, key) == [42] * 10
+
+        with pytest.raises(ValueError, match="Unsupported prefix"):
+            getidfvalue(toy_idf, "badprefix.Zone.Zone_0.Floor_Area")
+
+        with pytest.raises(KeyError, match="Object 'Zone_999'"):
+            getidfvalue(toy_idf, "idf.Zone.Zone_999.Floor_Area")
+
+        with pytest.raises(KeyError, match="Field 'Height'"):
+            getidfvalue(toy_idf, "idf.Zone.Zone_0.Height")
+
+
     def test_get_objects_name_list(self, toy_idf):
         to_test = get_objects_name_list(toy_idf, "Zone")
         assert to_test == [f"Zone_{i}" for i in range(10)]
