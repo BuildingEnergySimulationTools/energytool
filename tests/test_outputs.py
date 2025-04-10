@@ -20,7 +20,7 @@ def expected_res_df():
         parse_dates=True,
     )
 
-    to_return.index.freq = "H"
+    to_return.index.freq = "h"
     return to_return
 
 @pytest.fixture(scope="session")

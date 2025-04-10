@@ -79,7 +79,7 @@ class Scheduler:
             year = dt.datetime.today().year
         self.year = year
         self.series = pd.Series(
-            index=pd.date_range(f"{year}-01-01 00:00:00", freq="H", periods=8760),
+            index=pd.date_range(f"{year}-01-01 00:00:00", freq="h", periods=8760),
             name=name,
             dtype="float64",
         )
