@@ -1,7 +1,31 @@
 import eppy
 from eppy.modeleditor import IDF
+import eppy.json_functions as json_functions
 
 from energytool.tools import is_items_in_list, to_list
+
+
+def getidfvalue(idf, param_key: str):
+    """
+    Get value from IDF object using a dotted key string, compatible with Eppy.
+    Supports wildcard '*' for object name.
+    """
+    idftag, obj_type, obj_name, field = json_functions.key2elements(param_key)
+
+    if idftag != "idf":
+        raise ValueError(f"Unsupported prefix '{idftag}' in key: {param_key}")
+
+    if obj_name == "*":
+        idfobjs = idf.idfobjects[obj_type.upper()]
+        return [obj[field] for obj in idfobjs if field in obj.fieldnames]
+    else:
+        obj = idf.getobject(obj_type.upper(), obj_name)
+        if obj is None:
+            raise KeyError(f"Object '{obj_name}' of type '{obj_type}' not found in IDF.")
+        if field not in obj.fieldnames:
+            raise KeyError(f"Field '{field}' not found in object '{obj_name}'.")
+        return obj[field]
+
 
 
 def get_objects_name_list(idf: IDF, idf_object: str):

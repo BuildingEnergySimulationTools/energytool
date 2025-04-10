@@ -60,31 +60,6 @@ def temporary_directory():
         shutil.rmtree(temp_dir)
 
 
-def getidfvalue(idf, param_key: str):
-    """
-    Get value from IDF object using a dotted key string, compatible with Eppy.
-    Supports wildcard '*' for object name.
-    """
-    idftag, obj_type, obj_name, field = json_functions.key2elements(param_key)
-
-    if idftag != "idf":
-        raise ValueError(f"Unsupported prefix '{idftag}' in key: {param_key}")
-
-    if obj_name == "*":
-        idfobjs = idf.idfobjects[obj_type.upper()]
-        return [obj[field] for obj in idfobjs if field in obj.fieldnames]
-    else:
-        obj = idf.getobject(obj_type.upper(), obj_name)
-        if obj is None:
-            raise KeyError(f"Object '{obj_name}' of type '{obj_type}' not found in IDF.")
-        if field not in obj.fieldnames:
-            raise KeyError(f"Field '{field}' not found in object '{obj_name}'.")
-        return obj[field]
-
-
-
-
-
 class Building(Model):
     """
     The Building class represents a building model. It is based on an EnergyPlus
@@ -194,7 +169,7 @@ Others: {[obj.name for obj in self.systems[SystemCategories.OTHER]]}
             split_key = full_key.split(".")
 
             if split_key[0] == ParamCategories.IDF.value:
-                value = getidfvalue(working_idf, full_key)
+                value = energytool.base.idf_utils.getidfvalue(working_idf, full_key)
                 values.append(value)
 
             elif split_key[0] == ParamCategories.SYSTEM.value:
