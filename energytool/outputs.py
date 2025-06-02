@@ -45,13 +45,14 @@ def get_results(
             if results is not None:
                 to_return.append(results)
 
-
         else:
             raise ValueError(f"{output_cat} not recognized or not yet implemented")
 
     if to_return:
         concatenated = pd.concat(to_return, axis=1)
-        concatenated = concatenated.loc[:, ~concatenated.columns.duplicated()] # to avoid duplicates
+        concatenated = concatenated.loc[
+            :, ~concatenated.columns.duplicated()
+        ]  # to avoid duplicates
 
         return concatenated
 

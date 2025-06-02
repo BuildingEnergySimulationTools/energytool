@@ -72,17 +72,16 @@ class Overshoot28(System):
     """
 
     def __init__(
-            self,
-            name: str,
-            zones: str | list = "*",
-            temp_threshold: float = 28.0,
-            occupancy_in_output=False,
+        self,
+        name: str,
+        zones: str | list = "*",
+        temp_threshold: float = 28.0,
+        occupancy_in_output=False,
     ):
         super().__init__(name=name, category=SystemCategories.SENSOR)
         self.zones = zones
         self.temp_threshold = temp_threshold
         self.occupancy_in_output = occupancy_in_output
-
 
     def pre_process(self, idf: IDF):
         """
@@ -126,12 +125,14 @@ class Overshoot28(System):
 
         for col in operative_temperature.columns:
             results[f"discomfort_{col}"] = (
-                    (operative_temperature[col] >= self.temp_threshold) & (occupancy[col] > 0)
+                (operative_temperature[col] >= self.temp_threshold)
+                & (occupancy[col] > 0)
             ).astype(int)
             if self.occupancy_in_output:
                 results[f"occupancy_{col}"] = occupancy[col]
 
         return results
+
 
 class LightAutonomy(System):
     """
@@ -150,7 +151,7 @@ class LightAutonomy(System):
         zones: str | list = "*",
         lux_threshold: float = 200,
         light_schedule_name: str = None,
-        occupancy_in_output = False,
+        occupancy_in_output=False,
     ):
         super().__init__(name=name, category=SystemCategories.SENSOR)
         self.zones = zones
@@ -221,14 +222,15 @@ class LightAutonomy(System):
         results = pd.DataFrame(index=illuminance.index)
         for col in illuminance.columns:
             results[f"autonomy_{col}"] = (
-                    (illuminance[col] >= self.lux_threshold)
-                    & is_occupied[col]
-                    & is_schedule_active.squeeze()
+                (illuminance[col] >= self.lux_threshold)
+                & is_occupied[col]
+                & is_schedule_active.squeeze()
             ).astype(int)
             if self.occupancy_in_output:
                 results[f"occupancy_{col}"] = occupancy[col]
 
         return results
+
 
 class Sensor(System):
     """

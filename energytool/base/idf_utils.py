@@ -21,11 +21,12 @@ def getidfvalue(idf, param_key: str):
     else:
         obj = idf.getobject(obj_type.upper(), obj_name)
         if obj is None:
-            raise KeyError(f"Object '{obj_name}' of type '{obj_type}' not found in IDF.")
+            raise KeyError(
+                f"Object '{obj_name}' of type '{obj_type}' not found in IDF."
+            )
         if field not in obj.fieldnames:
             raise KeyError(f"Field '{field}' not found in object '{obj_name}'.")
         return obj[field]
-
 
 
 def get_objects_name_list(idf: IDF, idf_object: str):

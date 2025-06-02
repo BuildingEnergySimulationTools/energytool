@@ -39,30 +39,33 @@ class TestBuilding:
 
         assert test_build.volume == 600.0
 
-        assert res.sum().to_dict() == approx({
-            "HEATING_Energy_[J]": 124442595875.44434,
-            "TOTAL_SYSTEM_Energy_[J]": 124442595875.44434,
-            "BLOCK1:APPTX1W:"
-            "Zone Other Equipment Total Heating Energy [J](Hourly)": 18564769403.136005,
-            "BLOCK1:APPTX1E:"
-            "Zone Other Equipment Total Heating Energy [J](Hourly)": 18564769403.136005,
-            "BLOCK2:APPTX2W:"
-            "Zone Other Equipment Total Heating Energy [J](Hourly)": 18564769403.136005,
-            "BLOCK2:APPTX2E:"
-            "Zone Other Equipment Total Heating Energy [J](Hourly)": 18564769403.136005,
-            "BLOCK1:APPTX1W IDEAL LOADS AIR:"
-            "Zone Ideal Loads Supply Air Total Heating Energy "
-            "[J](Hourly)": 15412078533.53048,
-            "BLOCK1:APPTX1E IDEAL LOADS AIR:"
-            "Zone Ideal Loads Supply Air Total Heating Energy "
-            "[J](Hourly)": 15855121735.988373,
-            "BLOCK2:APPTX2W IDEAL LOADS AIR:"
-            "Zone Ideal Loads Supply Air Total Heating Energy "
-            "[J](Hourly)": 15276675722.295742,
-            "BLOCK2:APPTX2E IDEAL LOADS AIR:"
-            "Zone Ideal Loads Supply Air Total Heating Energy "
-            "[J](Hourly) ": 15677421945.907581,
-        }, rel=0.05)
+        assert res.sum().to_dict() == approx(
+            {
+                "HEATING_Energy_[J]": 124442595875.44434,
+                "TOTAL_SYSTEM_Energy_[J]": 124442595875.44434,
+                "BLOCK1:APPTX1W:"
+                "Zone Other Equipment Total Heating Energy [J](Hourly)": 18564769403.136005,
+                "BLOCK1:APPTX1E:"
+                "Zone Other Equipment Total Heating Energy [J](Hourly)": 18564769403.136005,
+                "BLOCK2:APPTX2W:"
+                "Zone Other Equipment Total Heating Energy [J](Hourly)": 18564769403.136005,
+                "BLOCK2:APPTX2E:"
+                "Zone Other Equipment Total Heating Energy [J](Hourly)": 18564769403.136005,
+                "BLOCK1:APPTX1W IDEAL LOADS AIR:"
+                "Zone Ideal Loads Supply Air Total Heating Energy "
+                "[J](Hourly)": 15412078533.53048,
+                "BLOCK1:APPTX1E IDEAL LOADS AIR:"
+                "Zone Ideal Loads Supply Air Total Heating Energy "
+                "[J](Hourly)": 15855121735.988373,
+                "BLOCK2:APPTX2W IDEAL LOADS AIR:"
+                "Zone Ideal Loads Supply Air Total Heating Energy "
+                "[J](Hourly)": 15276675722.295742,
+                "BLOCK2:APPTX2E IDEAL LOADS AIR:"
+                "Zone Ideal Loads Supply Air Total Heating Energy "
+                "[J](Hourly) ": 15677421945.907581,
+            },
+            rel=0.05,
+        )
 
         param_dict = {
             "idf.material.Urea Formaldehyde Foam_.1327.Conductivity": 0.05,
@@ -83,34 +86,37 @@ class TestBuilding:
             parameter_dict=param_dict, simulation_options=simulation_options
         )
 
-        assert res.sum().to_dict() == approx({
-            "HEATING_Energy_[J]": 28997691318.06697,
-            "TOTAL_SYSTEM_Energy_[J]": 28997691318.06697,
-            "BLOCK1:APPTX1W:"
-            "Zone Other Equipment Total Heating Energy "
-            "[J](Hourly)": 1627596221.6448004,
-            "BLOCK1:APPTX1E:"
-            "Zone Other Equipment Total Heating Energy "
-            "[J](Hourly)": 1627596221.6448004,
-            "BLOCK2:APPTX2W:"
-            "Zone Other Equipment Total Heating Energy "
-            "[J](Hourly)": 1627596221.6448004,
-            "BLOCK2:APPTX2E:"
-            "Zone Other Equipment Total Heating Energy "
-            "[J](Hourly)": 1627596221.6448004,
-            "BLOCK1:"
-            "APPTX1W IDEAL LOADS AIR:Zone Ideal Loads Supply Air Total Heating Energy "
-            "[J](Hourly)": 3608218979.0446877,
-            "BLOCK1:APPTX1E IDEAL LOADS AIR:"
-            "Zone Ideal Loads Supply Air Total Heating Energy "
-            "[J](Hourly)": 3682672386.484531,
-            "BLOCK2:APPTX2W IDEAL LOADS AIR:"
-            "Zone Ideal Loads Supply Air Total Heating Energy "
-            "[J](Hourly)": 3571575271.9865627,
-            "BLOCK2:APPTX2E IDEAL LOADS AIR:"
-            "Zone Ideal Loads Supply Air Total Heating Energy "
-            "[J](Hourly) ": 3636379021.517704,
-        }, rel= 0.05)
+        assert res.sum().to_dict() == approx(
+            {
+                "HEATING_Energy_[J]": 28997691318.06697,
+                "TOTAL_SYSTEM_Energy_[J]": 28997691318.06697,
+                "BLOCK1:APPTX1W:"
+                "Zone Other Equipment Total Heating Energy "
+                "[J](Hourly)": 1627596221.6448004,
+                "BLOCK1:APPTX1E:"
+                "Zone Other Equipment Total Heating Energy "
+                "[J](Hourly)": 1627596221.6448004,
+                "BLOCK2:APPTX2W:"
+                "Zone Other Equipment Total Heating Energy "
+                "[J](Hourly)": 1627596221.6448004,
+                "BLOCK2:APPTX2E:"
+                "Zone Other Equipment Total Heating Energy "
+                "[J](Hourly)": 1627596221.6448004,
+                "BLOCK1:"
+                "APPTX1W IDEAL LOADS AIR:Zone Ideal Loads Supply Air Total Heating Energy "
+                "[J](Hourly)": 3608218979.0446877,
+                "BLOCK1:APPTX1E IDEAL LOADS AIR:"
+                "Zone Ideal Loads Supply Air Total Heating Energy "
+                "[J](Hourly)": 3682672386.484531,
+                "BLOCK2:APPTX2W IDEAL LOADS AIR:"
+                "Zone Ideal Loads Supply Air Total Heating Energy "
+                "[J](Hourly)": 3571575271.9865627,
+                "BLOCK2:APPTX2E IDEAL LOADS AIR:"
+                "Zone Ideal Loads Supply Air Total Heating Energy "
+                "[J](Hourly) ": 3636379021.517704,
+            },
+            rel=0.05,
+        )
 
     def test_save(self):
         with TemporaryDirectory() as temp_dir:
@@ -124,19 +130,18 @@ class TestBuilding:
             saved_file_path = file_path / "test_model.idf"
             assert saved_file_path.exists()
 
-
     def test_get_initial_value(self):
         test_build = Building(idf_path=RESOURCES_PATH / "test.idf")
         string_search = "idf.DesignSpecification:OutdoorAir.Block1:ApptX1E.Outdoor_Air_Flow_Air_Changes_per_Hour"
         init_value = test_build.get_param_init_value(string_search)
 
-        assert(init_value == 3)
+        assert init_value == 3
 
-        string_search_two_params=[
+        string_search_two_params = [
             "idf.Sizing:Zone.Block1:ApptX1E.Zone_Heating_Sizing_Factor",
-            "idf.DesignSpecification:OutdoorAir.Block1:ApptX1E.Outdoor_Air_Flow_Air_Changes_per_Hour"
+            "idf.DesignSpecification:OutdoorAir.Block1:ApptX1E.Outdoor_Air_Flow_Air_Changes_per_Hour",
         ]
 
         init_values = test_build.get_param_init_value(string_search_two_params)
 
-        assert(init_values == [1.25, 3])
+        assert init_values == [1.25, 3]

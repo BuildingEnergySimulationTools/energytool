@@ -36,7 +36,6 @@ def toy_idf(tmp_path_factory):
 
 
 class TestIdfObjectUtils:
-
     def test_getidfvalue(self, toy_idf):
         key = "idf.Zone.Zone_0.Floor_Area"
         assert getidfvalue(toy_idf, key) == 10
@@ -53,7 +52,6 @@ class TestIdfObjectUtils:
 
         with pytest.raises(KeyError, match="Field 'Height'"):
             getidfvalue(toy_idf, "idf.Zone.Zone_0.Height")
-
 
     def test_get_objects_name_list(self, toy_idf):
         to_test = get_objects_name_list(toy_idf, "Zone")

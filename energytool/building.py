@@ -146,8 +146,8 @@ Others: {[obj.name for obj in self.systems[SystemCategories.OTHER]]}
                     del self.systems[cat][i]
 
     def get_param_init_value(
-            self,
-            parameter_name_list: str | list[str] = None,
+        self,
+        parameter_name_list: str | list[str] = None,
     ):
         """
         Returns the initial value(s) of one or more parameters of the model.
@@ -194,7 +194,7 @@ Others: {[obj.name for obj in self.systems[SystemCategories.OTHER]]}
         parameter_dict: dict[str, str | float | int] = None,
         simulation_options: dict[str, str | float | int] = None,
         idf_save_path: Path | None = None,
-        param_mapping : dict = None,
+        param_mapping: dict = None,
     ) -> pd.DataFrame:
         """
         Simulate the building model with specified parameters and simulation options.

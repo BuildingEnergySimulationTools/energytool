@@ -1,16 +1,22 @@
 from pathlib import Path
 import pytest
 
+import pandas as pd
+
+from eppy.modeleditor import IDF
+
+from energytool.building import Building
 from energytool.base.parse_results import (
+    get_output_variable,
+    read_eplus_res,
     zone_contains_regex,
 )
-from energytool.building import Building
-from energytool.base.parse_results import read_eplus_res
-from energytool.system import *
+from energytool.system import Sensor
 
 RESOURCES_PATH = Path(__file__).parent / "resources"
 
 Building.set_idd(RESOURCES_PATH)
+
 
 @pytest.fixture()
 def expected_res_df():
@@ -22,6 +28,7 @@ def expected_res_df():
 
     to_return.index.freq = "h"
     return to_return
+
 
 @pytest.fixture(scope="session")
 def idf(tmp_path_factory):
@@ -54,7 +61,8 @@ class TestEplusPostProcess:
             },
         )
         assert (
-                result.columns.tolist().count("BLOCK1:APPTX1W_Zone Operative Temperature") == 1
+            result.columns.tolist().count("BLOCK1:APPTX1W_Zone Operative Temperature")
+            == 1
         )
 
     def test_zone_contains_regex(self):

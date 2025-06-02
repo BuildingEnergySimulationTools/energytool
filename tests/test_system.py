@@ -1,13 +1,21 @@
 from copy import deepcopy
 from pathlib import Path
 
+import pandas as pd
+import numpy as np
+
 import pytest
 from pytest import approx
 
-from energytool.base.idf_utils import get_named_objects_field_values
+from eppy.modeleditor import IDF
+
+from energytool.base.idf_utils import (
+    get_named_objects_field_values,
+    get_objects_name_list,
+)
 from energytool.base.parse_results import read_eplus_res
 from energytool.building import Building
-from energytool.system import *
+import energytool.system as sys
 
 RESOURCES_PATH = Path(__file__).parent / "resources"
 
@@ -26,17 +34,17 @@ class TestSystems:
         overshoot_temp = 20
 
         test_build.add_system(
-            Sensor(
+            sys.Sensor(
                 name="ZOP",
                 variables="Zone Operative Temperature",
                 key_values="*",
             )
         )
         test_build.add_system(
-            Overshoot28(
+            sys.Overshoot28(
                 name="thermal comfort",
                 temp_threshold=overshoot_temp,
-                occupancy_in_output=True
+                occupancy_in_output=True,
             )
         )
 
@@ -52,8 +60,7 @@ class TestSystems:
         Top = result["BLOCK1:APPTX1W_Zone Operative Temperature"] >= overshoot_temp
         Occ = result["occupancy_BLOCK1:APPTX1W"] > 0
 
-        assert [res==1 for res in result.loc[Top & Occ, "discomfort_BLOCK1:APPTX1W"]]
-
+        assert [res == 1 for res in result.loc[Top & Occ, "discomfort_BLOCK1:APPTX1W"]]
 
     def test_light_autonomy(self):
         test_build = Building(idf_path=RESOURCES_PATH / "test.idf")
@@ -61,7 +68,7 @@ class TestSystems:
         lux_threshold = 200
 
         test_build.add_system(
-            Sensor(
+            sys.Sensor(
                 name="Daylighting RefPoint",
                 variables="Daylighting Reference Point 1 Illuminance",
                 key_values="*",
@@ -69,12 +76,12 @@ class TestSystems:
         )
 
         test_build.add_system(
-            LightAutonomy(
+            sys.LightAutonomy(
                 name="Autonomy",
                 zones="Block1:ApptX1W",
                 lux_threshold=lux_threshold,
                 light_schedule_name="B4R_sc_Residential_Light",
-                occupancy_in_output=True
+                occupancy_in_output=True,
             )
         )
 
@@ -87,16 +94,20 @@ class TestSystems:
             },
         )
 
-        Daylight = result["BLOCK1:APPTX1W_Daylighting Reference Point 1 Illuminance"] >= lux_threshold
+        Daylight = (
+            result["BLOCK1:APPTX1W_Daylighting Reference Point 1 Illuminance"]
+            >= lux_threshold
+        )
         Occ = result["occupancy_BLOCK1:APPTX1W"] > 0
 
-        assert [res==1 for res in result.loc[Daylight & Occ, "autonomy_BLOCK1:APPTX1W"]]
-
+        assert [
+            res == 1 for res in result.loc[Daylight & Occ, "autonomy_BLOCK1:APPTX1W"]
+        ]
 
     def test_sensor(self):
         test_build = Building(idf_path=RESOURCES_PATH / "test.idf")
         test_build.add_system(
-            Sensor(
+            sys.Sensor(
                 name="TOP",
                 variables="Zone Mean Air Temperature",
                 key_values="*",
@@ -112,15 +123,18 @@ class TestSystems:
             },
         )
 
-        assert result.mean().to_dict() == approx({
-            "BLOCK1:APPTX1E_Zone Mean Air Temperature": 24.106458524856194,
-            "BLOCK1:APPTX1W_Zone Mean Air Temperature": 24.31161298029638,
-            "BLOCK2:APPTX2E_Zone Mean Air Temperature": 24.136851195562542,
-            "BLOCK2:APPTX2W_Zone Mean Air Temperature": 24.327924630006954,
-        }, rel = 0.05)
+        assert result.mean().to_dict() == approx(
+            {
+                "BLOCK1:APPTX1E_Zone Mean Air Temperature": 24.106458524856194,
+                "BLOCK1:APPTX1W_Zone Mean Air Temperature": 24.31161298029638,
+                "BLOCK2:APPTX2E_Zone Mean Air Temperature": 24.136851195562542,
+                "BLOCK2:APPTX2W_Zone Mean Air Temperature": 24.327924630006954,
+            },
+            rel=0.05,
+        )
 
     def test_heater_simple(self, idf):
-        gas_boiler = HeaterSimple(
+        gas_boiler = sys.HeaterSimple(
             name="Main_boiler",
             cop=0.5,
             zones=["Block1:ApptX1W", "Block1:ApptX1E"],
@@ -159,7 +173,7 @@ class TestSystems:
     def test_heating_auxiliary(self):
         idf = IDF((RESOURCES_PATH / "test.idf").as_posix())
 
-        aux = HeatingAuxiliary(name="Heating_aux", zones="Block1:ApptX1W")
+        aux = sys.HeatingAuxiliary(name="Heating_aux", zones="Block1:ApptX1W")
 
         aux.pre_process(idf)
 
@@ -188,7 +202,7 @@ class TestSystems:
     def test_ahu(self):
         building = Building(idf_path=RESOURCES_PATH / "test.idf")
         building.add_system(
-            AirHandlingUnit(
+            sys.AirHandlingUnit(
                 name="AHU",
                 zones=["Block1:ApptX1W", "Block1:ApptX1E"],
                 ach=0.7,
@@ -196,7 +210,7 @@ class TestSystems:
             )
         )
 
-        building.systems[SystemCategories.VENTILATION][0].pre_process(building.idf)
+        building.systems[sys.SystemCategories.VENTILATION][0].pre_process(building.idf)
 
         # Preprocess test
         ilas_list = building.idf.idfobjects["ZoneHVAC:IdealLoadsAirSystem"]
@@ -244,7 +258,9 @@ class TestSystems:
 
     def test_dhw_ideal_external(self):
         building = Building(idf_path=RESOURCES_PATH / "test.idf")
-        building.add_system(DHWIdealExternal(name="DHW_prod", daily_volume_occupant=30))
+        building.add_system(
+            sys.DHWIdealExternal(name="DHW_prod", daily_volume_occupant=30)
+        )
 
         results = building.simulate(
             parameter_dict={},
@@ -261,7 +277,7 @@ class TestSystems:
 
     def test_artificial_lighting(self):
         building = Building(idf_path=RESOURCES_PATH / "test.idf")
-        building.add_system(ArtificialLighting(name="Lights"))
+        building.add_system(sys.ArtificialLighting(name="Lights"))
 
         results = building.simulate(
             parameter_dict={},
@@ -271,17 +287,20 @@ class TestSystems:
             },
         )
 
-        assert results.sum().to_dict() == approx({
-            "LIGHTING_Energy_[J]": 11.89e9,
-            "TOTAL_SYSTEM_Energy_[J]": 11.89e9,
-        }, rel = 0.07)
+        assert results.sum().to_dict() == approx(
+            {
+                "LIGHTING_Energy_[J]": 11.89e9,
+                "TOTAL_SYSTEM_Energy_[J]": 11.89e9,
+            },
+            rel=0.07,
+        )
 
     def test_ahu_control(self):
         building = Building(idf_path=RESOURCES_PATH / "test.idf")
-        building.add_system(AHUControl(name="ahu_control"))
-        building.add_system(AirHandlingUnit(name="AHU"))
+        building.add_system(sys.AHUControl(name="ahu_control"))
+        building.add_system(sys.AirHandlingUnit(name="AHU"))
 
-        building.systems[SystemCategories.VENTILATION][0].pre_process(building.idf)
+        building.systems[sys.SystemCategories.VENTILATION][0].pre_process(building.idf)
 
         schedules_name_list = get_objects_name_list(building.idf, "Schedule:Compact")
 
@@ -303,7 +322,7 @@ class TestSystems:
 
         building.del_system("ahu_control")
         building.add_system(
-            AHUControl(
+            sys.AHUControl(
                 name="ahu_control",
                 control_strategy="DataFrame",
                 time_series=data_frame["schedule_1"],
@@ -325,7 +344,7 @@ class TestSystems:
 
     def test_other_equipments(self):
         tested_idf = IDF(RESOURCES_PATH / "test.idf")
-        other_system = OtherEquipment(
+        other_system = sys.OtherEquipment(
             name="other_equipment",
             zones=["Block1:ApptX1W", "Block1:ApptX1E"],
             design_level_power=10,
@@ -340,7 +359,7 @@ class TestSystems:
         assert to_test == ["", "", "", "", 10, 10]
         assert copied_idf.getobject("Schedule:Compact", "ON_24h24h_FULL_YEAR")
 
-        other_system = OtherEquipment(
+        other_system = sys.OtherEquipment(
             name="test_other",
             zones="*",
             design_level_power=20,
@@ -361,7 +380,7 @@ class TestSystems:
             index=pd.date_range("01-01-2022", periods=8760, freq="h"),
         )
 
-        other_system = OtherEquipment(
+        other_system = sys.OtherEquipment(
             name="test_other",
             zones="*",
             cop=2,
@@ -378,7 +397,7 @@ class TestSystems:
         assert to_test == ["", "", "", "", 40, 40, 40, 40]
         assert copied_idf.getobject("Schedule:File", "test_df")
 
-        other_system = OtherEquipment(
+        other_system = sys.OtherEquipment(
             name="test_other",
             zones="*",
             cop=2,
@@ -408,7 +427,7 @@ class TestSystems:
     def test_zone_thermostat(self):
         tested_idf = IDF(RESOURCES_PATH / "test.idf")
 
-        thermostat = ZoneThermostat(
+        thermostat = sys.ZoneThermostat(
             name="test_thermo",
             zones=["Block1:ApptX1W", "Block1:ApptX1E"],
         )
@@ -436,7 +455,7 @@ class TestSystems:
             index=pd.date_range("01-01-2022", periods=8760, freq="h"),
         )
 
-        thermostat = ZoneThermostat(
+        thermostat = sys.ZoneThermostat(
             name="test_thermo",
             zones="*",
             heating_time_series=df_sched,

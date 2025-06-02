@@ -1,0 +1,54 @@
+[project]
+name = "Energytool"
+version = "0.1.0"
+description = "Edit IDF files run EnergyPlus and process results"
+readme = "README.md"
+license = { file = "LICENSE.md" }
+authors = [{ name = "Baptiste Durand-Estebe", email = "b.durandestebe@gmail.com" }]
+maintainers = [
+    { name = "Baptiste Durand-Estebe", email = "b.durandestebe@gmail.com" },
+]
+classifiers = [
+    "Development Status :: 4 - Beta",
+    "Intended Audience :: Developers",
+    "License :: OSI Approved :: BSD License",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
+]
+requires-python = ">=3.10"
+dependencies = [
+    "numpy>=1.22.4, <2.0",
+    "pandas>=2.0.0, <3.0",
+    "eppy>=0.5.63",
+    "corrai>=0.3.1",
+
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=7.0.0",
+    "pre-commit>=3.3.3",
+    "bump2version>=1.0.1",
+    "jupyter_contrib_nbextensions>=0.7.0"
+]
+
+[project.urls]
+Source = "https://github.com/BuildingEnergySimulationTools/energytool"
+
+
+
+[build-system]
+requires = ["flit_core<4"]
+build-backend = "flit_core.buildapi"
+
+[tool.ruff]
+fix = true
+
+[tool.ruff.format]
+docstring-code-format = true
+
+[tool.flit.module]
+name = "energytool"

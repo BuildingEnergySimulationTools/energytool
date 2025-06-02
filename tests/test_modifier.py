@@ -14,7 +14,7 @@ from energytool.base.idf_utils import (
     get_named_objects_field_values,
 )
 from energytool.system import HeaterSimple
-from energytool.system import System, SystemCategories
+from energytool.system import SystemCategories
 from energytool.building import Building
 from energytool.modifier import (
     set_opaque_surface_construction,
@@ -770,7 +770,9 @@ class TestModifier:
         test_build.add_system(pac)
 
         # Check that both are present
-        heating_system_names = [sys.name for sys in test_build.systems[SystemCategories.HEATING]]
+        heating_system_names = [
+            sys.name for sys in test_build.systems[SystemCategories.HEATING]
+        ]
         assert "simple_heater" in heating_system_names
         assert "PAC" in heating_system_names
 
@@ -779,14 +781,18 @@ class TestModifier:
         set_system(test_2, {"variant_1": replacement_heater})
 
         # Check that only simple_heater remains
-        heating_system_names_updated = [sys.name for sys in test_2.systems[SystemCategories.HEATING]]
+        heating_system_names_updated = [
+            sys.name for sys in test_2.systems[SystemCategories.HEATING]
+        ]
         assert "simple_heater" in heating_system_names_updated
         assert "PAC" not in heating_system_names_updated
 
         # Optional: verify that the cop has been updated
         assert [sys.cop for sys in test_2.systems[SystemCategories.HEATING]] == [3.0]
-        assert [sys.cop for sys in test_build.systems[SystemCategories.HEATING]] == [2.0, 4.0]
-
+        assert [sys.cop for sys in test_build.systems[SystemCategories.HEATING]] == [
+            2.0,
+            4.0,
+        ]
 
     # def test_envelope_shades_modifier(self, toy_building):
     #     loc_toy = deepcopy(toy_building)
