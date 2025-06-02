@@ -2,7 +2,6 @@ import datetime
 import os
 import tempfile
 import uuid
-from pathlib import Path
 
 import eppy
 import numpy as np
@@ -17,12 +16,91 @@ from energytool.base.idf_utils import (
 )
 from energytool.tools import to_list, is_items_in_list
 
-RESOURCES_PATH = Path(__file__).parent.parent / "resources"
 
-try:
-    IDF.setiddname((RESOURCES_PATH / "Energy+.idd").as_posix())
-except eppy.modeleditor.IDDAlreadySetError:
-    pass
+def idf_to_dict(idf: IDF):
+    """
+    Convert an IDF object into a nested dictionary representation.
+
+    This function takes an IDF object (from eppy library)
+    and converts it into a dictionary where each key is an IDF object
+    type (e.g., 'BUILDING', 'MATERIAL'), and the value is another
+    dictionary mapping the object name to a dictionary of its fields
+    and values.
+
+    Parameters
+    ----------
+    idf : IDF
+        An instance of an IDF object containing IDFObjects with
+        `fieldnames` and `fieldvalues` attributes.
+
+    Returns
+    -------
+    dict
+        A nested dictionary where the top-level keys are IDF object
+        types, the second-level keys are object names, and the values
+        are dictionaries mapping field names to their corresponding
+        values.
+
+    Examples
+    --------
+    >>> idf_dict = idf_to_dict(my_idf)
+    >>> idf_dict["MATERIAL"]["Insulation"]["Thickness"]
+    '0.1'
+    """
+    objects_dict = {}
+    for obj in idf.idfobjects:
+        if idf.idfobjects[obj]:
+            objects_dict[obj] = {}
+            for instance in idf.idfobjects[obj]:
+                objects_dict[obj].update(
+                    {
+                        instance.Name: {
+                            name: val
+                            for name, val in zip(
+                                instance.fieldnames, instance.fieldvalues
+                            )
+                        }
+                    }
+                )
+    return objects_dict
+
+
+def add_obj_from_obj_dict(idf: IDF, obj_dict: dict, idfobject: str, name: str):
+    """
+    Add an IDF object to an IDF instance from a nested object dictionary.
+
+    This function adds a new IDF object to the given IDF instance,
+    using data from a nested dictionary typically created by `idf_to_dict`.
+    If an object with the same name already exists, a `ValueError` is raised.
+
+    Parameters
+    ----------
+    idf : IDF
+        An instance of an IDF object to which the new object will be added.
+    obj_dict : dict
+        A nested dictionary containing IDF object data. The format should
+        match the output of `idf_to_dict` function, where the top-level keys are
+        IDF object types, second-level keys are object names, and values
+        are field dictionaries.
+    idfobject : str
+        The type of the IDF object to be added (e.g., 'MATERIAL', 'ZONE').
+    name : str
+        The name of the object to be added. Must be present in `obj_dict`.
+
+    Raises
+    ------
+    ValueError
+        If an object of the specified type and name already exists in the IDF.
+
+    Examples
+    --------
+    >>> add_obj_from_obj_dict(idf, obj_dict, "MATERIAL", "NewInsulation")
+    """
+    if name not in get_objects_name_list(idf, idfobject):
+        obj = obj_dict[idfobject][name]
+        idf.newidfobject(**obj)
+    else:
+        raise ValueError(f"{idfobject}, named {name} already exists")
 
 
 def get_zones_idealloadsairsystem(idf: IDF, zones: str | list = "*"):
@@ -303,7 +381,7 @@ def add_hourly_schedules_from_df(
     if not isinstance(data, pd.DataFrame):
         raise ValueError("data must be a Pandas Series or DataFrame")
     if not (data.shape[0] == 8760 or data.shape[0] == 8760 + 24):
-        raise ValueError("Invalid DataFrame. Dimension 0 must be 8760 or " "8760 + 24")
+        raise ValueError("Invalid DataFrame. Dimension 0 must be 8760 or 8760 + 24")
 
     eplus_ref = [
         "Dimensionless",
@@ -311,8 +389,8 @@ def add_hourly_schedules_from_df(
         "DeltaTemperature",
         "PrecipitationRate",
         "Angle",
-        "Convection" "Coefficient",
-        "Activity" "Level",
+        "ConvectionCoefficient",
+        "ActivityLevel",
         "Velocity",
         "Capacity",
         "Power",
@@ -465,10 +543,6 @@ def add_natural_ventilation(
         )
 
 
-def get_resources_idf():
-    return IDF(RESOURCES_PATH / "resources_idf.idf")
-
-
 def get_n50_from_q4(q4, heated_volume, outside_surface, n=2 / 3):
     """
     Outside surface correspond to building surface in contact with outside Air
@@ -509,7 +583,7 @@ def get_building_infiltration_ach_from_q4(idf, q4pa=1.2, wind_exposition=0.07, f
         )
         if design.Outdoor_Air_Method != "AirChanges/Hour":
             raise ValueError(
-                "Outdoor Air method other than AirChanges/Hour" " not yet implemented"
+                "Outdoor Air method other than AirChanges/Hour not yet implemented"
             )
         z_ach_dict[zone.Name] = design.Outdoor_Air_Flow_Air_Changes_per_Hour
 

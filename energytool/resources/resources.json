@@ -1,0 +1,125 @@
+{
+  "SCHEDULE:COMPACT": {
+    "OFF_09h_18h_ON_18h_24h_ON_WE_FULL_YEAR": {
+      "key": "SCHEDULE:COMPACT",
+      "Name": "OFF_09h_18h_ON_18h_24h_ON_WE_FULL_YEAR",
+      "Schedule_Type_Limits_Name": "Fraction",
+      "Field_1": "Through: 31 Dec",
+      "Field_2": "For: Weekdays",
+      "Field_3": "Until: 09:00",
+      "Field_4": "1.0",
+      "Field_5": "Until: 18:00",
+      "Field_6": "0.0",
+      "Field_7": "Until: 24:00",
+      "Field_8": "1.0",
+      "Field_9": "For: Weekends",
+      "Field_10": "Until: 24:00",
+      "Field_11": "1.0",
+      "Field_12": "For: AllOtherDays",
+      "Field_13": "Until: 24:00",
+      "Field_14": "1.0"
+    },
+    "-60C_heating_setpoint": {
+      "key": "SCHEDULE:COMPACT",
+      "Name": "-60C_heating_setpoint",
+      "Schedule_Type_Limits_Name": "Temperature",
+      "Field_1": "Through: 31 Dec",
+      "Field_2": "For: AllDays",
+      "Field_3": "Until: 24:00",
+      "Field_4": "-60"
+    },
+    "100C_cooling_setpoint": {
+      "key": "SCHEDULE:COMPACT",
+      "Name": "100C_cooling_setpoint",
+      "Schedule_Type_Limits_Name": "Temperature",
+      "Field_1": "Through: 31 Dec",
+      "Field_2": "For: AllDays",
+      "Field_3": "Until: 24:00",
+      "Field_4": "100"
+    },
+    "ON_24h24h_FULL_YEAR": {
+      "key": "SCHEDULE:COMPACT",
+      "Name": "ON_24h24h_FULL_YEAR",
+      "Schedule_Type_Limits_Name": "Fraction",
+      "Field_1": "Through: 31 Dec",
+      "Field_2": "For: AllDays",
+      "Field_3": "Until: 24:00",
+      "Field_4": "1"
+    },
+    "ON_24h24h_MAY_SEP_OFF_24h24_SEP_MAY": {
+      "key": "SCHEDULE:COMPACT",
+      "Name": "ON_24h24h_MAY_SEP_OFF_24h24_SEP_MAY",
+      "Schedule_Type_Limits_Name": "Fraction",
+      "Field_1": "Through: 01 May",
+      "Field_2": "For: AllDays",
+      "Field_3": "Until: 24:00",
+      "Field_4": "0.00",
+      "Field_5": "Through: 30 Sep",
+      "Field_6": "For: AllDays",
+      "Field_7": "Until: 24:00",
+      "Field_8": "1.00",
+      "Field_9": "Through: 31 Dec",
+      "Field_10": "For: AllDays",
+      "Field_11": "Until: 24:00",
+      "Field_12": "0.00"
+    },
+    "ON_24h24h_SUMMER": {
+      "key": "SCHEDULE:COMPACT",
+      "Name": "ON_24h24h_SUMMER",
+      "Schedule_Type_Limits_Name": "Fraction",
+      "Field_1": "Through: 01 May",
+      "Field_2": "For: AllDays",
+      "Field_3": "Until: 24:00",
+      "Field_4": "0.00",
+      "Field_5": "Through: 30 Sep",
+      "Field_6": "For: AllDays",
+      "Field_7": "Until: 24:00",
+      "Field_8": "1.00",
+      "Field_9": "Through: 31 Dec",
+      "Field_10": "For: AllDays",
+      "Field_11": "Until: 24:00",
+      "Field_12": "0.00"
+    }
+  },
+  "WINDOWMATERIAL:SHADE": {
+    "Shading_template": {
+      "key": "WINDOWMATERIAL:SHADE",
+      "Name": "Shading_template",
+      "Solar_Transmittance": 0.4,
+      "Solar_Reflectance": 0.5,
+      "Visible_Transmittance": 0.4,
+      "Visible_Reflectance": 0.5,
+      "Infrared_Hemispherical_Emissivity": 0.9,
+      "Infrared_Transmittance": 0.0,
+      "Thickness": 0.003,
+      "Conductivity": 0.1,
+      "Shade_to_Glass_Distance": 0.05,
+      "Top_Opening_Multiplier": 1.0,
+      "Bottom_Opening_Multiplier": 0.0,
+      "LeftSide_Opening_Multiplier": 0.0,
+      "RightSide_Opening_Multiplier": 0.0,
+      "Airflow_Permeability": 0.0
+    }
+  },
+  "WINDOWSHADINGCONTROL": {
+    "Shading_ctrl_template": {
+      "key": "WINDOWSHADINGCONTROL",
+      "Name": "Shading_ctrl_template",
+      "Zone_Name": "",
+      "Shading_Control_Sequence_Number": "",
+      "Shading_Type": "ExteriorShade",
+      "Construction_with_Shading_Name": "",
+      "Shading_Control_Type": "OnIfScheduleAllows",
+      "Schedule_Name": "",
+      "Setpoint": "",
+      "Shading_Control_Is_Scheduled": "Yes",
+      "Glare_Control_Is_Active": "No",
+      "Shading_Device_Material_Name": "",
+      "Type_of_Slat_Angle_Control_for_Blinds": "",
+      "Slat_Angle_Schedule_Name": "",
+      "Setpoint_2": "",
+      "Daylighting_Control_Object_Name": "",
+      "Multiple_Surface_Control_Type": "Group"
+    }
+  }
+}
