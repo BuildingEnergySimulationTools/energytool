@@ -1,16 +1,19 @@
 import eppy
-import pandas as pd
-from eppy.modeleditor import IDF
-from corrai.base.model import Model
-from corrai.learning.sampling import expand_parameter_dict
+import enum
+import platform
+import os
+import tempfile
+import shutil
 
+from contextlib import contextmanager
 from copy import deepcopy
-
 from pathlib import Path
 
+import pandas as pd
+
+from eppy.modeleditor import IDF
 from eppy.runner.run_functions import run
 import eppy.json_functions as json_functions
-import enum
 
 import energytool.base.idf_utils
 from energytool.base.parse_results import read_eplus_res
@@ -21,13 +24,6 @@ from energytool.base.idfobject_utils import (
     set_timestep,
     set_run_period,
 )
-
-import tempfile
-import shutil
-from contextlib import contextmanager
-
-import platform
-import os
 
 
 class ParamCategories(enum.Enum):
@@ -60,7 +56,56 @@ def temporary_directory():
         shutil.rmtree(temp_dir)
 
 
-class Building(Model):
+def expand_parameter_dict(parameter_dict, param_mappings):
+    """
+    Expands a parameter dictionary based on predefined mappings.
+
+    This method takes a dictionary of parameters and expands it by applying
+    predefined mappings stored in param_mappings. The expansion process works
+    as follows:
+
+    1. **If the mapping for a parameter is a dictionary**:
+       - The method checks if the value exists as a key in the mapping.
+       - If found, the corresponding mapped values are added to the expanded dictionary.
+
+    2. **If the mapping for a parameter is an iterable (non-dictionary)**:
+       - The method applies the value to each key in the mapping and adds
+         these key-value pairs to the expanded dictionary.
+
+    3. **If a parameter has no predefined mapping**:
+       - The original parameter and its value are added directly to the expanded
+       dictionary.
+
+    Parameters
+    ----------
+    parameter_dict : dict
+        The original parameter dictionary, with parameter names as keys
+        and their values as values.
+    param_mappings:  dict
+    A dictionary defining how sampled parameters should be expanded.
+
+    Returns
+    -------
+    dict
+        An expanded parameter dictionary containing the original parameters along with
+        additional key-value pairs derived from the predefined mappings.
+
+    """
+    expanded_dict = {}
+    for param_name, value in parameter_dict.items():
+        if param_name in param_mappings:
+            mapping = param_mappings[param_name]
+            if isinstance(mapping, dict):
+                if value in mapping:
+                    expanded_dict.update(mapping[value])
+            else:
+                expanded_dict.update({k: value for k in mapping})
+        else:
+            expanded_dict[param_name] = value
+    return expanded_dict
+
+
+class Building:
     """
     The Building class represents a building model. It is based on an EnergyPlus
     simulation file.
