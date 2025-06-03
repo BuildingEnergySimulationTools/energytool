@@ -288,8 +288,7 @@ Others: {[obj.name for obj in self.systems[SystemCategories.OTHER]]}
                 epw_path = simulation_options[SimuOpt.EPW_FILE.value]
             except KeyError:
                 raise ValueError(
-                    "'epw_path' not found in parameter_dict nor in "
-                    "simulation_options"
+                    "'epw_path' not found in parameter_dict nor in simulation_options"
                 )
         elif SimuOpt.EPW_FILE.value in list(simulation_options.keys()):
             raise ValueError(
