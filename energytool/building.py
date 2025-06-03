@@ -68,7 +68,7 @@ def expand_parameter_dict(parameter_dict, param_mappings):
        - The method checks if the value exists as a key in the mapping.
        - If found, the corresponding mapped values are added to the expanded dictionary.
 
-    2. **If the mapping for a parameter is an iterable (non-dictionary)**:
+    2. **If the mapping for a parameter is a list**:
        - The method applies the value to each key in the mapping and adds
          these key-value pairs to the expanded dictionary.
 

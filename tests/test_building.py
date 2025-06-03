@@ -118,6 +118,40 @@ class TestBuilding:
             rel=0.05,
         )
 
+        param_dict = {
+            "Conductivity": 0.10,
+            "system.heating.Heater.cop": 0.5,
+        }
+
+        param_mapping = {
+            "Conductivity": [
+                "idf.material.Urea Formaldehyde Foam_.1327.Conductivity",
+                "idf.material.MW Glass Wool (rolls)_.0095.Conductivity",
+            ]
+        }
+
+        res = test_build.simulate(
+            parameter_dict=param_dict,
+            simulation_options=simulation_options,
+            param_mapping=param_mapping,
+        )
+
+        assert res.sum().to_dict() == approx(
+            {
+                "HEATING_Energy_[J]": 31800181020.40322,
+                "TOTAL_SYSTEM_Energy_[J]": 31800181020.40322,
+                "BLOCK1:APPTX1W:Zone Other Equipment Total Heating Energy [J](Hourly)": 1627596221.6448004,
+                "BLOCK1:APPTX1E:Zone Other Equipment Total Heating Energy [J](Hourly)": 1627596221.6448004,
+                "BLOCK2:APPTX2W:Zone Other Equipment Total Heating Energy [J](Hourly)": 1627596221.6448004,
+                "BLOCK2:APPTX2E:Zone Other Equipment Total Heating Energy [J](Hourly)": 1627596221.6448004,
+                "BLOCK1:APPTX1W IDEAL LOADS AIR:Zone Ideal Loads Supply Air Total Heating Energy [J](Hourly)": 4005689459.7009125,
+                "BLOCK1:APPTX1E IDEAL LOADS AIR:Zone Ideal Loads Supply Air Total Heating Energy [J](Hourly)": 4023417664.7472544,
+                "BLOCK2:APPTX2W IDEAL LOADS AIR:Zone Ideal Loads Supply Air Total Heating Energy [J](Hourly)": 3907308730.1056757,
+                "BLOCK2:APPTX2E IDEAL LOADS AIR:Zone Ideal Loads Supply Air Total Heating Energy [J](Hourly) ": 3963674655.647766,
+            },
+            rel=0.05,
+        )
+
     def test_save(self):
         with TemporaryDirectory() as temp_dir:
             file_path = Path(temp_dir)
