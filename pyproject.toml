@@ -1,6 +1,6 @@
 [project]
 name = "Energytool"
-version = "0.1.0"
+version = "0.2.0"
 description = "Edit IDF files run EnergyPlus and process results"
 readme = "README.md"
 license = { file = "LICENSE.md" }
@@ -24,7 +24,6 @@ dependencies = [
     "pandas>=2.0.0, <3.0",
     "eppy>=0.5.63",
     "corrai>=0.3.1",
-
 ]
 
 [project.optional-dependencies]
