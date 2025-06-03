@@ -1,0 +1,4 @@
+-r install-min.txt
+-r tests.txt
+pre-commit>=3.3.3
+bump2version>=1.0.1
