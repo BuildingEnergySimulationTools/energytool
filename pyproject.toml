@@ -1,6 +1,6 @@
 [project]
-name = "Energytool"
-version = "0.2.0"
+name = "energytool"
+version = "0.2.1"
 description = "Edit IDF files run EnergyPlus and process results"
 readme = "README.md"
 license = { file = "LICENSE.md" }
