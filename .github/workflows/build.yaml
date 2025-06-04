@@ -35,9 +35,10 @@ jobs:
 
       - name: Install EnergyPlus 9.4.0
         run: |
-          curl -L -o energyplus.deb https://github.com/NREL/EnergyPlus/releases/download/v9.4.0/EnergyPlus-9.4.0-ubuntu20.04.deb
+          curl -L -o energyplus.deb https://energyplus.s3.amazonaws.com/9.4.0/EnergyPlus-9.4.0-0ea3c2d15a-Linux.deb
           sudo dpkg -i energyplus.deb
-          /usr/local/EnergyPlus-9-4-0/energyplus --version
+          sudo ln -s /usr/local/EnergyPlus-9-4-0/energyplus /usr/local/bin/energyplus
+          energyplus --version
 
       - name: Run test
         run: |
