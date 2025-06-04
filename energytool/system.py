@@ -7,7 +7,6 @@ from pathlib import Path
 import eppy.modeleditor
 import numpy as np
 import pandas as pd
-from corrai.base.utils import as_1_column_dataframe
 from eppy.modeleditor import IDF
 
 import energytool.base.parse_results
@@ -705,7 +704,7 @@ class AHUControl(System):
         self.control_strategy = control_strategy
         self.schedule_name = schedule_name
         if time_series is not None:
-            self.data_frame = as_1_column_dataframe(time_series)
+            self.data_frame = time_series.to_frame()
 
     def pre_process(self, idf: IDF):
         if self.control_strategy == "Schedule":
@@ -815,7 +814,7 @@ class OtherEquipment(System):
         self.distribute_load = distribute_load
         self.fraction_radiant = fraction_radiant
         if time_series is not None:
-            self.time_series = as_1_column_dataframe(time_series)
+            self.time_series = time_series.to_frame()
         else:
             self.time_series = None
         self.compact_schedule_name = compact_schedule_name
@@ -992,7 +991,7 @@ class ZoneThermostat(System):
             del_named_objects(idf, "Schedule:File", self.heating_time_series.name)
 
             add_hourly_schedules_from_df(
-                idf=idf, data=as_1_column_dataframe(self.heating_time_series)
+                idf=idf, data=self.heating_time_series.to_frame()
             )
             self.heating_schedule_name = self.heating_time_series.name
 
@@ -1026,7 +1025,7 @@ class ZoneThermostat(System):
 
             del_named_objects(idf, "Schedule:File", self.cooling_time_series.name)
             add_hourly_schedules_from_df(
-                idf=idf, data=as_1_column_dataframe(self.cooling_time_series)
+                idf=idf, data=self.cooling_time_series.to_frame()
             )
             self.cooling_schedule_name = self.cooling_time_series.name
 
