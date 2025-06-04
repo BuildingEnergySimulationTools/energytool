@@ -37,9 +37,8 @@ jobs:
         run: |
           curl -L https://github.com/NREL/EnergyPlus/releases/download/v9.4.0/EnergyPlus-9.4.0-998c4b761e-Linux-Ubuntu20.04-x86_64.sh -O
           chmod +x EnergyPlus-9.4.0-998c4b761e-Linux-Ubuntu20.04-x86_64.sh
-          mkdir -p $HOME/energyplus
-          printf "y\n$HOME/energyplus\nn\n" | ./EnergyPlus-9.4.0-998c4b761e-Linux-Ubuntu20.04-x86_64.sh
-          echo "$HOME/energyplus" >> $GITHUB_PATH
+          mkdir /usr/local/EnergyPlus-9-4-0
+          printf "y\n/usr/local/EnergyPlus-9-4-0\n\n" | ./EnergyPlus-9.4.0-998c4b761e-Linux-Ubuntu20.04-x86_64.sh
 
       - name: Run test
         run: |
