@@ -35,8 +35,11 @@ jobs:
 
       - name: Install EnergyPlus 9.4.0
         run: |
-          sudo curl -L https://github.com/NREL/EnergyPlus/releases/download/v9.4.0/EnergyPlus-9.4.0-998c4b761e-Linux-Ubuntu20.04-x86_64.sh -O
-          sudo printf "y\n\n" | sh EnergyPlus-9.4.0-998c4b761e-Linux-Ubuntu20.04-x86_64.sh
+          curl -L https://github.com/NREL/EnergyPlus/releases/download/v9.4.0/EnergyPlus-9.4.0-998c4b761e-Linux-Ubuntu20.04-x86_64.sh -O
+          chmod +x EnergyPlus-9.4.0-998c4b761e-Linux-Ubuntu20.04-x86_64.sh
+          mkdir -p $HOME/energyplus
+          printf "y\n$HOME/energyplus\nn\n" | ./EnergyPlus-9.4.0-998c4b761e-Linux-Ubuntu20.04-x86_64.sh
+          echo "$HOME/energyplus" >> $GITHUB_PATH
 
       - name: Run test
         run: |
