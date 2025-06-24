@@ -28,6 +28,22 @@ def idf(tmp_path_factory):
 
 
 class TestSystems:
+    def test_energy_balance(self):
+        test_build = Building(idf_path=RESOURCES_PATH / "test.idf")
+
+        test_build.add_system(sys.EnergyBalance(name="EB"))
+
+        result = test_build.simulate(
+            parameter_dict={},
+            simulation_options={
+                "epw_file": (RESOURCES_PATH / "Paris_2020.epw").as_posix(),
+                "outputs": "SENSOR",
+                "verbose": "v",
+            },
+        )
+
+        assert result
+
     def test_overshoot28(self):
         test_build = Building(idf_path=RESOURCES_PATH / "test.idf")
 

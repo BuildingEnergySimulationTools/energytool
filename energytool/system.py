@@ -44,6 +44,57 @@ class SystemCategories(enum.Enum):
     OTHER = "OTHER"
 
 
+OUTPUT_EB = [
+    "Electric Equipment Total Heating Energy",
+    "People Total Heating Energy",
+    "Lights Total Heating Energy",
+    "Zone Windows Total Transmitted Solar Radiation Energy",
+    "Zone Infiltration Total Heat Gain Energy",
+    "Zone Infiltration Total Heat Loss Energy",
+    "Surface Window Heat Gain Energy",
+    "Surface Window Heat Loss Energy",
+    "Zone Opaque Surface Inside Faces Total Conduction Heat Gain Energy",
+    "Zone Opaque Surface Inside Faces Total Conduction Heat Loss Energy",
+    "Zone Ideal Loads Heat Recovery Total Cooling Energy",
+    "Zone Ideal Loads Heat Recovery Total Heating Energy",
+    "Zone Ideal Loads Supply Air Total Heating Energy",
+    "Zone Ideal Loads Supply Air Total Cooling Energy",
+    "Zone Air Heat Balance Air Energy Storage Rate",
+    "Zone Air Heat Balance Outdoor Air Transfer Rate",
+]
+
+ENERGY_BALANCE_MAP = {
+    "equipments": "Electric Equipment Total Heating Energy",
+    "people": "People Total Heating Energy",
+    "lighting": "Lights Total Heating Energy",
+    "solar": "Zone Windows Total Transmitted Solar Radiation Energy",
+    "infiltration": [
+        "Zone Infiltration Total Heat Gain Energy",
+        "Zone Infiltration Total Heat Loss Energy",
+    ],
+    "ventilation": [
+        "Zone Infiltration Total Heat Gain Energy",
+        "Zone Infiltration Total Heat Loss Energy",
+        "Zone Air Heat Balance Outdoor Air Transfer Rate",
+    ],
+    "windows": [
+        "Surface Window Heat Gain Energy",
+        "Surface Window Heat Loss Energy",
+        "Zone Windows Total Transmitted Solar Radiation Energy",
+    ],
+    "walls": [
+        "Zone Opaque Surface Inside Faces Total Conduction Heat Gain Energy",
+        "Zone Opaque Surface Inside Faces Total Conduction Heat Loss Energy",
+    ],
+    "cooling_recovered": "Zone Ideal Loads Heat Recovery Total Cooling Energy",
+    "heating_recovered": "Zone Ideal Loads Heat Recovery Total Heating Energy",
+    "heating": "Zone Ideal Loads Supply Air Total Heating Energy",
+    "cooling": "Zone Ideal Loads Supply Air Total Cooling Energy",
+    "air_stored": "Zone Air Heat Balance Air Energy Storage Rate",
+    "wall_test": "Surface Inside Face Conduction Heat Transfer Energy",
+}
+
+
 class System(ABC):
     def __init__(self, name: str, category: SystemCategories = SystemCategories.OTHER):
         self.name = name
@@ -61,6 +112,118 @@ class System(ABC):
     def post_process(self, idf: IDF = None, eplus_results: pd.DataFrame = None):
         """Operations happening after the simulation"""
         pass
+
+
+class EnergyBalance(System):
+    def __init__(
+        self,
+        name: str,
+        zones: str | list = "*",
+    ):
+        super().__init__(name=name, category=SystemCategories.SENSOR)
+        self.zones = zones
+
+    def pre_process(self, idf: IDF):
+        """
+        Adds the necessary output variables.
+        """
+
+        for output in OUTPUT_EB:
+            add_output_variable(
+                idf=idf,
+                key_values=self.zones,
+                variables=output,
+                reporting_frequency="Hourly",
+            )
+
+    def post_process(self, idf: IDF = None, eplus_results: pd.DataFrame = None):
+        """
+        Calculates Energy Balance.
+        """
+
+        out_list = []
+
+        for flow, output in ENERGY_BALANCE_MAP.items():
+            if flow == "infiltration":
+                out_ser = get_output_variable(
+                    eplus_res=eplus_results,
+                    key_values=self.zones,
+                    variables=output[0],
+                ).sum(axis=1) - get_output_variable(
+                    eplus_res=eplus_results,
+                    key_values=self.zones,
+                    variables=output[1],
+                ).sum(axis=1)
+            elif flow == "ventilation":
+                out_ser = get_output_variable(
+                    eplus_res=eplus_results,
+                    key_values=self.zones,
+                    variables=output[2],
+                ).sum(axis=1) * 3600 - (
+                    get_output_variable(
+                        eplus_res=eplus_results,
+                        key_values=self.zones,
+                        variables=output[0],
+                    ).sum(axis=1)
+                    - get_output_variable(
+                        eplus_res=eplus_results,
+                        key_values=self.zones,
+                        variables=output[1],
+                    ).sum(axis=1)
+                )
+            elif flow == "walls":
+                out_ser = get_output_variable(
+                    eplus_res=eplus_results,
+                    key_values=self.zones,
+                    variables=output[0],
+                ).sum(axis=1) - get_output_variable(
+                    eplus_res=eplus_results,
+                    key_values=self.zones,
+                    variables=output[1],
+                ).sum(axis=1)
+            elif flow == "windows":
+                out_ser = (
+                    get_output_variable(
+                        eplus_res=eplus_results,
+                        key_values=self.zones,
+                        variables=output[0],
+                    ).sum(axis=1)
+                    - get_output_variable(
+                        eplus_res=eplus_results,
+                        key_values=self.zones,
+                        variables=output[1],
+                    ).sum(axis=1)
+                    - get_output_variable(
+                        eplus_res=eplus_results,
+                        key_values=self.zones,
+                        variables=output[2],
+                    ).sum(axis=1)
+                )
+            elif flow in ["cooling", "cooling_recovered", "air_stored"]:
+                out_ser = -get_output_variable(
+                    eplus_res=eplus_results,
+                    key_values=self.zones,
+                    variables=output,
+                ).sum(axis=1)
+            else:
+                out_ser = get_output_variable(
+                    eplus_res=eplus_results,
+                    key_values=self.zones,
+                    variables=output,
+                ).sum(axis=1)
+
+            out_ser.name = f"{self.name}_{flow}_[J]"
+            out_list.append(out_ser)
+        out_df = pd.concat(out_list, axis=1)
+
+        out_df[f"{self.name}_residue_[J]"] = -out_df.sum(axis=1)
+
+        import matplotlib.pyplot as plt
+
+        out_df.resample("15d").sum().plot(kind="bar", stacked=True)
+        plt.show()
+
+        return out_df
 
 
 class Overshoot28(System):
