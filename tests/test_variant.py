@@ -6,7 +6,6 @@ from pathlib import Path
 from corrai.base.model import Model
 
 import pandas as pd
-from pathlib import Path
 
 from energytool.variant import (
     simulate_variants,

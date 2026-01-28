@@ -197,11 +197,11 @@ Others: {[obj.name for obj in self.systems[SystemCategories.OTHER]]}
         return values[0] if is_single else values
 
     def simulate(
-            self,
-            property_dict=None,
-            simulation_options=None,
-            idf_save_path=None,
-            **simulation_kwargs,
+        self,
+        property_dict=None,
+        simulation_options=None,
+        idf_save_path=None,
+        **simulation_kwargs,
     ) -> pd.DataFrame:
         """
         Simulate the building model with specified parameters and simulation options.
@@ -261,7 +261,6 @@ Others: {[obj.name for obj in self.systems[SystemCategories.OTHER]]}
         if property_dict is None:
             property_dict = {}
 
-
         for key in property_dict:
             split_key = key.split(".")
 
@@ -277,7 +276,6 @@ Others: {[obj.name for obj in self.systems[SystemCategories.OTHER]]}
                         setattr(obj, field_name, value)
                 else:
                     json_functions.updateidf(working_idf, {key: property_dict[key]})
-
 
             # In case it's a SYSTEM parameter, retrieve it in dict by category and name
             elif split_key[0] == ParamCategories.SYSTEM.value:

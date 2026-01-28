@@ -5,8 +5,12 @@ from copy import deepcopy
 from pathlib import Path
 from typing import Any
 
+from multiprocessing import cpu_count
+
+from joblib import Parallel, delayed
+from fastprogress.fastprogress import progress_bar
+
 from corrai.base.model import Model
-from corrai.base.simulate import run_simulations
 
 
 class VariantKeys(enum.Enum):
@@ -83,14 +87,6 @@ def get_combined_variants(
     return list(itertools.product(*list(modifier_dict.values())))
 
 
-from copy import deepcopy
-from pathlib import Path
-from multiprocessing import cpu_count
-
-from joblib import Parallel, delayed
-from fastprogress.fastprogress import progress_bar
-
-
 def simulate_variants(
     model: Model,
     variant_dict: dict[str, dict[VariantKeys, Any]],
@@ -136,7 +132,11 @@ def simulate_variants(
     bar = progress_bar(models)
 
     results = Parallel(n_jobs=n_cpu)(
-        delayed(lambda m: m.simulate(simulation_options=simulation_options, **simulate_kwargs))(m)
+        delayed(
+            lambda m: m.simulate(
+                simulation_options=simulation_options, **simulate_kwargs
+            )
+        )(m)
         for m in bar
     )
 
