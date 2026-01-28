@@ -10,7 +10,7 @@ from copy import deepcopy
 from pathlib import Path
 
 import pandas as pd
-
+from corrai.base.model import Model
 from eppy.modeleditor import IDF
 from eppy.runner.run_functions import run
 import eppy.json_functions as json_functions
@@ -56,56 +56,7 @@ def temporary_directory():
         shutil.rmtree(temp_dir)
 
 
-def expand_parameter_dict(parameter_dict, param_mappings):
-    """
-    Expands a parameter dictionary based on predefined mappings.
-
-    This method takes a dictionary of parameters and expands it by applying
-    predefined mappings stored in param_mappings. The expansion process works
-    as follows:
-
-    1. **If the mapping for a parameter is a dictionary**:
-       - The method checks if the value exists as a key in the mapping.
-       - If found, the corresponding mapped values are added to the expanded dictionary.
-
-    2. **If the mapping for a parameter is a list**:
-       - The method applies the value to each key in the mapping and adds
-         these key-value pairs to the expanded dictionary.
-
-    3. **If a parameter has no predefined mapping**:
-       - The original parameter and its value are added directly to the expanded
-       dictionary.
-
-    Parameters
-    ----------
-    parameter_dict : dict
-        The original parameter dictionary, with parameter names as keys
-        and their values as values.
-    param_mappings:  dict
-    A dictionary defining how sampled parameters should be expanded.
-
-    Returns
-    -------
-    dict
-        An expanded parameter dictionary containing the original parameters along with
-        additional key-value pairs derived from the predefined mappings.
-
-    """
-    expanded_dict = {}
-    for param_name, value in parameter_dict.items():
-        if param_name in param_mappings:
-            mapping = param_mappings[param_name]
-            if isinstance(mapping, dict):
-                if value in mapping:
-                    expanded_dict.update(mapping[value])
-            else:
-                expanded_dict.update({k: value for k in mapping})
-        else:
-            expanded_dict[param_name] = value
-    return expanded_dict
-
-
-class Building:
+class Building(Model):
     """
     The Building class represents a building model. It is based on an EnergyPlus
     simulation file.
@@ -124,18 +75,19 @@ class Building:
         volume: Calculates and returns the total volume of the building in cubic meters.
         add_system(system): Adds an HVAC system to the building's systems.
         del_system(system_name): Deletes an HVAC system from the building's systems by name.
-        simulate(parameter_dict, simulation_options): Simulates the building model with
+        simulate(property_dict, simulation_options): Simulates the building model with
         specified parameters and simulation options, returning the simulation results
         as a pandas DataFrame.
     """
 
-    def __init__(
-        self,
-        idf_path,
-    ):
+    def __init__(self, idf_path):
+        super().__init__(is_dynamic=True)
         self.idf = IDF(str(idf_path))
         self._idf_path = str(idf_path)
         self.systems = {category: [] for category in SystemCategories}
+
+    def get_property_values(self, property_list: list[str]) -> list[str | int | float]:
+        return self.get_param_init_value(property_list)
 
     @staticmethod
     def set_idd(root_eplus):
@@ -214,8 +166,18 @@ Others: {[obj.name for obj in self.systems[SystemCategories.OTHER]]}
             split_key = full_key.split(".")
 
             if split_key[0] == ParamCategories.IDF.value:
-                value = energytool.base.idf_utils.getidfvalue(working_idf, full_key)
-                values.append(value)
+                if "*" in split_key:
+                    is_single = False
+
+                    object_type = split_key[1]
+                    field_name = split_key[-1]
+
+                    objs = working_idf.idfobjects[object_type.upper()]
+                    for obj in objs:
+                        values.append(getattr(obj, field_name))
+                else:
+                    value = energytool.base.idf_utils.getidfvalue(working_idf, full_key)
+                    values.append(value)
 
             elif split_key[0] == ParamCategories.SYSTEM.value:
                 if split_key[1].upper() in [sys.value for sys in SystemCategories]:
@@ -236,15 +198,15 @@ Others: {[obj.name for obj in self.systems[SystemCategories.OTHER]]}
 
     def simulate(
         self,
-        parameter_dict: dict[str, str | float | int] = None,
-        simulation_options: dict[str, str | float | int] = None,
-        idf_save_path: Path | None = None,
-        param_mapping: dict = None,
+        property_dict=None,
+        simulation_options=None,
+        idf_save_path=None,
+        **simulation_kwargs,
     ) -> pd.DataFrame:
         """
         Simulate the building model with specified parameters and simulation options.
 
-        :param parameter_dict: A dictionary containing key-value pairs representing
+        :param property_dict: A dictionary containing key-value pairs representing
             parameters to be modified in the building model.
             These parameters can include changes to the IDF file, energytool HVAC system
             settings, or weather file.
@@ -286,25 +248,34 @@ Others: {[obj.name for obj in self.systems[SystemCategories.OTHER]]}
             'STOP': '2023-01-31 23:59:59',
             'TIMESTEP': 900
         }
-        results = building.simulate(parameter_dict=parameter_changes,
+        results = building.simulate(property_dict=parameter_changes,
         simulation_options=simulation_options)
 
         """
+        self.idf_save_path = idf_save_path
+
         working_idf = deepcopy(self.idf)
         working_syst = deepcopy(self.systems)
 
         epw_path = None
-        if parameter_dict is None:
-            parameter_dict = {}
-        if param_mapping:
-            parameter_dict = expand_parameter_dict(parameter_dict, param_mapping)
+        if property_dict is None:
+            property_dict = {}
 
-        for key in parameter_dict:
+        for key in property_dict:
             split_key = key.split(".")
 
             # IDF modification
             if split_key[0] == ParamCategories.IDF.value:
-                json_functions.updateidf(working_idf, {key: parameter_dict[key]})
+                if "*" in split_key:
+                    object_type = split_key[1]
+                    field_name = split_key[-1]
+                    value = property_dict[key]
+
+                    objs = working_idf.idfobjects[object_type.upper()]
+                    for obj in objs:
+                        setattr(obj, field_name, value)
+                else:
+                    json_functions.updateidf(working_idf, {key: property_dict[key]})
 
             # In case it's a SYSTEM parameter, retrieve it in dict by category and name
             elif split_key[0] == ParamCategories.SYSTEM.value:
@@ -317,11 +288,11 @@ Others: {[obj.name for obj in self.systems[SystemCategories.OTHER]]}
                     )
                 for syst in working_syst[sys_key]:
                     if syst.name == split_key[2]:
-                        setattr(syst, split_key[3], parameter_dict[key])
+                        setattr(syst, split_key[3], property_dict[key])
 
             # Meteo file
             elif split_key[0] == ParamCategories.EPW_FILE.value:
-                epw_path = parameter_dict[key]
+                epw_path = property_dict[key]
             else:
                 raise ValueError(
                     f"{split_key[0]} was not recognize as a valid parameter category"
@@ -333,11 +304,11 @@ Others: {[obj.name for obj in self.systems[SystemCategories.OTHER]]}
                 epw_path = simulation_options[SimuOpt.EPW_FILE.value]
             except KeyError:
                 raise ValueError(
-                    "'epw_path' not found in parameter_dict nor in simulation_options"
+                    "'epw_path' not found in property_dict nor in simulation_options"
                 )
         elif SimuOpt.EPW_FILE.value in list(simulation_options.keys()):
             raise ValueError(
-                "'epw_path' have been used in both parameter_dict and "
+                "'epw_path' have been used in both property_dict and "
                 "simulation_options"
             )
         ref_year = None
@@ -397,8 +368,8 @@ Others: {[obj.name for obj in self.systems[SystemCategories.OTHER]]}
             )
 
             # Save IDF file after pre-process
-            if idf_save_path:
-                self.save(idf_save_path)
+            if self.idf_save_path:
+                working_idf.save(idf_save_path)
 
             # POST-PROCESS
             return get_results(
