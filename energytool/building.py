@@ -166,8 +166,18 @@ Others: {[obj.name for obj in self.systems[SystemCategories.OTHER]]}
             split_key = full_key.split(".")
 
             if split_key[0] == ParamCategories.IDF.value:
-                value = energytool.base.idf_utils.getidfvalue(working_idf, full_key)
-                values.append(value)
+                if "*" in split_key:
+                    is_single = False
+
+                    object_type = split_key[1]
+                    field_name = split_key[-1]
+
+                    objs = working_idf.idfobjects[object_type.upper()]
+                    for obj in objs:
+                        values.append(getattr(obj, field_name))
+                else:
+                    value = energytool.base.idf_utils.getidfvalue(working_idf, full_key)
+                    values.append(value)
 
             elif split_key[0] == ParamCategories.SYSTEM.value:
                 if split_key[1].upper() in [sys.value for sys in SystemCategories]:
