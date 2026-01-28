@@ -197,10 +197,11 @@ Others: {[obj.name for obj in self.systems[SystemCategories.OTHER]]}
         return values[0] if is_single else values
 
     def simulate(
-        self,
-        property_dict=None,
-        simulation_options=None,
-        **simulation_kwargs,
+            self,
+            property_dict=None,
+            simulation_options=None,
+            idf_save_path=None,
+            **simulation_kwargs,
     ) -> pd.DataFrame:
         """
         Simulate the building model with specified parameters and simulation options.
@@ -251,7 +252,7 @@ Others: {[obj.name for obj in self.systems[SystemCategories.OTHER]]}
         simulation_options=simulation_options)
 
         """
-        idf_save_path = simulation_kwargs.get("idf_save_path")
+        self.idf_save_path = idf_save_path
 
         working_idf = deepcopy(self.idf)
         working_syst = deepcopy(self.systems)
@@ -266,7 +267,17 @@ Others: {[obj.name for obj in self.systems[SystemCategories.OTHER]]}
 
             # IDF modification
             if split_key[0] == ParamCategories.IDF.value:
-                json_functions.updateidf(working_idf, {key: property_dict[key]})
+                if "*" in split_key:
+                    object_type = split_key[1]
+                    field_name = split_key[-1]
+                    value = property_dict[key]
+
+                    objs = working_idf.idfobjects[object_type.upper()]
+                    for obj in objs:
+                        setattr(obj, field_name, value)
+                else:
+                    json_functions.updateidf(working_idf, {key: property_dict[key]})
+
 
             # In case it's a SYSTEM parameter, retrieve it in dict by category and name
             elif split_key[0] == ParamCategories.SYSTEM.value:
@@ -359,8 +370,8 @@ Others: {[obj.name for obj in self.systems[SystemCategories.OTHER]]}
             )
 
             # Save IDF file after pre-process
-            if idf_save_path:
-                self.save(idf_save_path)
+            if self.idf_save_path:
+                working_idf.save(idf_save_path)
 
             # POST-PROCESS
             return get_results(
