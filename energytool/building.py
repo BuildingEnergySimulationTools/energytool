@@ -43,7 +43,7 @@ class SimuOpt(enum.Enum):
     OUTPUTS = "outputs"
     EPW_FILE = "epw_file"
     VERBOSE = "verbose"
-
+    OUTPUT_FREQUENCY = "OUTPUT_FREQUENCY"
 
 @contextmanager
 def temporary_directory():
@@ -397,6 +397,12 @@ Others: {[obj.name for obj in self.systems[SystemCategories.OTHER]]}
                     3600 / simulation_options[SimuOpt.TIMESTEP.value]
                 ),
             )
+
+        output_frequency = simulation_options.get(
+            SimuOpt.OUTPUT_FREQUENCY.value,
+            "Timestep",
+        )
+        working_idf.output_frequency = output_frequency
 
         # PRE-PROCESS
         system_list = [sys for sublist in working_syst.values() for sys in sublist]

@@ -21,7 +21,8 @@ class TestBuilding:
             "epw_file": (RESOURCES_PATH / "B4R_weather_Paris_2020.epw").as_posix(),
         }
         simulation_options = {
-            SimuOpt.OUTPUTS.value: f"{OutputCategories.SYSTEM.value}|{OutputCategories.RAW.value}"
+            SimuOpt.OUTPUTS.value: f"{OutputCategories.SYSTEM.value}|{OutputCategories.RAW.value}",
+            SimuOpt.OUTPUT_FREQUENCY.value: "Hourly"
         }
 
         res = test_build.simulate(
