@@ -62,7 +62,7 @@ class TestBuilding:
                 "[J](Hourly)": 15276675722.295742,
                 "BLOCK2:APPTX2E IDEAL LOADS AIR:"
                 "Zone Ideal Loads Supply Air Total Heating Energy "
-                "[J](Hourly) ": 15677421945.907581,
+                "[J](Hourly)": 15677421945.907581,
             },
             rel=0.05,
         )
@@ -117,7 +117,7 @@ class TestBuilding:
                 "[J](Hourly)": 3571575271.9865627,
                 "BLOCK2:APPTX2E IDEAL LOADS AIR:"
                 "Zone Ideal Loads Supply Air Total Heating Energy "
-                "[J](Hourly) ": 3636379021.517704,
+                "[J](Hourly)": 3636379021.517704,
             },
             rel=0.05,
         )
