@@ -6,7 +6,7 @@ import tempfile
 import shutil
 import time
 
-from contextlib import contextmanager
+from contextlib import contextmanager, nullcontext
 from copy import deepcopy
 from pathlib import Path
 
@@ -263,6 +263,7 @@ Others: {[obj.name for obj in self.systems[SystemCategories.OTHER]]}
         self,
         property_dict=None,
         simulation_options=None,
+        working_directory=None,
         idf_save_path=None,
         **simulation_kwargs,
     ) -> pd.DataFrame:
@@ -418,13 +419,21 @@ Others: {[obj.name for obj in self.systems[SystemCategories.OTHER]]}
         gc.collect()
 
         # SIMULATE
-        with temporary_directory() as temp_dir:
+        if working_directory is None:
+            context = temporary_directory()
+        else:
+            working_directory = Path(working_directory)
+            working_directory.mkdir(parents=True, exist_ok=True)
+            context = nullcontext(working_directory)
+
+        with context as temp_dir:
+
             working_idf.saveas((Path(temp_dir) / "in.idf").as_posix(), encoding="utf-8")
             idd_ref = working_idf.idd_version
             run(
                 idf=working_idf,
                 weather=epw_path,
-                output_directory=temp_dir.replace("\\", "/"),
+                output_directory=Path(temp_dir).as_posix(),
                 annual=False,
                 design_day=False,
                 readvars=False,
