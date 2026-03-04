@@ -74,27 +74,24 @@ def ensure_sql_output(idf):
         )
 
 
-def read_sql_timeseries(sql_path, ref_year=None):
+def read_sql_timeseries(sql_path, ref_year=None, unify_frequency=True):
+
+    query = """
+    SELECT
+        t.Month,
+        t.Day,
+        t.Hour,
+        t.Minute,
+        rdd.KeyValue || ':' || rdd.Name || ' [' || rdd.Units || '](' || rdd.ReportingFrequency || ')' AS variable,
+        rd.Value
+    FROM ReportData rd
+    JOIN ReportDataDictionary rdd
+        ON rd.ReportDataDictionaryIndex = rdd.ReportDataDictionaryIndex
+    JOIN Time t
+        ON rd.TimeIndex = t.TimeIndex
+    """
 
     with sqlite3.connect(sql_path) as conn:
-
-        query = """
-        SELECT
-            rdd.KeyValue,
-            rdd.Name,
-            rdd.Units,
-            rd.Value,
-            t.Month,
-            t.Day,
-            t.Hour,
-            t.Minute
-        FROM ReportData rd
-        JOIN ReportDataDictionary rdd
-            ON rd.ReportDataDictionaryIndex = rdd.ReportDataDictionaryIndex
-        JOIN Time t
-            ON rd.TimeIndex = t.TimeIndex
-        """
-
         df = pd.read_sql_query(query, conn)
 
     if ref_year is None:
@@ -112,23 +109,14 @@ def read_sql_timeseries(sql_path, ref_year=None):
 
     df["datetime"] = dt
 
-    df["variable"] = (
-        df["KeyValue"]
-        + ":"
-        + df["Name"]
-        + " ["
-        + df["Units"]
-        + "](Hourly)"
-    )
+    df = df.pivot(index="datetime", columns="variable", values="Value")
+    df = df.sort_index()
 
-    df = (
-        df.pivot_table(
-            index="datetime",
-            columns="variable",
-            values="Value",
-        )
-        .sort_index()
-    )
+    if unify_frequency:
+        step = df.index.to_series().diff().dropna().mode()[0]
+        full_index = pd.date_range(df.index.min(), df.index.max(), freq=step)
+        df = df.reindex(full_index)
+        df = df.ffill()
 
     return df
 
