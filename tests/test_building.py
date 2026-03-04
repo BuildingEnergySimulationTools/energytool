@@ -22,7 +22,7 @@ class TestBuilding:
         }
         simulation_options = {
             SimuOpt.OUTPUTS.value: f"{OutputCategories.SYSTEM.value}|{OutputCategories.RAW.value}",
-            SimuOpt.OUTPUT_FREQUENCY.value: "Hourly"
+            SimuOpt.OUTPUT_FREQUENCY.value: "Hourly",
         }
 
         res = test_build.simulate(
@@ -85,6 +85,7 @@ class TestBuilding:
             SimuOpt.OUTPUTS.value: f""
             f"{OutputCategories.SYSTEM.value}|"
             f"{OutputCategories.RAW.value}",
+            SimuOpt.OUTPUT_FREQUENCY.value: "Hourly",
         }
 
         res = test_build.simulate(

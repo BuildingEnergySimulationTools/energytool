@@ -45,6 +45,7 @@ class SimuOpt(enum.Enum):
     VERBOSE = "verbose"
     OUTPUT_FREQUENCY = "OUTPUT_FREQUENCY"
 
+
 @contextmanager
 def temporary_directory():
     if platform.system() == "Windows":
@@ -68,10 +69,7 @@ def temporary_directory():
 def ensure_sql_output(idf):
     objs = idf.idfobjects["OUTPUT:SQLITE"]
     if not objs:
-        idf.newidfobject(
-            "OUTPUT:SQLITE",
-            Option_Type="SimpleAndTabular"
-        )
+        idf.newidfobject("OUTPUT:SQLITE", Option_Type="SimpleAndTabular")
 
 
 def read_sql_timeseries(sql_path, ref_year=None, unify_frequency=True):
@@ -416,6 +414,7 @@ Others: {[obj.name for obj in self.systems[SystemCategories.OTHER]]}
         ensure_sql_output(working_idf)
 
         import gc
+
         gc.collect()
 
         # SIMULATE
@@ -434,8 +433,7 @@ Others: {[obj.name for obj in self.systems[SystemCategories.OTHER]]}
             )
 
             eplus_res = read_sql_timeseries(
-                Path(temp_dir) / "eplusout.sql",
-                ref_year=ref_year
+                Path(temp_dir) / "eplusout.sql", ref_year=ref_year
             )
 
             # Save IDF file after pre-process
