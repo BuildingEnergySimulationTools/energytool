@@ -4,6 +4,7 @@ import platform
 import os
 import tempfile
 import shutil
+import time
 
 from contextlib import contextmanager
 from copy import deepcopy
@@ -14,6 +15,9 @@ from corrai.base.model import Model
 from eppy.modeleditor import IDF
 from eppy.runner.run_functions import run
 import eppy.json_functions as json_functions
+
+import sqlite3
+import pandas as pd
 
 import energytool.base.idf_utils
 from energytool.base.parse_results import read_eplus_res
@@ -53,7 +57,80 @@ def temporary_directory():
         yield temp_dir
 
     finally:
-        shutil.rmtree(temp_dir)
+        for _ in range(20):
+            try:
+                shutil.rmtree(temp_dir)
+                break
+            except PermissionError:
+                time.sleep(0.2)
+
+
+def ensure_sql_output(idf):
+    objs = idf.idfobjects["OUTPUT:SQLITE"]
+    if not objs:
+        idf.newidfobject(
+            "OUTPUT:SQLITE",
+            Option_Type="SimpleAndTabular"
+        )
+
+
+def read_sql_timeseries(sql_path, ref_year=None):
+
+    with sqlite3.connect(sql_path) as conn:
+
+        query = """
+        SELECT
+            rdd.KeyValue,
+            rdd.Name,
+            rdd.Units,
+            rd.Value,
+            t.Month,
+            t.Day,
+            t.Hour,
+            t.Minute
+        FROM ReportData rd
+        JOIN ReportDataDictionary rdd
+            ON rd.ReportDataDictionaryIndex = rdd.ReportDataDictionaryIndex
+        JOIN Time t
+            ON rd.TimeIndex = t.TimeIndex
+        """
+
+        df = pd.read_sql_query(query, conn)
+
+    if ref_year is None:
+        ref_year = 2000
+
+    dt = pd.to_datetime(
+        dict(
+            year=ref_year,
+            month=df.Month,
+            day=df.Day,
+            hour=df.Hour,
+            minute=df.Minute,
+        )
+    )
+
+    df["datetime"] = dt
+
+    df["variable"] = (
+        df["KeyValue"]
+        + ":"
+        + df["Name"]
+        + " ["
+        + df["Units"]
+        + "](Hourly)"
+    )
+
+    df = (
+        df.pivot_table(
+            index="datetime",
+            columns="variable",
+            values="Value",
+        )
+        .sort_index()
+    )
+
+    return df
 
 
 class Building(Model):
@@ -342,6 +419,11 @@ Others: {[obj.name for obj in self.systems[SystemCategories.OTHER]]}
         if SimuOpt.VERBOSE.value not in simulation_options.keys():
             simulation_options[SimuOpt.VERBOSE.value] = "v"
 
+        ensure_sql_output(working_idf)
+
+        import gc
+        gc.collect()
+
         # SIMULATE
         with temporary_directory() as temp_dir:
             working_idf.saveas((Path(temp_dir) / "in.idf").as_posix(), encoding="utf-8")
@@ -352,19 +434,14 @@ Others: {[obj.name for obj in self.systems[SystemCategories.OTHER]]}
                 output_directory=temp_dir.replace("\\", "/"),
                 annual=False,
                 design_day=False,
-                idd=None,
-                epmacro=False,
-                expandobjects=False,
-                readvars=True,
-                output_prefix=None,
-                output_suffix=None,
-                version=False,
+                readvars=False,
                 verbose=simulation_options[SimuOpt.VERBOSE.value],
                 ep_version=f"{idd_ref[0]}-{idd_ref[1]}-{idd_ref[2]}",
             )
 
-            eplus_res = read_eplus_res(
-                Path(temp_dir) / "eplusout.csv", ref_year=ref_year
+            eplus_res = read_sql_timeseries(
+                Path(temp_dir) / "eplusout.sql",
+                ref_year=ref_year
             )
 
             # Save IDF file after pre-process
