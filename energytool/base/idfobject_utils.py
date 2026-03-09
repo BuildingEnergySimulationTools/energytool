@@ -246,7 +246,7 @@ def add_output_variable(
     idf: IDF,
     key_values: str | list,
     variables,
-    reporting_frequency: str = "Hourly",
+    reporting_frequency: str = "Timestep",
 ):
     """
     This function allows you to add output:variable object to an EnergyPlus IDF file.
@@ -260,7 +260,8 @@ def add_output_variable(
     :param variables: The names of the variables to output. This can be a single
         variable name (string) or a list of variable names (list of strings).
     :param reporting_frequency: The reporting frequency for the output
-        variables (e.g., "Hourly", "Daily", etc.). Default is "Hourly."
+        variables (e.g., "Hourly", "Daily", etc.). Default is "Timestep" of the
+        simulation.
     :return: None
 
     The function iterates through the specified key values and variables, checking if
@@ -288,11 +289,13 @@ def add_output_variable(
                 if key == "*":
                     del_output_variable(idf, var)
 
+                freq = getattr(idf, "output_frequency", reporting_frequency)
+
                 idf.newidfobject(
                     "OUTPUT:VARIABLE",
                     Key_Value=key,
                     Variable_Name=var,
-                    Reporting_Frequency=reporting_frequency,
+                    Reporting_Frequency=freq,
                 )
 
 

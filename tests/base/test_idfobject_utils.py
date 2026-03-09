@@ -31,15 +31,15 @@ class TestIdfObjectUtils:
         add_output_variable(toy_idf, key_values="Zone_1", variables="Conso")
 
         to_test = [elmt["obj"] for elmt in toy_idf.idfobjects["Output:Variable"]]
-        ref = [["OUTPUT:VARIABLE", "Zone_1", "Conso", "Hourly"]]
+        ref = [["OUTPUT:VARIABLE", "Zone_1", "Conso", "Timestep"]]
         assert to_test == ref
 
         add_output_variable(toy_idf, key_values=["Zone_1", "Zone_2"], variables="Conso")
 
         to_test = [elmt["obj"] for elmt in toy_idf.idfobjects["Output:Variable"]]
         ref = [
-            ["OUTPUT:VARIABLE", "Zone_1", "Conso", "Hourly"],
-            ["OUTPUT:VARIABLE", "Zone_2", "Conso", "Hourly"],
+            ["OUTPUT:VARIABLE", "Zone_1", "Conso", "Timestep"],
+            ["OUTPUT:VARIABLE", "Zone_2", "Conso", "Timestep"],
         ]
         assert to_test == ref
 
@@ -47,10 +47,10 @@ class TestIdfObjectUtils:
 
         to_test = [elmt["obj"] for elmt in toy_idf.idfobjects["Output:Variable"]]
         ref = [
-            ["OUTPUT:VARIABLE", "Zone_1", "Conso", "Hourly"],
-            ["OUTPUT:VARIABLE", "Zone_2", "Conso", "Hourly"],
-            ["OUTPUT:VARIABLE", "Zone_3", "Conso", "Hourly"],
-            ["OUTPUT:VARIABLE", "Zone_3", "Elec", "Hourly"],
+            ["OUTPUT:VARIABLE", "Zone_1", "Conso", "Timestep"],
+            ["OUTPUT:VARIABLE", "Zone_2", "Conso", "Timestep"],
+            ["OUTPUT:VARIABLE", "Zone_3", "Conso", "Timestep"],
+            ["OUTPUT:VARIABLE", "Zone_3", "Elec", "Timestep"],
         ]
         assert to_test == ref
 
@@ -58,8 +58,8 @@ class TestIdfObjectUtils:
 
         to_test = [elmt["obj"] for elmt in toy_idf.idfobjects["Output:Variable"]]
         ref = [
-            ["OUTPUT:VARIABLE", "Zone_3", "Elec", "Hourly"],
-            ["OUTPUT:VARIABLE", "*", "Conso", "Hourly"],
+            ["OUTPUT:VARIABLE", "Zone_3", "Elec", "Timestep"],
+            ["OUTPUT:VARIABLE", "*", "Conso", "Timestep"],
         ]
         assert to_test == ref
 

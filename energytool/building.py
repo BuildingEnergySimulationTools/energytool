@@ -4,8 +4,9 @@ import platform
 import os
 import tempfile
 import shutil
+import time
 
-from contextlib import contextmanager
+from contextlib import contextmanager, nullcontext
 from copy import deepcopy
 from pathlib import Path
 
@@ -14,6 +15,9 @@ from corrai.base.model import Model
 from eppy.modeleditor import IDF
 from eppy.runner.run_functions import run
 import eppy.json_functions as json_functions
+
+import sqlite3
+import pandas as pd
 
 import energytool.base.idf_utils
 from energytool.base.parse_results import read_eplus_res
@@ -39,6 +43,7 @@ class SimuOpt(enum.Enum):
     OUTPUTS = "outputs"
     EPW_FILE = "epw_file"
     VERBOSE = "verbose"
+    OUTPUT_FREQUENCY = "OUTPUT_FREQUENCY"
 
 
 @contextmanager
@@ -53,7 +58,65 @@ def temporary_directory():
         yield temp_dir
 
     finally:
-        shutil.rmtree(temp_dir)
+        for _ in range(20):
+            try:
+                shutil.rmtree(temp_dir)
+                break
+            except PermissionError:
+                time.sleep(0.2)
+
+
+def ensure_sql_output(idf):
+    objs = idf.idfobjects["OUTPUT:SQLITE"]
+    if not objs:
+        idf.newidfobject("OUTPUT:SQLITE", Option_Type="SimpleAndTabular")
+
+
+def read_sql_timeseries(sql_path, ref_year=None, unify_frequency=True):
+
+    query = """
+    SELECT
+        t.Month,
+        t.Day,
+        t.Hour,
+        t.Minute,
+        rdd.KeyValue || ':' || rdd.Name || ' [' || rdd.Units || '](' || rdd.ReportingFrequency || ')' AS variable,
+        rd.Value
+    FROM ReportData rd
+    JOIN ReportDataDictionary rdd
+        ON rd.ReportDataDictionaryIndex = rdd.ReportDataDictionaryIndex
+    JOIN Time t
+        ON rd.TimeIndex = t.TimeIndex
+    """
+
+    with sqlite3.connect(sql_path) as conn:
+        df = pd.read_sql_query(query, conn)
+
+    if ref_year is None:
+        ref_year = 2000
+
+    dt = pd.to_datetime(
+        dict(
+            year=ref_year,
+            month=df.Month,
+            day=df.Day,
+            hour=df.Hour,
+            minute=df.Minute,
+        )
+    )
+
+    df["datetime"] = dt
+
+    df = df.pivot(index="datetime", columns="variable", values="Value")
+    df = df.sort_index()
+
+    if unify_frequency:
+        step = df.index.to_series().diff().dropna().mode()[0]
+        full_index = pd.date_range(df.index.min(), df.index.max(), freq=step)
+        df = df.reindex(full_index)
+        df = df.ffill()
+
+    return df
 
 
 class Building(Model):
@@ -200,6 +263,7 @@ Others: {[obj.name for obj in self.systems[SystemCategories.OTHER]]}
         self,
         property_dict=None,
         simulation_options=None,
+        working_directory=None,
         idf_save_path=None,
         **simulation_kwargs,
     ) -> pd.DataFrame:
@@ -333,6 +397,12 @@ Others: {[obj.name for obj in self.systems[SystemCategories.OTHER]]}
                 ),
             )
 
+        output_frequency = simulation_options.get(
+            SimuOpt.OUTPUT_FREQUENCY.value,
+            "Timestep",
+        )
+        working_idf.output_frequency = output_frequency
+
         # PRE-PROCESS
         system_list = [sys for sublist in working_syst.values() for sys in sublist]
         for system in system_list:
@@ -342,29 +412,37 @@ Others: {[obj.name for obj in self.systems[SystemCategories.OTHER]]}
         if SimuOpt.VERBOSE.value not in simulation_options.keys():
             simulation_options[SimuOpt.VERBOSE.value] = "v"
 
+        ensure_sql_output(working_idf)
+
+        import gc
+
+        gc.collect()
+
         # SIMULATE
-        with temporary_directory() as temp_dir:
+        if working_directory is None:
+            context = temporary_directory()
+        else:
+            working_directory = Path(working_directory)
+            working_directory.mkdir(parents=True, exist_ok=True)
+            context = nullcontext(working_directory)
+
+        with context as temp_dir:
+
             working_idf.saveas((Path(temp_dir) / "in.idf").as_posix(), encoding="utf-8")
             idd_ref = working_idf.idd_version
             run(
                 idf=working_idf,
                 weather=epw_path,
-                output_directory=temp_dir.replace("\\", "/"),
+                output_directory=Path(temp_dir).as_posix(),
                 annual=False,
                 design_day=False,
-                idd=None,
-                epmacro=False,
-                expandobjects=False,
-                readvars=True,
-                output_prefix=None,
-                output_suffix=None,
-                version=False,
+                readvars=False,
                 verbose=simulation_options[SimuOpt.VERBOSE.value],
                 ep_version=f"{idd_ref[0]}-{idd_ref[1]}-{idd_ref[2]}",
             )
 
-            eplus_res = read_eplus_res(
-                Path(temp_dir) / "eplusout.csv", ref_year=ref_year
+            eplus_res = read_sql_timeseries(
+                Path(temp_dir) / "eplusout.sql", ref_year=ref_year
             )
 
             # Save IDF file after pre-process

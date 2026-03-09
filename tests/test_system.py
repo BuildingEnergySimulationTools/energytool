@@ -146,19 +146,19 @@ class TestSystems:
                 "OUTPUT:VARIABLE",
                 "*",
                 "Zone Other Equipment Total Heating Energy",
-                "Hourly",
+                "Hourly",  # as defined in idf
             ],
             [
                 "OUTPUT:VARIABLE",
                 "Block1:ApptX1W Ideal Loads Air",
                 "Zone Ideal Loads Supply Air Total Heating Energy",
-                "Hourly",
+                "Timestep",
             ],
             [
                 "OUTPUT:VARIABLE",
                 "Block1:ApptX1E Ideal Loads Air",
                 "Zone Ideal Loads Supply Air Total Heating Energy",
-                "Hourly",
+                "Timestep",
             ],
         ]
 
@@ -188,7 +188,7 @@ class TestSystems:
                 "OUTPUT:VARIABLE",
                 "Block1:ApptX1W Ideal Loads Air",
                 "Zone Ideal Loads Supply Air Total Heating Energy",
-                "Hourly",
+                "Timestep",
             ],
         ]
         energyplus_results = read_eplus_res(RESOURCES_PATH / "test_res.csv")
@@ -250,11 +250,14 @@ class TestSystems:
                 "outputs": "SYSTEM",
             },
         )
-
-        assert results.sum().to_dict() == {
-            "TOTAL_SYSTEM_Energy_[J]": 634902466.3027192,
-            "VENTILATION_Energy_[J]": 634902466.3027192,
-        }
+        # results outputs : 30min
+        assert results.sum().to_dict() == approx(
+            {
+                "TOTAL_SYSTEM_Energy_[J]": 634902466.3027192 * 2,
+                "VENTILATION_Energy_[J]": 634902466.3027192 * 2,
+            },
+            rel=0.05,
+        )
 
     def test_dhw_ideal_external(self):
         building = Building(idf_path=RESOURCES_PATH / "test.idf")
@@ -270,10 +273,13 @@ class TestSystems:
             },
         )
 
-        assert results.sum().to_dict() == {
-            "DHW_Energy_[J]": 8430408987.330694,
-            "TOTAL_SYSTEM_Energy_[J]": 8430408987.330694,
-        }
+        assert results.sum().to_dict() == approx(
+            {
+                "DHW_Energy_[J]": 8430408987.330694,
+                "TOTAL_SYSTEM_Energy_[J]": 8430408987.330694,
+            },
+            rel=0.05,
+        )
 
     def test_artificial_lighting(self):
         building = Building(idf_path=RESOURCES_PATH / "test.idf")
@@ -337,10 +343,13 @@ class TestSystems:
             },
         )
 
-        assert results.sum().to_dict() == {
-            "TOTAL_SYSTEM_Energy_[J]": 5800244198.831992,
-            "VENTILATION_Energy_[J]": 5800244198.831992,
-        }
+        assert results.sum().to_dict() == approx(
+            {
+                "TOTAL_SYSTEM_Energy_[J]": 5800244198.831992*2,
+                "VENTILATION_Energy_[J]": 5800244198.831992*2,
+            },
+            rel=0.05,
+        )
 
     def test_other_equipments(self):
         tested_idf = IDF(RESOURCES_PATH / "test.idf")

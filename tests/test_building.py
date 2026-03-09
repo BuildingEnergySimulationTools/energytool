@@ -21,7 +21,8 @@ class TestBuilding:
             "epw_file": (RESOURCES_PATH / "B4R_weather_Paris_2020.epw").as_posix(),
         }
         simulation_options = {
-            SimuOpt.OUTPUTS.value: f"{OutputCategories.SYSTEM.value}|{OutputCategories.RAW.value}"
+            SimuOpt.OUTPUTS.value: f"{OutputCategories.SYSTEM.value}|{OutputCategories.RAW.value}",
+            SimuOpt.OUTPUT_FREQUENCY.value: "Hourly",
         }
 
         res = test_build.simulate(
@@ -62,7 +63,7 @@ class TestBuilding:
                 "[J](Hourly)": 15276675722.295742,
                 "BLOCK2:APPTX2E IDEAL LOADS AIR:"
                 "Zone Ideal Loads Supply Air Total Heating Energy "
-                "[J](Hourly) ": 15677421945.907581,
+                "[J](Hourly)": 15677421945.907581,
             },
             rel=0.05,
         )
@@ -84,6 +85,7 @@ class TestBuilding:
             SimuOpt.OUTPUTS.value: f""
             f"{OutputCategories.SYSTEM.value}|"
             f"{OutputCategories.RAW.value}",
+            SimuOpt.OUTPUT_FREQUENCY.value: "Hourly",
         }
 
         res = test_build.simulate(
@@ -117,7 +119,7 @@ class TestBuilding:
                 "[J](Hourly)": 3571575271.9865627,
                 "BLOCK2:APPTX2E IDEAL LOADS AIR:"
                 "Zone Ideal Loads Supply Air Total Heating Energy "
-                "[J](Hourly) ": 3636379021.517704,
+                "[J](Hourly)": 3636379021.517704,
             },
             rel=0.05,
         )
