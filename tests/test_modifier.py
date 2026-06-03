@@ -24,6 +24,7 @@ from energytool.modifier import (
     set_blinds_schedule,
     set_schedule_constant,
     set_system,
+    set_ahu_night_ventilation,
     update_idf_objects,
     reverse_kwargs,
 )
@@ -99,6 +100,18 @@ def toy_building(tmp_path_factory):
         key="Construction",
         Name="Construction_Int_win",
         Outside_Layer="Int_win",
+    )
+
+    toy_idf.newidfobject(
+        key="DESIGNSPECIFICATION:OUTDOORAIR",
+        Name="zone_0_oa",
+        Outdoor_Air_Method="Flow/Person",
+    )
+
+    toy_idf.newidfobject(
+        key="DESIGNSPECIFICATION:OUTDOORAIR",
+        Name="zone_1_oa",
+        Outdoor_Air_Method="Flow/Person",
     )
 
     for toy_surf in range(6):
@@ -793,6 +806,56 @@ class TestModifier:
             2.0,
             4.0,
         ]
+
+    def test_set_ahu_night_ventilation(self, toy_building):
+        set_ahu_night_ventilation(
+            model=toy_building,
+            description={
+                "night_ventilation": {
+                    "Outdoor_Air_Flow_Air_Changes_per_Hour": 4.0,
+                    "Outdoor_Air_Schedule_Name": "NIGHT_VENTILATION",
+                }
+            },
+            name_filter="zone_0",
+        )
+
+        oa_objects = toy_building.idf.idfobjects[
+            "DESIGNSPECIFICATION:OUTDOORAIR"
+        ]
+
+        zone_0 = next(
+            obj for obj in oa_objects
+            if obj.Name == "zone_0_oa"
+        )
+
+        zone_1 = next(
+            obj for obj in oa_objects
+            if obj.Name == "zone_1_oa"
+        )
+
+        assert zone_0.Outdoor_Air_Method == "AirChanges/Hour"
+        assert zone_0.Outdoor_Air_Flow_Air_Changes_per_Hour == 4.0
+        assert zone_0.Outdoor_Air_Schedule_Name == "NIGHT_VENTILATION"
+        assert zone_1.Outdoor_Air_Method == "Flow/Person"
+
+        set_ahu_night_ventilation(
+            model=toy_building,
+            description={
+                "night_ventilation": {
+                    "Outdoor_Air_Flow_Air_Changes_per_Hour": 4.0,
+                }
+            },
+        )
+
+        oa_objects = toy_building.idf.idfobjects[
+            "DESIGNSPECIFICATION:OUTDOORAIR"
+        ]
+
+        assert all(
+            obj.Outdoor_Air_Method == "AirChanges/Hour"
+            for obj in oa_objects
+        )
+
 
     # def test_envelope_shades_modifier(self, toy_building):
     #     loc_toy = deepcopy(toy_building)

@@ -694,3 +694,121 @@ def set_system(model, description, **kwargs):
 
     # Add new system
     model.add_system(system)
+
+
+def set_ahu_night_ventilation(
+    model: Building,
+    description: dict[str, dict[str, Any]],
+    name_filter: str = None,
+):
+    """
+    Modify DesignSpecification:OutdoorAir objects to represent a
+    night ventilation strategy.
+
+    This modifier updates all DesignSpecification:OutdoorAir objects
+    in the model and forces the outdoor air method to be specified
+    as air changes per hour (ACH).
+
+    Parameters
+    ----------
+    model : Building
+        EnergyTool Building object.
+
+    description : dict[str, dict[str, Any]]
+        Dictionary describing the night ventilation strategy.
+
+        The expected dictionary must be of the following form:
+
+        {
+            "NightVentilation": {
+                "Outdoor_Air_Flow_Air_Changes_per_Hour": 4.0,
+                "Outdoor_Air_Schedule_Name": "NIGHT_VENTILATION",
+            }
+        }
+
+    name_filter : str, optional
+        Partial name filter used to select
+        DesignSpecification:OutdoorAir objects.
+
+        If provided, only objects whose Name
+        contains the specified string will be
+        modified.
+
+        If None, all DesignSpecaouaification:OutdoorAir
+        objects are modified.
+
+        Optionally, a Schedule:Compact description can be provided
+        using the "Scenario" key. If present, the schedule will be
+        created or updated before being assigned to the outdoor air
+        specification.
+
+        Example:
+
+        {
+            "NightVentilation": {
+                "Outdoor_Air_Flow_Air_Changes_per_Hour": 4.0,
+                "Outdoor_Air_Schedule_Name": "NIGHT_VENTILATION",
+                "Scenario": {
+                    "Name": "NIGHT_VENTILATION",
+                    "Schedule_Type_Limits_Name": "Fraction",
+                    "Field_1": "Through: 12/31",
+                    "Field_2": "For: AllDays",
+                    "Field_3": "Until: 07:00",
+                    "Field_4": 1,
+                    "Field_5": "Until: 22:00",
+                    "Field_6": 0.2,
+                    "Field_7": "Until: 24:00",
+                    "Field_8": 1,
+                }
+            }
+        }
+
+    Notes
+    -----
+    The modifier updates all DesignSpecification:OutdoorAir objects
+    found in the model.
+
+    The following fields are modified:
+
+    - Outdoor_Air_Method
+    - Outdoor_Air_Flow_Air_Changes_per_Hour
+    - Outdoor_Air_Schedule_Name
+
+    Outdoor_Air_Method is automatically set to:
+
+        "AirChanges/Hour"
+
+    This modifier is intended to represent free cooling or night
+    ventilation strategies through scheduled outdoor air supply.
+    """
+
+    params = list(description.values())[0]
+
+    if "Scenario" in params:
+        schedule = params["Scenario"]
+
+        update_idf_objects(
+            model,
+            {schedule["Name"]: schedule},
+            "Schedule:Compact",
+        )
+
+    for obj in model.idf.idfobjects["DESIGNSPECIFICATION:OUTDOORAIR"]:
+
+        if (
+                name_filter is not None
+                and name_filter not in obj.Name
+        ):
+            continue
+
+        obj.Outdoor_Air_Method = "AirChanges/Hour"
+
+        if "Outdoor_Air_Flow_Air_Changes_per_Hour" in params:
+            obj.Outdoor_Air_Flow_Air_Changes_per_Hour = (
+                params["Outdoor_Air_Flow_Air_Changes_per_Hour"]
+            )
+
+        if "Outdoor_Air_Schedule_Name" in params:
+            obj.Outdoor_Air_Schedule_Name = (
+                params["Outdoor_Air_Schedule_Name"]
+            )
