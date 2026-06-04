@@ -974,3 +974,108 @@ def set_shading_geometry(
                     ],
                     window.Building_Surface_Name,
                 )
+
+
+def set_shading_properties(
+    model: Building,
+    description: dict = None,
+    name_filter: str = None,
+):
+    DEFAULT_SHADING_PROPERTIES = {
+        "Diffuse_Solar_Reflectance_of_Unglazed_Part_of_Shading_Surface": 0.2,
+        "Diffuse_Visible_Reflectance_of_Unglazed_Part_of_Shading_Surface": 0.2,
+        "Fraction_of_Shading_Surface_That_Is_Glazed": 0.0,
+        "Glazing_Construction_Name": "",
+    }
+
+    params = DEFAULT_SHADING_PROPERTIES.copy()
+
+    if description is not None:
+        params.update(description)
+
+    existing = {
+        obj.Shading_Surface_Name: obj
+        for obj in model.idf.idfobjects[
+            "SHADINGPROPERTY:REFLECTANCE"
+        ]
+    }
+
+    shading_objects = [
+        obj
+        for obj in (
+            list(model.idf.idfobjects["SHADING:ZONE:DETAILED"])
+            + list(model.idf.idfobjects["SHADING:BUILDING:DETAILED"])
+        )
+        if name_filter is None
+        or name_filter in obj.Name
+    ]
+
+    for shading in shading_objects:
+
+        if shading.Name in existing:
+            refl_obj = existing[shading.Name]
+
+        else:
+            refl_obj = model.idf.newidfobject(
+                "SHADINGPROPERTY:REFLECTANCE",
+                Shading_Surface_Name=shading.Name,
+            )
+
+        for field, value in params.items():
+            setattr(refl_obj, field, value)
+
+def set_shading_object(
+        model: Building,
+        geometry: dict = None,
+        properties: dict = None,
+        name_filter: str = None,
+):
+    SHADING_PROPERTY_PRESETS = {
+        "vegetation": {
+            "Diffuse_Solar_Reflectance_of_Unglazed_Part_of_Shading_Surface": 0.25,
+            "Diffuse_Visible_Reflectance_of_Unglazed_Part_of_Shading_Surface": 0.15,
+        },
+        "light_concrete": {
+            "Diffuse_Solar_Reflectance_of_Unglazed_Part_of_Shading_Surface": 0.60,
+            "Diffuse_Visible_Reflectance_of_Unglazed_Part_of_Shading_Surface": 0.60,
+        },
+        "dark_metal": {
+            "Diffuse_Solar_Reflectance_of_Unglazed_Part_of_Shading_Surface": 0.15,
+            "Diffuse_Visible_Reflectance_of_Unglazed_Part_of_Shading_Surface": 0.15,
+        },
+        "pv_panel": {
+            "Diffuse_Solar_Reflectance_of_Unglazed_Part_of_Shading_Surface": 0.05,
+            "Diffuse_Visible_Reflectance_of_Unglazed_Part_of_Shading_Surface": 0.05,
+        },
+    }
+
+    if geometry is not None:
+        shading_type = geometry.pop("Type")
+
+        set_shading_geometry(
+            model=model,
+            shading_type=shading_type,
+            description=geometry,
+            name_filter=name_filter,
+        )
+
+    if properties is not None:
+
+        properties = properties.copy()
+
+        preset = properties.pop("Preset", None)
+
+        if preset is not None:
+            preset_values = SHADING_PROPERTY_PRESETS[
+                preset
+            ].copy()
+
+            preset_values.update(properties)
+
+            properties = preset_values
+
+        set_shading_properties(
+            model=model,
+            description=properties,
+            name_filter=name_filter,
+        )
