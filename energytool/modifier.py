@@ -1,4 +1,4 @@
-from typing import Any
+from typing import Any, Union
 import numpy as np
 
 from energytool.base.idf_utils import get_objects_name_list
@@ -8,6 +8,14 @@ from energytool.base.idfobject_utils import (
 )
 from energytool.building import Building
 from energytool.tools import is_items_in_list
+
+
+def _matches_filter(name: str, name_filter: Union[str, list, None]) -> bool:
+    if name_filter is None:
+        return True
+    if isinstance(name_filter, list):
+        return any(f in name for f in name_filter)
+    return name_filter in name
 
 
 def reverse_kwargs(construction_kwargs):
@@ -30,7 +38,7 @@ def reverse_kwargs(construction_kwargs):
 def set_opaque_surface_construction(
     model: Building,
     description: dict[str, list[dict[str, Any]]],
-    name_filter: str = None,
+    name_filter: Union[str, list[str]] = None,
     surface_type: str = "Wall",
     outside_boundary_condition: str = None,
 ):
@@ -67,9 +75,6 @@ def set_opaque_surface_construction(
     These kwargs are then reversed to ensure consistency for any surfaces
     that require the inversion of their construction.
     """
-    if name_filter is None:
-        name_filter = ""
-
     new_construction_name = list(description.keys())[0]
     new_composition = description[new_construction_name]
     surface_list = model.idf.idfobjects["BuildingSurface:Detailed"]
@@ -89,7 +94,7 @@ def set_opaque_surface_construction(
             outside_boundary_condition
             not in obj.getfieldidd("Outside_Boundary_Condition")["key"]
             for obj in surface_list
-            if name_filter in obj.Name
+            if _matches_filter(obj.Name, name_filter)
         ):
             raise ValueError(
                 f"outside_boundary_condition must be one of "
@@ -125,7 +130,7 @@ def set_opaque_surface_construction(
             if outside_boundary_condition is not None
             else True
         )
-        and name_filter in obj.Name
+        and _matches_filter(obj.Name, name_filter)
     ]
 
     for surf in surf_to_modify:
@@ -134,7 +139,7 @@ def set_opaque_surface_construction(
     construction_to_reverse = [
         obj.Construction_Name
         for obj in surface_list
-        if name_filter in obj.Outside_Boundary_Condition_Object
+        if _matches_filter(obj.Outside_Boundary_Condition_Object, name_filter)
         and (
             getattr(
                 obj.Outside_Boundary_Condition_Object,
@@ -167,8 +172,8 @@ def set_opaque_surface_construction(
 def set_external_windows(
     model: Building,
     description: dict[str, dict[str, Any]],
-    name_filter: str = None,
-    surface_name_filter: str = None,
+    name_filter: Union[str, list[str]] = None,
+    surface_name_filter: Union[str, list[str]] = None,
     boundary_conditions: str = None,
 ):
     """
@@ -210,10 +215,8 @@ def set_external_windows(
         windows = [
             win
             for win in windows
-            if (
-                name_filter is None and surface_name_filter in win.Building_Surface_Name
-            )
-            or (surface_name_filter is None and name_filter in win.Name)
+            if _matches_filter(win.Name, name_filter)
+            and _matches_filter(win.Building_Surface_Name, surface_name_filter)
         ]
     windows_names = [win.Name for win in windows]
     win_cons_names = {win.Construction_Name for win in windows}
@@ -275,8 +278,8 @@ def set_external_windows(
 def set_afn_surface_opening_factor(
     model: Building,
     description: dict[str, dict[str, Any]],
-    name_filter: str = None,
-    surface_name_filter: str = None,
+    name_filter: Union[str, list[str]] = None,
+    surface_name_filter: Union[str, list[str]] = None,
 ):
     """
     Modify AirFlowNetwork:Multizone:Surface WindowDoor_Opening_Factor_or_Crack_Factor
@@ -301,8 +304,8 @@ def set_afn_surface_opening_factor(
         openings = [
             op
             for op in openings
-            if (surface_name_filter is None and name_filter in op.Surface_Name)
-            or (name_filter is None and surface_name_filter in op.Surface_Name)
+            if _matches_filter(op.Surface_Name, name_filter)
+            and _matches_filter(op.Surface_Name, surface_name_filter)
         ]
 
     new_opening_ratio_name = list(description.keys())[0]
@@ -319,8 +322,8 @@ def set_afn_surface_opening_factor(
 def set_blinds_solar_transmittance(
     model: Building,
     description: dict[str, dict[str, Any]],
-    name_filter: str = None,
-    surface_name_filter: str = None,
+    name_filter: Union[str, list[str]] = None,
+    surface_name_filter: Union[str, list[str]] = None,
 ):
     """
     Modify WindowMaterial:Shade Solar_Transmittance (or/and Reflectance) based
@@ -350,21 +353,11 @@ def set_blinds_solar_transmittance(
 
     selected_shades = []
 
-    if name_filter is None:
-        name_filter = ""
-    if surface_name_filter is None:
-        surface_name_filter = ""
-
     filtered_windows = [
         window
         for window in idf.idfobjects["FenestrationSurface:Detailed"]
-        if (surface_name_filter == "" and name_filter in window.Name)
-        or (name_filter == "" and surface_name_filter in window.Building_Surface_Name)
-        or (surface_name_filter == "" and name_filter == "")
-        or (
-            surface_name_filter in window.Building_Surface_Name
-            and name_filter in window.Name
-        )
+        if _matches_filter(window.Name, name_filter)
+        and _matches_filter(window.Building_Surface_Name, surface_name_filter)
     ]
     construction_names_dict = {
         window.Name: window.Construction_Name for window in filtered_windows
@@ -450,8 +443,8 @@ def set_schedule_constant(
 def set_blinds_schedule(
     model: Building,
     description: dict[str, dict[str, Any]],
-    name_filter: str = None,
-    surface_name_filter: str = None,
+    name_filter: Union[str, list[str]] = None,
+    surface_name_filter: Union[str, list[str]] = None,
 ):
     """
     Create/update Schedule based on the given description.
@@ -507,11 +500,8 @@ def set_blinds_schedule(
         filtered_windows = [
             window
             for window in idf.idfobjects["FenestrationSurface:Detailed"]
-            if (surface_name_filter is None and name_filter in window.Name)
-            or (
-                name_filter is None
-                and surface_name_filter in window.Building_Surface_Name
-            )
+            if _matches_filter(window.Name, name_filter)
+            and _matches_filter(window.Building_Surface_Name, surface_name_filter)
         ]
         construction_names_dict = {
             window.Name: window.Construction_Name for window in filtered_windows
@@ -589,7 +579,7 @@ def update_idf_objects(
     model: Building,
     description: dict[str, dict[str, Any]],
     idfobject_type: str,
-    name_filter: str = None,
+    name_filter: Union[str, list[str]] = None,
 ):
     """
     Updates or creates objects in an IDF based on the provided description.
@@ -621,7 +611,7 @@ def update_idf_objects(
         obj_exists = False
 
         for obj in idf_objects:
-            if name_filter is not None and name_filter in obj["Name"]:
+            if name_filter is not None and _matches_filter(obj["Name"], name_filter):
                 for field, value in obj_fields.items():
                     if field != "Name":
                         obj[field] = value
@@ -640,8 +630,8 @@ def update_idf_objects(
 def set_blinds_st_and_schedule(
     model: Building,
     description: dict[str, dict[str, Any]],
-    name_filter: str = None,
-    surface_name_filter: str = None,
+    name_filter: Union[str, list[str]] = None,
+    surface_name_filter: Union[str, list[str]] = None,
 ):
     """
     Modify WindowMaterial:Shade Solar_Transmittance and create/update
@@ -702,7 +692,7 @@ def set_system(model, description, **kwargs):
 def set_ahu_night_ventilation(
     model: Building,
     description: dict[str, dict[str, Any]],
-    name_filter: str = None, ##m list of string
+    name_filter: Union[str, list[str]] = None,
 ):
     """
     Modify DesignSpecification:OutdoorAir objects to represent a
@@ -798,10 +788,7 @@ def set_ahu_night_ventilation(
 
     for obj in model.idf.idfobjects["DESIGNSPECIFICATION:OUTDOORAIR"]:
 
-        if (
-                name_filter is not None
-                and name_filter not in obj.Name
-        ):
+        if not _matches_filter(obj.Name, name_filter):
             continue
 
         obj.Outdoor_Air_Method = "AirChanges/Hour"
@@ -821,8 +808,63 @@ def set_shading_geometry(
         model: Building,
         shading_type: str,
         description: dict = None,
-        name_filter: str = None,
+        name_filter: Union[str, list[str]] = None,
 ):
+    """
+    Create or replace shading geometry attached to fenestration surfaces (windows).
+
+    Existing shading objects of the same type are removed before new ones are created.
+
+    Supported shading types and their default parameters
+    ----------------------------------------------------
+    ``"overhang"``
+        Horizontal projection above the window.
+
+        - ``Depth`` (m, default 0.5): how far the overhang extends from the wall.
+        - ``Offset`` (m, default 0.0): vertical offset above the top edge of the window.
+
+    ``"sidefins"``
+        Vertical fins on the sides of the window.
+
+        - ``Depth`` (m, default 0.5): how far each fin extends from the wall.
+        - ``Left`` (bool, default True): add a fin on the left side.
+        - ``Right`` (bool, default True): add a fin on the right side.
+
+    ``"horizontal_louvers"``
+        Horizontal slats distributed over the window height.
+
+        - ``Depth`` (m, default 0.5): depth of each louver.
+        - ``Spacing`` (m, default 0.25): vertical distance between louvers.
+        - ``Tilt`` (°, default 0): tilt of the louvers (0 = horizontal plane).
+        - ``Offset`` (m, default 0): horizontal gap between the louver and the wall.
+
+    ``"vertical_louvers"``
+        Vertical slats distributed over the window width.
+
+        - ``Depth`` (m, default 0.5): depth of each louver.
+        - ``Spacing`` (m, default 0.30): horizontal distance between louvers.
+        - ``Tilt`` (°, default 0): tilt of the louvers (0 = perpendicular to wall).
+
+    Parameters
+    ----------
+    model : Building
+        EnergyTool Building object.
+    shading_type : str
+        Type of shading geometry to create.  Must be one of
+        ``"overhang"``, ``"sidefins"``, ``"horizontal_louvers"``,
+        ``"vertical_louvers"``.
+    description : dict, optional
+        Parameter overrides for the chosen shading type.
+        Only keys that exist in the default parameters are meaningful.
+        Example for an overhang::
+
+            {"Depth": 1.2, "Offset": 0.1}
+
+    name_filter : str or list[str], optional
+        If provided, only windows whose name contains the filter string
+        (or any string in the list) are processed.
+        If None, all windows are processed.
+    """
     default_parameters = {
         "overhang": {
             "Depth": 0.5,
@@ -861,7 +903,7 @@ def set_shading_geometry(
         window
         for window in model.idf.idfobjects["FenestrationSurface:Detailed"]
         if (not window.Surface_Type or window.Surface_Type.upper() == "WINDOW")
-           and (name_filter is None or name_filter in window.Name)
+           and _matches_filter(window.Name, name_filter)
     ]
 
     def get_top_edge(vertices):
@@ -1182,8 +1224,42 @@ def set_shading_geometry(
 def set_shading_properties(
     model: Building,
     description: dict = None,
-    name_filter: str = None,
+    name_filter: Union[str, list[str]] = None,
 ):
+    """
+    Assign reflectance and transmittance properties to shading surfaces.
+
+    For each ``Shading:Zone:Detailed`` and ``Shading:Building:Detailed`` surface,
+    a ``ShadingProperty:Reflectance`` object is created or updated.
+    A transmittance schedule can also be attached.
+
+    Default values (applied when ``description`` is None or a key is absent)
+    -------------------------------------------------------------------------
+    - ``Diffuse_Solar_Reflectance_of_Unglazed_Part_of_Shading_Surface``: 0.2
+    - ``Diffuse_Visible_Reflectance_of_Unglazed_Part_of_Shading_Surface``: 0.2
+    - ``Fraction_of_Shading_Surface_That_Is_Glazed``: 0.0
+    - ``Glazing_Construction_Name``: "" (none)
+
+    Parameters
+    ----------
+    model : Building
+        EnergyTool Building object.
+    description : dict, optional
+        Property overrides.  Accepted special keys:
+
+        - ``"Transmittance"`` (float): constant transmittance value.
+          A ``Schedule:Constant`` is automatically created and assigned
+          to ``Transmittance_Schedule_Name`` for each surface.
+        - ``"Transmittance_Schedule"`` (str): name of an existing EnergyPlus
+          schedule to use directly.  Takes precedence over ``"Transmittance"``.
+
+        Any other key must be a valid ``ShadingProperty:Reflectance`` field name,
+        e.g. ``"Diffuse_Solar_Reflectance_of_Unglazed_Part_of_Shading_Surface"``.
+
+    name_filter : str or list[str], optional
+        If provided, only shading surfaces whose name contains the filter string
+        (or any string in the list) are affected.  If None, all surfaces are updated.
+    """
     DEFAULT_SHADING_PROPERTIES = {
         "Diffuse_Solar_Reflectance_of_Unglazed_Part_of_Shading_Surface": 0.2,
         "Diffuse_Visible_Reflectance_of_Unglazed_Part_of_Shading_Surface": 0.2,
@@ -1228,8 +1304,7 @@ def set_shading_properties(
             list(model.idf.idfobjects["SHADING:ZONE:DETAILED"])
             + list(model.idf.idfobjects["SHADING:BUILDING:DETAILED"])
         )
-        if name_filter is None
-        or name_filter in obj.Name
+        if _matches_filter(obj.Name, name_filter)
     ]
 
     for shading in shading_objects:
@@ -1277,8 +1352,59 @@ def set_shading_object(
         model: Building,
         geometry: dict = None,
         properties: dict = None,
-        name_filter: str = None,
+        name_filter: Union[str, list[str]] = None,
 ):
+    """
+    Create shading geometry and/or assign shading properties in a single call.
+
+    Convenience wrapper around :func:`set_shading_geometry` and
+    :func:`set_shading_properties`.
+
+    Property presets (use ``properties={"Preset": "<name>", ...}``)
+    ---------------------------------------------------------------
+    +--------------------+----------------------------+-----------------------------+
+    | Preset             | Solar reflectance          | Visible reflectance         |
+    +====================+============================+=============================+
+    | ``vegetation``     | 0.25                       | 0.15                        |
+    +--------------------+----------------------------+-----------------------------+
+    | ``light_concrete`` | 0.60                       | 0.60                        |
+    +--------------------+----------------------------+-----------------------------+
+    | ``dark_metal``     | 0.15                       | 0.15                        |
+    +--------------------+----------------------------+-----------------------------+
+    | ``pv_panel``       | 0.05                       | 0.05                        |
+    +--------------------+----------------------------+-----------------------------+
+
+    Preset values are used as defaults and can be overridden by other keys in
+    ``properties``.
+
+    Parameters
+    ----------
+    model : Building
+        EnergyTool Building object.
+    geometry : dict, optional
+        Geometry configuration.  Must contain a ``"Type"`` key set to one of
+        ``"overhang"``, ``"sidefins"``, ``"horizontal_louvers"``, or
+        ``"vertical_louvers"``.  All other keys are forwarded as parameter
+        overrides to :func:`set_shading_geometry`.  Example::
+
+            {"Type": "overhang", "Depth": 1.0, "Offset": 0.05}
+
+    properties : dict, optional
+        Properties configuration.  May include:
+
+        - ``"Preset"`` (str): one of the preset names listed above.
+        - ``"Transmittance"`` (float): constant transmittance (0–1).
+        - ``"Transmittance_Schedule"`` (str): name of an existing schedule.
+        - Any ``ShadingProperty:Reflectance`` EnergyPlus field.
+
+        Example::
+
+            {"Preset": "light_concrete", "Transmittance": 0.0}
+
+    name_filter : str or list[str], optional
+        Forwarded to both :func:`set_shading_geometry` and
+        :func:`set_shading_properties`.
+    """
     SHADING_PROPERTY_PRESETS = {
         "vegetation": {
             "Diffuse_Solar_Reflectance_of_Unglazed_Part_of_Shading_Surface": 0.25,
@@ -1332,8 +1458,54 @@ def set_shading_object(
 def set_shade(
     model: Building,
     description: dict = None,
-    name_filter: str = None,
+    name_filter: Union[str, list[str]] = None,
 ):
+    """
+    Attach a shade material to windows via a ``WindowShadingControl``.
+
+    Creates a ``WindowMaterial:Shade`` and an associated construction, then
+    assigns a ``WindowShadingControl`` (type ``OnIfScheduleAllows``) to each
+    matching window.  Existing shade material and construction objects are reused
+    if their names already exist in the IDF.
+
+    Default parameters
+    ------------------
+    - ``Name``: ``"DEFAULT_SHADE"``
+    - ``Solar_Transmittance``: 0.10
+    - ``Solar_Reflectance``: 0.70
+    - ``Visible_Transmittance``: 0.10
+    - ``Visible_Reflectance``: 0.70
+    - ``Infrared_Hemispherical_Emissivity``: 0.90
+    - ``Thickness`` (m): 0.005
+    - ``Conductivity`` (W/m·K): 0.10
+    - ``Shading_Type``: ``"InteriorShade"`` — also accepts ``"ExteriorShade"``
+    - ``Schedule``: None (no schedule assigned, control is always considered active)
+
+    Parameters
+    ----------
+    model : Building
+        EnergyTool Building object.
+    description : dict, optional
+        Parameter overrides.  Any key from the default list above can be set.
+
+        - ``"Shading_Type"``: ``"InteriorShade"`` or ``"ExteriorShade"``.
+        - ``"Schedule"`` (str): name of an existing EnergyPlus schedule used to
+          drive the shading control (value 1 = active, 0 = inactive).
+
+        Example::
+
+            {
+                "Name": "MY_SHADE",
+                "Solar_Transmittance": 0.05,
+                "Shading_Type": "ExteriorShade",
+                "Schedule": "SummerOnlySchedule",
+            }
+
+    name_filter : str or list[str], optional
+        If provided, only windows whose name contains the filter string
+        (or any string in the list) receive the shade control.
+        If None, all windows are processed.
+    """
     DEFAULT_SHADE = {
         "Name": "DEFAULT_SHADE",
         "Solar_Transmittance": 0.10,
@@ -1399,10 +1571,7 @@ def set_shade(
                 not window.Surface_Type
                 or window.Surface_Type.upper() == "WINDOW"
             )
-            and (
-                name_filter is None
-                or name_filter in window.Name
-            )
+            and _matches_filter(window.Name, name_filter)
         )
     ]
 
@@ -1464,8 +1633,80 @@ def set_shade(
 def set_blind(
     model: Building,
     description: dict = None,
-    name_filter: str = None,
+    name_filter: Union[str, list[str]] = None,
 ):
+    """
+    Attach a venetian blind material to windows via a ``WindowShadingControl``.
+
+    Creates a ``WindowMaterial:Blind`` and an associated construction, then
+    assigns a ``WindowShadingControl`` (type ``OnIfScheduleAllows``) to each
+    matching window.  Existing blind material and construction objects are reused
+    if their names already exist in the IDF.
+
+    Available presets (use ``description={"Preset": "<name>", ...}``)
+    -----------------------------------------------------------------
+    +----------------------+-------------------+------------+------------------------------------+
+    | Preset               | Shading_Type      | Slat_Angle | Slat_Beam_Solar_Reflectance        |
+    +======================+===================+============+====================================+
+    | ``venetian_indoor``  | InteriorBlind     | 45°        | 0.70                               |
+    +----------------------+-------------------+------------+------------------------------------+
+    | ``bso_exterior``     | ExteriorBlind     | 60°        | 0.80                               |
+    +----------------------+-------------------+------------+------------------------------------+
+    | ``micro_louver``     | BetweenGlassBlind | 75°        | — (uses default 0.70)              |
+    +----------------------+-------------------+------------+------------------------------------+
+
+    ``micro_louver`` also sets ``Slat_Separation`` to 0.01 m.
+    Preset values are applied first; any other key in ``description`` overrides them.
+
+    Default parameters
+    ------------------
+    - ``Name``: ``"DEFAULT_BLIND"``
+    - ``Slat_Orientation``: ``"Horizontal"``
+    - ``Slat_Width`` (m): 0.08
+    - ``Slat_Separation`` (m): 0.07
+    - ``Slat_Thickness`` (m): 0.002
+    - ``Slat_Angle`` (°): 45
+    - ``Slat_Conductivity`` (W/m·K): 160
+    - ``Slat_Beam_Solar_Transmittance``: 0.0
+    - ``Slat_Beam_Solar_Reflectance``: 0.7
+    - ``Slat_Diffuse_Solar_Transmittance``: 0.0
+    - ``Slat_Diffuse_Solar_Reflectance``: 0.7
+    - ``Slat_Beam_Visible_Transmittance``: 0.0
+    - ``Slat_Beam_Visible_Reflectance``: 0.7
+    - ``Slat_Diffuse_Visible_Transmittance``: 0.0
+    - ``Slat_Diffuse_Visible_Reflectance``: 0.7
+    - ``Slat_Infrared_Hemispherical_Transmittance``: 0.0
+    - ``Slat_Infrared_Hemispherical_Emissivity``: 0.9
+    - ``Blind_to_Glass_Distance`` (m): 0.05
+    - ``Minimum_Slat_Angle`` (°): 0
+    - ``Maximum_Slat_Angle`` (°): 180
+    - ``Shading_Type``: ``"ExteriorBlind"``
+    - ``Schedule``: None (no schedule assigned)
+
+    Parameters
+    ----------
+    model : Building
+        EnergyTool Building object.
+    description : dict, optional
+        Parameter overrides.  Any key from the default list above can be set.
+
+        - ``"Preset"`` (str): one of the preset names above.
+        - ``"Schedule"`` (str): name of an existing EnergyPlus schedule (1 = active,
+          0 = inactive).
+
+        Example::
+
+            {
+                "Preset": "venetian_indoor",
+                "Name": "MY_BLIND",
+                "Schedule": "SummerBlindSchedule",
+            }
+
+    name_filter : str or list[str], optional
+        If provided, only windows whose name contains the filter string
+        (or any string in the list) receive the blind control.
+        If None, all windows are processed.
+    """
     BLIND_PRESETS = {
         "venetian_indoor": {
             "Shading_Type": "InteriorBlind",
@@ -1608,10 +1849,7 @@ def set_blind(
                 not window.Surface_Type
                 or window.Surface_Type.upper() == "WINDOW"
             )
-            and (
-                name_filter is None
-                or name_filter in window.Name
-            )
+            and _matches_filter(window.Name, name_filter)
         )
     ]
 
