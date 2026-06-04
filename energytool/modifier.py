@@ -1191,8 +1191,27 @@ def set_shading_properties(
 
     params = DEFAULT_SHADING_PROPERTIES.copy()
 
+    transmittance = None
+    schedule = None
+
     if description is not None:
-        params.update(description)
+        transmittance = description.get(
+            "Transmittance"
+        )
+
+        schedule = description.get(
+            "Transmittance_Schedule"
+        )
+
+        params.pop(
+            "Transmittance",
+            None,
+        )
+
+        params.pop(
+            "Transmittance_Schedule",
+            None,
+        )
 
     existing = {
         obj.Shading_Surface_Name: obj
@@ -1212,6 +1231,33 @@ def set_shading_properties(
     ]
 
     for shading in shading_objects:
+        if schedule is not None:
+
+            shading.Transmittance_Schedule_Name = (
+                schedule
+            )
+
+        elif transmittance is not None:
+
+            schedule_name = (
+                f"{shading.Name}_transmittance"
+            )
+
+            update_idf_objects(
+                model,
+                {
+                    schedule_name: {
+                        "Name": schedule_name,
+                        "Schedule_Type_Limits_Name": "Fraction",
+                        "Hourly_Value": transmittance,
+                    }
+                },
+                "Schedule:Constant",
+            )
+
+            shading.Transmittance_Schedule_Name = (
+                schedule_name
+            )
 
         if shading.Name in existing:
             refl_obj = existing[shading.Name]
