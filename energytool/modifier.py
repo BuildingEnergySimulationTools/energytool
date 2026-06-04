@@ -831,6 +831,17 @@ def set_shading_geometry(
             "Left": True,
             "Right": True,
         },
+        "horizontal_louvers": {
+            "Depth": 0.5,
+            "Spacing": 0.25,
+            "Tilt": 0,
+            "Offset": 0,
+        },
+        "vertical_louvers": {
+            "Depth": 0.5,
+            "Spacing": 0.30,
+            "Tilt": 0,
+        },
     }
 
     if shading_type not in default_parameters:
@@ -850,6 +861,49 @@ def set_shading_geometry(
         if (not window.Surface_Type or window.Surface_Type.upper() == "WINDOW")
            and (name_filter is None or name_filter in window.Name)
     ]
+
+    def get_top_edge(vertices):
+        top_vertices = sorted(
+            vertices,
+            key=lambda p: p[2],
+            reverse=True,
+        )[:2]
+
+        edge = top_vertices[1] - top_vertices[0]
+
+        if abs(edge[0]) >= abs(edge[1]):
+            top_vertices = sorted(
+                top_vertices,
+                key=lambda p: p[0],
+            )
+        else:
+            top_vertices = sorted(
+                top_vertices,
+                key=lambda p: p[1],
+            )
+
+        return top_vertices
+
+    def get_bottom_edge(vertices):
+        bottom_vertices = sorted(
+            vertices,
+            key=lambda p: p[2],
+        )[:2]
+
+        edge = bottom_vertices[1] - bottom_vertices[0]
+
+        if abs(edge[0]) >= abs(edge[1]):
+            bottom_vertices = sorted(
+                bottom_vertices,
+                key=lambda p: p[0],
+            )
+        else:
+            bottom_vertices = sorted(
+                bottom_vertices,
+                key=lambda p: p[1],
+            )
+
+        return bottom_vertices
 
     def get_vertices(window):
         return [
@@ -904,6 +958,18 @@ def set_shading_geometry(
 
         normal = get_outward_normal(vertices)
         depth = params["Depth"]
+
+        top_1, top_2 = get_top_edge(vertices)
+        bottom_1, bottom_2 = get_bottom_edge(vertices)
+
+        height = (
+                max(v[2] for v in vertices)
+                - min(v[2] for v in vertices)
+        )
+
+        width = np.linalg.norm(
+            top_2 - top_1
+        )
 
         if shading_type == "overhang":
             offset = params["Offset"]
@@ -971,6 +1037,141 @@ def set_shading_geometry(
                         p3,
                         q3,
                         q2,
+                    ],
+                    window.Building_Surface_Name,
+                )
+
+        elif shading_type == "horizontal_louvers":
+
+            spacing = params["Spacing"]
+            offset = params["Offset"]
+            tilt = np.deg2rad(params["Tilt"])
+
+            vertical = np.array([0.0, 0.0, 1.0])
+
+            louver_direction = (
+                    np.cos(tilt) * normal
+                    - np.sin(tilt) * vertical
+            )
+
+            z_positions = np.arange(
+                0,
+                height + 1e-6,
+                spacing,
+            )
+
+            for i, z_offset in enumerate(z_positions):
+                p1_louver = (
+                        top_1
+                        - np.array([0, 0, z_offset])
+                        + offset * normal
+                )
+
+                p2_louver = (
+                        top_2
+                        - np.array([0, 0, z_offset])
+                        + offset * normal
+                )
+
+                q1 = (
+                        p1_louver
+                        + depth * louver_direction
+                )
+
+                q2 = (
+                        p2_louver
+                        + depth * louver_direction
+                )
+
+                create_shading_surface(
+                    f"{window.Name}_horizontal_louver_{i}",
+                    [
+                        p1_louver,
+                        p2_louver,
+                        q2,
+                        q1,
+                    ],
+                    window.Building_Surface_Name,
+                )
+
+        elif shading_type == "vertical_louvers":
+
+            spacing = params["Spacing"]
+            tilt = np.deg2rad(params["Tilt"])
+
+            edge_vector = top_2 - top_1
+            edge_vector /= np.linalg.norm(edge_vector)
+
+            horizontal_normal = normal.copy()
+            horizontal_normal[2] = 0.0
+            horizontal_normal /= np.linalg.norm(horizontal_normal)
+
+            vertical = np.array(
+                [0.0, 0.0, 1.0]
+            )
+
+            local_right = np.cross(
+                vertical,
+                horizontal_normal,
+            )
+            local_right /= np.linalg.norm(local_right)
+
+            louver_direction = (
+                    np.cos(tilt) * horizontal_normal
+                    + np.sin(tilt) * local_right
+            )
+
+            n_louvers = int(
+                np.floor(width / spacing)
+            )
+
+            occupied_width = (
+                    n_louvers * spacing
+            )
+
+            margin = (
+                             width - occupied_width
+                     ) / 2
+
+            x_positions = np.arange(
+                margin,
+                width - margin + 1e-6,
+                spacing,
+            )
+
+            for i, x_offset in enumerate(x_positions):
+                offset_vector = (
+                        x_offset
+                        * edge_vector
+                )
+
+                p_bottom = (
+                        bottom_1
+                        + offset_vector
+                )
+
+                p_top = (
+                        top_1
+                        + offset_vector
+                )
+
+                q_bottom = (
+                        p_bottom
+                        + depth * louver_direction
+                )
+
+                q_top = (
+                        p_top
+                        + depth * louver_direction
+                )
+
+                create_shading_surface(
+                    f"{window.Name}_vertical_louver_{i}",
+                    [
+                        p_bottom,
+                        q_bottom,
+                        q_top,
+                        p_top,
                     ],
                     window.Building_Surface_Name,
                 )
