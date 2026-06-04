@@ -314,6 +314,8 @@ def set_afn_surface_opening_factor(
         opening["WindowDoor_Opening_Factor_or_Crack_Factor"] = new_opening_ratio
 
 
+
+
 def set_blinds_solar_transmittance(
     model: Building,
     description: dict[str, dict[str, Any]],
@@ -1326,3 +1328,340 @@ def set_shading_object(
             description=properties,
             name_filter=name_filter,
         )
+
+def set_shade(
+    model: Building,
+    description: dict = None,
+    name_filter: str = None,
+):
+    DEFAULT_SHADE = {
+        "Name": "DEFAULT_SHADE",
+        "Solar_Transmittance": 0.10,
+        "Solar_Reflectance": 0.70,
+        "Visible_Transmittance": 0.10,
+        "Visible_Reflectance": 0.70,
+        "Infrared_Hemispherical_Emissivity": 0.90,
+        "Thickness": 0.005,
+        "Conductivity": 0.10,
+        "Schedule": None,
+        "Shading_Type": "InteriorShade",
+    }
+
+    params = DEFAULT_SHADE.copy()
+
+    if description is not None:
+        params.update(description)
+
+    shade_name = params["Name"]
+    construction_name = f"{shade_name}_CONSTRUCTION"
+
+    existing_shades = {
+        obj.Name
+        for obj in model.idf.idfobjects["WINDOWMATERIAL:SHADE"]
+    }
+
+    if shade_name not in existing_shades:
+
+        model.idf.newidfobject(
+            "WINDOWMATERIAL:SHADE",
+            Name=shade_name,
+            Solar_Transmittance=params["Solar_Transmittance"],
+            Solar_Reflectance=params["Solar_Reflectance"],
+            Visible_Transmittance=params["Visible_Transmittance"],
+            Visible_Reflectance=params["Visible_Reflectance"],
+            Infrared_Hemispherical_Emissivity=params[
+                "Infrared_Hemispherical_Emissivity"
+            ],
+            Thickness=params["Thickness"],
+            Conductivity=params["Conductivity"],
+        )
+
+    existing_constructions = {
+        obj.Name
+        for obj in model.idf.idfobjects["CONSTRUCTION"]
+    }
+
+    if construction_name not in existing_constructions:
+
+        model.idf.newidfobject(
+            "CONSTRUCTION",
+            Name=construction_name,
+            Outside_Layer=shade_name,
+        )
+
+    windows = [
+        window
+        for window in model.idf.idfobjects[
+            "FENESTRATIONSURFACE:DETAILED"
+        ]
+        if (
+            (
+                not window.Surface_Type
+                or window.Surface_Type.upper() == "WINDOW"
+            )
+            and (
+                name_filter is None
+                or name_filter in window.Name
+            )
+        )
+    ]
+
+    existing_controls = {
+        obj.Name: obj
+        for obj in model.idf.idfobjects[
+            "WINDOWSHADINGCONTROL"
+        ]
+    }
+
+    for window in windows:
+
+        control_name = (
+            f"{window.Name}_{shade_name}_control"
+        )
+
+        if control_name in existing_controls:
+
+            control = existing_controls[
+                control_name
+            ]
+
+        else:
+
+            control = model.idf.newidfobject(
+                "WINDOWSHADINGCONTROL",
+                Name=control_name,
+            )
+
+        control.Zone_Name = (
+            getattr(window, "Zone_Name", "")
+        )
+
+        control.Shading_Type = (
+            params["Shading_Type"]
+        )
+
+        control.Construction_with_Shading_Name = (
+            construction_name
+        )
+
+        control.Shading_Control_Type = (
+            "OnIfScheduleAllows"
+        )
+
+        if params["Schedule"] is not None:
+
+            control.Schedule_Name = (
+                params["Schedule"]
+            )
+
+        try:
+            control.Fenestration_Surface_1_Name = (
+                window.Name
+            )
+        except Exception:
+            pass
+
+def set_blind(
+    model: Building,
+    description: dict = None,
+    name_filter: str = None,
+):
+    BLIND_PRESETS = {
+        "venetian_indoor": {
+            "Shading_Type": "InteriorBlind",
+            "Slat_Angle": 45,
+            "Slat_Beam_Solar_Reflectance": 0.7,
+        },
+        "bso_exterior": {
+            "Shading_Type": "ExteriorBlind",
+            "Slat_Angle": 60,
+            "Slat_Beam_Solar_Reflectance": 0.8,
+        },
+        "micro_louver": {
+            "Shading_Type": "BetweenGlassBlind",
+            "Slat_Angle": 75,
+            "Slat_Separation": 0.01,
+        },
+    }
+
+    DEFAULT_BLIND = {
+        "Name": "DEFAULT_BLIND",
+        "Slat_Orientation": "Horizontal",
+        "Slat_Width": 0.08,
+        "Slat_Separation": 0.07,
+        "Slat_Thickness": 0.002,
+        "Slat_Angle": 45,
+        "Slat_Conductivity": 160,
+        "Slat_Beam_Solar_Transmittance": 0.0,
+        "Slat_Beam_Solar_Reflectance": 0.7,
+        "Slat_Diffuse_Solar_Transmittance": 0.0,
+        "Slat_Diffuse_Solar_Reflectance": 0.7,
+        "Slat_Beam_Visible_Transmittance": 0.0,
+        "Slat_Beam_Visible_Reflectance": 0.7,
+        "Slat_Diffuse_Visible_Transmittance": 0.0,
+        "Slat_Diffuse_Visible_Reflectance": 0.7,
+        "Slat_Infrared_Hemispherical_Transmittance": 0.0,
+        "Slat_Infrared_Hemispherical_Emissivity": 0.9,
+        "Blind_to_Glass_Distance": 0.05,
+        "Minimum_Slat_Angle": 0,
+        "Maximum_Slat_Angle": 180,
+        "Schedule": None,
+        "Shading_Type": "ExteriorBlind",
+    }
+
+    params = DEFAULT_BLIND.copy()
+    if description is not None:
+        preset = description.pop(
+            "Preset",
+            None,
+        )
+        if preset is not None:
+            params.update(
+                BLIND_PRESETS[preset]
+            )
+        params.update(description)
+
+    blind_name = params["Name"]
+    construction_name = f"{blind_name}_CONSTRUCTION"
+
+    existing_blinds = {
+        obj.Name
+        for obj in model.idf.idfobjects[
+            "WINDOWMATERIAL:BLIND"
+        ]
+    }
+
+    if blind_name not in existing_blinds:
+        model.idf.newidfobject(
+            "WINDOWMATERIAL:BLIND",
+            Name=blind_name,
+            Slat_Orientation=params["Slat_Orientation"],
+            Slat_Width=params["Slat_Width"],
+            Slat_Separation=params["Slat_Separation"],
+            Slat_Thickness=params["Slat_Thickness"],
+            Slat_Angle=params["Slat_Angle"],
+            Slat_Conductivity=params["Slat_Conductivity"],
+            Slat_Beam_Solar_Transmittance=
+            params["Slat_Beam_Solar_Transmittance"],
+            Front_Side_Slat_Beam_Solar_Reflectance=
+            params["Slat_Beam_Solar_Reflectance"],
+            Back_Side_Slat_Beam_Solar_Reflectance=
+            params["Slat_Beam_Solar_Reflectance"],
+            Slat_Diffuse_Solar_Transmittance=
+            params["Slat_Diffuse_Solar_Transmittance"],
+            Front_Side_Slat_Diffuse_Solar_Reflectance=
+            params["Slat_Diffuse_Solar_Reflectance"],
+            Back_Side_Slat_Diffuse_Solar_Reflectance=
+            params["Slat_Diffuse_Solar_Reflectance"],
+            Slat_Beam_Visible_Transmittance=
+            params["Slat_Beam_Visible_Transmittance"],
+            Front_Side_Slat_Beam_Visible_Reflectance=
+            params["Slat_Beam_Visible_Reflectance"],
+            Back_Side_Slat_Beam_Visible_Reflectance=
+            params["Slat_Beam_Visible_Reflectance"],
+            Slat_Diffuse_Visible_Transmittance=
+            params["Slat_Diffuse_Visible_Transmittance"],
+            Front_Side_Slat_Diffuse_Visible_Reflectance=
+            params["Slat_Diffuse_Visible_Reflectance"],
+            Back_Side_Slat_Diffuse_Visible_Reflectance=
+            params["Slat_Diffuse_Visible_Reflectance"],
+            Slat_Infrared_Hemispherical_Transmittance=
+            params["Slat_Infrared_Hemispherical_Transmittance"],
+            Front_Side_Slat_Infrared_Hemispherical_Emissivity=
+            params["Slat_Infrared_Hemispherical_Emissivity"],
+            Back_Side_Slat_Infrared_Hemispherical_Emissivity=
+            params["Slat_Infrared_Hemispherical_Emissivity"],
+            Blind_to_Glass_Distance=
+            params["Blind_to_Glass_Distance"],
+            Blind_Top_Opening_Multiplier=1,
+            Blind_Bottom_Opening_Multiplier=1,
+            Blind_Left_Side_Opening_Multiplier=1,
+            Blind_Right_Side_Opening_Multiplier=1,
+            Minimum_Slat_Angle=
+            params["Minimum_Slat_Angle"],
+            Maximum_Slat_Angle=
+            params["Maximum_Slat_Angle"],
+        )
+
+    existing_constructions = {
+        obj.Name
+        for obj in model.idf.idfobjects[
+            "CONSTRUCTION"
+        ]
+    }
+
+    if construction_name not in existing_constructions:
+
+        model.idf.newidfobject(
+            "CONSTRUCTION",
+            Name=construction_name,
+            Outside_Layer=blind_name,
+        )
+
+    windows = [
+        window
+        for window in model.idf.idfobjects[
+            "FENESTRATIONSURFACE:DETAILED"
+        ]
+        if (
+            (
+                not window.Surface_Type
+                or window.Surface_Type.upper() == "WINDOW"
+            )
+            and (
+                name_filter is None
+                or name_filter in window.Name
+            )
+        )
+    ]
+
+    existing_controls = {
+        obj.Name: obj
+        for obj in model.idf.idfobjects[
+            "WINDOWSHADINGCONTROL"
+        ]
+    }
+
+    for window in windows:
+
+        control_name = (
+            f"{window.Name}_{blind_name}_control"
+        )
+
+        if control_name in existing_controls:
+
+            control = existing_controls[
+                control_name
+            ]
+
+        else:
+
+            control = model.idf.newidfobject(
+                "WINDOWSHADINGCONTROL",
+                Name=control_name,
+            )
+
+        control.Shading_Type = (
+            params["Shading_Type"]
+        )
+
+        control.Construction_with_Shading_Name = (
+            construction_name
+        )
+
+        control.Shading_Control_Type = (
+            "OnIfScheduleAllows"
+        )
+
+        if params["Schedule"] is not None:
+
+            control.Schedule_Name = (
+                params["Schedule"]
+            )
+
+        try:
+            control.Fenestration_Surface_1_Name = (
+                window.Name
+            )
+        except Exception:
+            pass
