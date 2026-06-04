@@ -26,6 +26,10 @@ from energytool.modifier import (
     set_system,
     set_ahu_night_ventilation,
     set_shading_geometry,
+    set_shading_properties,
+    set_shading_object,
+    set_shade,
+    set_blind,
     update_idf_objects,
     reverse_kwargs,
 )
@@ -148,6 +152,24 @@ def toy_building(tmp_path_factory):
             Name=f"Window_{idx}",
             Building_Surface_Name=sur,
         )
+
+    # 1 m × 1 m south-facing windows (y=5 plane), required by shading geometry tests.
+    # Vertices in EnergyPlus counter-clockwise order (viewed from outside):
+    #   Vertex 1 lower-left, 2 lower-right, 3 upper-right, 4 upper-left.
+    # This gives: height = 1 m, width = 1 m, outward normal = (0, -1, 0).
+    for window in toy_idf.idfobjects["FenestrationSurface:Detailed"]:
+        window.Vertex_1_Xcoordinate = 0.0
+        window.Vertex_1_Ycoordinate = 5.0
+        window.Vertex_1_Zcoordinate = 0.5
+        window.Vertex_2_Xcoordinate = 1.0
+        window.Vertex_2_Ycoordinate = 5.0
+        window.Vertex_2_Zcoordinate = 0.5
+        window.Vertex_3_Xcoordinate = 1.0
+        window.Vertex_3_Ycoordinate = 5.0
+        window.Vertex_3_Zcoordinate = 1.5
+        window.Vertex_4_Xcoordinate = 0.0
+        window.Vertex_4_Ycoordinate = 5.0
+        window.Vertex_4_Zcoordinate = 1.5
 
     energytool.base.idf_utils.set_named_objects_field_values(
         idf=toy_idf,
@@ -857,30 +879,312 @@ class TestModifier:
             for obj in oa_objects
         )
 
-    def test_set_shading_geometry_overhang(self, toy_building):
-        loc_toy = deepcopy(toy_building)
+    def test_set_shading_geometry(self, toy_building):
+        # --- overhang: one surface per window ---
+        loc = deepcopy(toy_building)
+        set_shading_geometry(loc, "overhang", {"Depth": 0.8}, name_filter="_0")
+        shading = loc.idf.idfobjects["Shading:Zone:Detailed"]
+        overhang_surfaces = [s for s in shading if s.Name == "Window_0_overhang"]
+        assert len(overhang_surfaces) == 1
+        assert overhang_surfaces[0].Number_of_Vertices == 4
+        # name_filter must exclude other windows
+        assert not any(s.Name == "Window_1_overhang" for s in shading)
 
-        set_shading_geometry(
-            model=loc_toy,
-            shading_type="overhang",
-            description={
-                "Depth": 0.8,
+        # second call replaces existing surface (idempotent)
+        set_shading_geometry(loc, "overhang", {"Depth": 1.0}, name_filter="_0")
+        assert sum(
+            1 for s in loc.idf.idfobjects["Shading:Zone:Detailed"]
+            if s.Name == "Window_0_overhang"
+        ) == 1
+
+        #sidefins > left fin + right fin
+        loc = deepcopy(toy_building)
+        set_shading_geometry(loc, "sidefins", name_filter="_0")
+        names = {s.Name for s in loc.idf.idfobjects["Shading:Zone:Detailed"]}
+        assert "Window_0_left_fin" in names
+        assert "Window_0_right_fin" in names
+
+        # only right fin when Left=False
+        loc = deepcopy(toy_building)
+        set_shading_geometry(loc, "sidefins", {"Left": False}, name_filter="_0")
+        names = {s.Name for s in loc.idf.idfobjects["Shading:Zone:Detailed"]}
+        assert "Window_0_left_fin" not in names
+        assert "Window_0_right_fin" in names
+
+        # --- horizontal_louvers ---
+        loc = deepcopy(toy_building)
+        set_shading_geometry(loc, "horizontal_louvers", name_filter="_0")
+        louvers = [
+            s for s in loc.idf.idfobjects["Shading:Zone:Detailed"]
+            if "Window_0_horizontal_louver" in s.Name
+        ]
+        assert len(louvers) == 5
+        assert all(s.Number_of_Vertices == 4 for s in louvers)
+
+        # --- vertical_louvers ---
+        loc = deepcopy(toy_building)
+        set_shading_geometry(loc, "vertical_louvers", name_filter="_0")
+        louvers = [
+            s for s in loc.idf.idfobjects["Shading:Zone:Detailed"]
+            if "Window_0_vertical_louver" in s.Name
+        ]
+        assert len(louvers) == 4
+        assert all(s.Number_of_Vertices == 4 for s in louvers)
+
+        # --- list name_filter: Window_0 and Window_1 ---
+        loc = deepcopy(toy_building)
+        set_shading_geometry(loc, "overhang", name_filter=["_0", "_1"])
+        overhangs = [s for s in loc.idf.idfobjects["Shading:Zone:Detailed"] if "overhang" in s.Name]
+        assert {s.Name for s in overhangs} == {"Window_0_overhang", "Window_1_overhang"}
+
+        # --- invalid type raises ValueError ---
+        with pytest.raises(ValueError):
+            set_shading_geometry(deepcopy(toy_building), "invalid_type")
+
+    def test_set_shading_properties(self, toy_building):
+        # setup: one overhang on Window_0
+        loc = deepcopy(toy_building)
+        set_shading_geometry(loc, "overhang", name_filter="_0")
+
+        # default properties
+        set_shading_properties(loc)
+        refl_objs = loc.idf.idfobjects["SHADINGPROPERTY:REFLECTANCE"]
+        assert len(refl_objs) == 1
+        refl = refl_objs[0]
+        assert refl.Shading_Surface_Name == "Window_0_overhang"
+        assert refl.Diffuse_Solar_Reflectance_of_Unglazed_Part_of_Shading_Surface == pytest.approx(0.2)
+        assert refl.Diffuse_Visible_Reflectance_of_Unglazed_Part_of_Shading_Surface == pytest.approx(0.2)
+        assert refl.Fraction_of_Shading_Surface_That_Is_Glazed == pytest.approx(0.0)
+
+        # custom reflectances
+        loc2 = deepcopy(toy_building)
+        set_shading_geometry(loc2, "overhang", name_filter="_0")
+        set_shading_properties(loc2, description={
+            "Diffuse_Solar_Reflectance_of_Unglazed_Part_of_Shading_Surface": 0.6,
+            "Diffuse_Visible_Reflectance_of_Unglazed_Part_of_Shading_Surface": 0.55,
+        })
+        refl = loc2.idf.idfobjects["SHADINGPROPERTY:REFLECTANCE"][0]
+        assert refl.Diffuse_Solar_Reflectance_of_Unglazed_Part_of_Shading_Surface == pytest.approx(0.6)
+        assert refl.Diffuse_Visible_Reflectance_of_Unglazed_Part_of_Shading_Surface == pytest.approx(0.55)
+
+        # Transmittance: creates a Schedule:Constant and assigns it
+        loc3 = deepcopy(toy_building)
+        set_shading_geometry(loc3, "overhang", name_filter="_0")
+        set_shading_properties(loc3, description={"Transmittance": 0.3})
+        shading_obj = loc3.idf.idfobjects["SHADING:ZONE:DETAILED"][0]
+        sched_name = shading_obj.Transmittance_Schedule_Name
+        assert sched_name != ""
+        consts = loc3.idf.idfobjects["SCHEDULE:CONSTANT"]
+        assert any(s.Name == sched_name and s.Hourly_Value == pytest.approx(0.3) for s in consts)
+
+        # Transmittance_Schedule: assign existing schedule name directly
+        loc4 = deepcopy(toy_building)
+        set_shading_geometry(loc4, "overhang", name_filter="_0")
+        set_shading_properties(loc4, description={"Transmittance_Schedule": "Shading_control_bis"})
+        shading_obj = loc4.idf.idfobjects["SHADING:ZONE:DETAILED"][0]
+        assert shading_obj.Transmittance_Schedule_Name == "Shading_control_bis"
+
+        # name_filter: 4 overhangs created, properties applied only to Window_0
+        loc5 = deepcopy(toy_building)
+        set_shading_geometry(loc5, "overhang")  # all windows
+        set_shading_properties(loc5, name_filter="Window_0")
+        refl_objs = loc5.idf.idfobjects["SHADINGPROPERTY:REFLECTANCE"]
+        assert len(refl_objs) == 1
+        assert refl_objs[0].Shading_Surface_Name == "Window_0_overhang"
+
+        # list name_filter
+        loc6 = deepcopy(toy_building)
+        set_shading_geometry(loc6, "overhang")
+        set_shading_properties(loc6, name_filter=["Window_0", "Window_1"])
+        refl_names = {r.Shading_Surface_Name for r in loc6.idf.idfobjects["SHADINGPROPERTY:REFLECTANCE"]}
+        assert refl_names == {"Window_0_overhang", "Window_1_overhang"}
+
+    def test_set_shading_object(self, toy_building):
+        # geometry only
+        loc = deepcopy(toy_building)
+        set_shading_object(loc, geometry={"Type": "overhang", "Depth": 0.6}, name_filter="_0")
+        shading = loc.idf.idfobjects["Shading:Zone:Detailed"]
+        assert any(s.Name == "Window_0_overhang" for s in shading)
+        assert not any(s.Name == "Window_1_overhang" for s in shading)
+
+        # properties only with preset "light_concrete"
+        loc = deepcopy(toy_building)
+        set_shading_geometry(loc, "overhang", name_filter="_0")
+        set_shading_object(loc, properties={"Preset": "light_concrete"}, name_filter="_0")
+        refl = loc.idf.idfobjects["SHADINGPROPERTY:REFLECTANCE"][0]
+        assert refl.Diffuse_Solar_Reflectance_of_Unglazed_Part_of_Shading_Surface == pytest.approx(0.60)
+        assert refl.Diffuse_Visible_Reflectance_of_Unglazed_Part_of_Shading_Surface == pytest.approx(0.60)
+
+        # preset "dark_metal" with solar reflectance override
+        loc = deepcopy(toy_building)
+        set_shading_geometry(loc, "overhang", name_filter="_0")
+        set_shading_object(
+            loc,
+            properties={
+                "Preset": "dark_metal",
+                "Diffuse_Solar_Reflectance_of_Unglazed_Part_of_Shading_Surface": 0.25,
             },
             name_filter="_0",
         )
+        refl = loc.idf.idfobjects["SHADINGPROPERTY:REFLECTANCE"][0]
+        # override takes precedence
+        assert refl.Diffuse_Solar_Reflectance_of_Unglazed_Part_of_Shading_Surface == pytest.approx(0.25)
+        # visible from preset (dark_metal = 0.15)
+        assert refl.Diffuse_Visible_Reflectance_of_Unglazed_Part_of_Shading_Surface == pytest.approx(0.15)
 
-        shading_surfaces = [
-            obj
-            for obj in loc_toy.idf.idfobjects["Shading:Zone:Detailed"]
-            if "Window_0_overhang" in obj.Name
-        ]
+        # combined geometry + properties ("vegetation" preset)
+        loc = deepcopy(toy_building)
+        set_shading_object(
+            loc,
+            geometry={"Type": "sidefins"},
+            properties={"Preset": "vegetation"},
+            name_filter="_0",
+        )
+        shading = loc.idf.idfobjects["Shading:Zone:Detailed"]
+        assert any(s.Name == "Window_0_left_fin" for s in shading)
+        refl_objs = loc.idf.idfobjects["SHADINGPROPERTY:REFLECTANCE"]
+        assert len(refl_objs) >= 1
+        for r in refl_objs:
+            assert r.Diffuse_Solar_Reflectance_of_Unglazed_Part_of_Shading_Surface == pytest.approx(0.25)
+            assert r.Diffuse_Visible_Reflectance_of_Unglazed_Part_of_Shading_Surface == pytest.approx(0.15)
 
-        assert len(shading_surfaces) == 1
+        # preset "pv_panel"
+        loc = deepcopy(toy_building)
+        set_shading_geometry(loc, "overhang", name_filter="_0")
+        set_shading_object(loc, properties={"Preset": "pv_panel"}, name_filter="_0")
+        refl = loc.idf.idfobjects["SHADINGPROPERTY:REFLECTANCE"][0]
+        assert refl.Diffuse_Solar_Reflectance_of_Unglazed_Part_of_Shading_Surface == pytest.approx(0.05)
+        assert refl.Diffuse_Visible_Reflectance_of_Unglazed_Part_of_Shading_Surface == pytest.approx(0.05)
 
-        overhang = shading_surfaces[0]
+    def test_set_shade(self, toy_building):
+        # default shade applied to Window_0 only
+        loc = deepcopy(toy_building)
+        set_shade(loc, name_filter="_0")
 
-        assert overhang.Name == "Window_0_overhang"
-        assert overhang.Number_of_Vertices == 4
+        shades = loc.idf.idfobjects["WINDOWMATERIAL:SHADE"]
+        default_shade = next((s for s in shades if s.Name == "DEFAULT_SHADE"), None)
+        assert default_shade is not None
+        assert default_shade.Solar_Transmittance == pytest.approx(0.10)
+        assert default_shade.Solar_Reflectance == pytest.approx(0.70)
+        assert default_shade.Visible_Transmittance == pytest.approx(0.10)
+
+        assert "DEFAULT_SHADE_CONSTRUCTION" in {c.Name for c in loc.idf.idfobjects["CONSTRUCTION"]}
+
+        controls = loc.idf.idfobjects["WINDOWSHADINGCONTROL"]
+        ctrl = next((c for c in controls if c.Name == "Window_0_DEFAULT_SHADE_control"), None)
+        assert ctrl is not None
+        assert ctrl.Shading_Type == "InteriorShade"
+        assert ctrl.Construction_with_Shading_Name == "DEFAULT_SHADE_CONSTRUCTION"
+        assert ctrl.Shading_Control_Type == "OnIfScheduleAllows"
+        # Window_1 excluded by name_filter
+        assert not any(c.Name == "Window_1_DEFAULT_SHADE_control" for c in controls)
+
+        # custom: ExteriorShade, lower transmittance, with schedule
+        loc = deepcopy(toy_building)
+        set_shade(
+            loc,
+            description={
+                "Name": "MY_SHADE",
+                "Solar_Transmittance": 0.05,
+                "Shading_Type": "ExteriorShade",
+                "Schedule": "Shading_control_bis",
+            },
+            name_filter="_0",
+        )
+        shade = next(s for s in loc.idf.idfobjects["WINDOWMATERIAL:SHADE"] if s.Name == "MY_SHADE")
+        assert shade.Solar_Transmittance == pytest.approx(0.05)
+        ctrl = next(
+            c for c in loc.idf.idfobjects["WINDOWSHADINGCONTROL"]
+            if c.Name == "Window_0_MY_SHADE_control"
+        )
+        assert ctrl.Shading_Type == "ExteriorShade"
+        assert ctrl.Schedule_Name == "Shading_control_bis"
+
+        # second call with same name reuses material, does not duplicate it
+        loc = deepcopy(toy_building)
+        set_shade(loc)
+        set_shade(loc)
+        assert sum(1 for s in loc.idf.idfobjects["WINDOWMATERIAL:SHADE"] if s.Name == "DEFAULT_SHADE") == 1
+
+        # list name_filter: Window_0 and Window_1
+        loc = deepcopy(toy_building)
+        set_shade(loc, name_filter=["_0", "_1"])
+        controls = loc.idf.idfobjects["WINDOWSHADINGCONTROL"]
+        assert any(c.Name == "Window_0_DEFAULT_SHADE_control" for c in controls)
+        assert any(c.Name == "Window_1_DEFAULT_SHADE_control" for c in controls)
+        assert not any(c.Name == "Window_2_DEFAULT_SHADE_control" for c in controls)
+
+    def test_set_blind(self, toy_building):
+        # default blind on Window_0 only
+        loc = deepcopy(toy_building)
+        set_blind(loc, name_filter="_0")
+
+        blinds = loc.idf.idfobjects["WINDOWMATERIAL:BLIND"]
+        default_blind = next((b for b in blinds if b.Name == "DEFAULT_BLIND"), None)
+        assert default_blind is not None
+        assert default_blind.Slat_Width == pytest.approx(0.08)
+        assert default_blind.Slat_Angle == pytest.approx(45)
+        assert default_blind.Slat_Separation == pytest.approx(0.07)
+
+        assert "DEFAULT_BLIND_CONSTRUCTION" in {c.Name for c in loc.idf.idfobjects["CONSTRUCTION"]}
+
+        controls = loc.idf.idfobjects["WINDOWSHADINGCONTROL"]
+        ctrl = next((c for c in controls if c.Name == "Window_0_DEFAULT_BLIND_control"), None)
+        assert ctrl is not None
+        assert ctrl.Shading_Type == "ExteriorBlind"  # default Shading_Type
+        assert ctrl.Construction_with_Shading_Name == "DEFAULT_BLIND_CONSTRUCTION"
+        assert ctrl.Shading_Control_Type == "OnIfScheduleAllows"
+        assert not any(c.Name == "Window_1_DEFAULT_BLIND_control" for c in controls)
+
+        # preset "venetian_indoor": InteriorBlind, Slat_Angle=45, reflectance=0.7
+        loc = deepcopy(toy_building)
+        set_blind(loc, description={"Preset": "venetian_indoor", "Name": "VENETIAN"}, name_filter="_0")
+        blind = next(b for b in loc.idf.idfobjects["WINDOWMATERIAL:BLIND"] if b.Name == "VENETIAN")
+        assert blind.Slat_Angle == pytest.approx(45)
+        assert blind.Front_Side_Slat_Beam_Solar_Reflectance == pytest.approx(0.7)
+        ctrl = next(
+            c for c in loc.idf.idfobjects["WINDOWSHADINGCONTROL"]
+            if c.Name == "Window_0_VENETIAN_control"
+        )
+        assert ctrl.Shading_Type == "InteriorBlind"
+
+        # preset "bso_exterior": ExteriorBlind, Slat_Angle=60, reflectance=0.8
+        loc = deepcopy(toy_building)
+        set_blind(loc, description={"Preset": "bso_exterior", "Name": "BSO"}, name_filter="_0")
+        blind = next(b for b in loc.idf.idfobjects["WINDOWMATERIAL:BLIND"] if b.Name == "BSO")
+        assert blind.Slat_Angle == pytest.approx(60)
+        assert blind.Front_Side_Slat_Beam_Solar_Reflectance == pytest.approx(0.8)
+        ctrl = next(
+            c for c in loc.idf.idfobjects["WINDOWSHADINGCONTROL"]
+            if c.Name == "Window_0_BSO_control"
+        )
+        assert ctrl.Shading_Type == "ExteriorBlind"
+
+        # preset "micro_louver": BetweenGlassBlind, Slat_Angle=75, Slat_Separation=0.01
+        loc = deepcopy(toy_building)
+        set_blind(loc, description={"Preset": "micro_louver", "Name": "MICRO"}, name_filter="_0")
+        blind = next(b for b in loc.idf.idfobjects["WINDOWMATERIAL:BLIND"] if b.Name == "MICRO")
+        assert blind.Slat_Angle == pytest.approx(75)
+        assert blind.Slat_Separation == pytest.approx(0.01)
+        ctrl = next(
+            c for c in loc.idf.idfobjects["WINDOWSHADINGCONTROL"]
+            if c.Name == "Window_0_MICRO_control"
+        )
+        assert ctrl.Shading_Type == "BetweenGlassBlind"
+
+        # second call with same name reuses material, does not duplicate it
+        loc = deepcopy(toy_building)
+        set_blind(loc, name_filter="_0")
+        set_blind(loc, name_filter="_0")
+        assert sum(1 for b in loc.idf.idfobjects["WINDOWMATERIAL:BLIND"] if b.Name == "DEFAULT_BLIND") == 1
+
+        # list name_filter: Window_0 and Window_1 only
+        loc = deepcopy(toy_building)
+        set_blind(loc, name_filter=["_0", "_1"])
+        controls = loc.idf.idfobjects["WINDOWSHADINGCONTROL"]
+        assert any(c.Name == "Window_0_DEFAULT_BLIND_control" for c in controls)
+        assert any(c.Name == "Window_1_DEFAULT_BLIND_control" for c in controls)
+        assert not any(c.Name == "Window_2_DEFAULT_BLIND_control" for c in controls)
 
     # def test_envelope_shades_modifier(self, toy_building):
     #     loc_toy = deepcopy(toy_building)

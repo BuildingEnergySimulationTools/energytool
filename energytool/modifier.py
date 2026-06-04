@@ -1281,15 +1281,9 @@ def set_shading_properties(
             "Transmittance_Schedule"
         )
 
-        params.pop(
-            "Transmittance",
-            None,
-        )
-
-        params.pop(
-            "Transmittance_Schedule",
-            None,
-        )
+        for key, value in description.items():
+            if key not in ("Transmittance", "Transmittance_Schedule"):
+                params[key] = value
 
     existing = {
         obj.Shading_Surface_Name: obj
