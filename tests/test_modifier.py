@@ -25,6 +25,7 @@ from energytool.modifier import (
     set_schedule_constant,
     set_system,
     set_ahu_night_ventilation,
+    set_shading_geometry,
     update_idf_objects,
     reverse_kwargs,
 )
@@ -856,6 +857,30 @@ class TestModifier:
             for obj in oa_objects
         )
 
+    def test_set_shading_geometry_overhang(self, toy_building):
+        loc_toy = deepcopy(toy_building)
+
+        set_shading_geometry(
+            model=loc_toy,
+            shading_type="overhang",
+            description={
+                "Depth": 0.8,
+            },
+            name_filter="_0",
+        )
+
+        shading_surfaces = [
+            obj
+            for obj in loc_toy.idf.idfobjects["Shading:Zone:Detailed"]
+            if "Window_0_overhang" in obj.Name
+        ]
+
+        assert len(shading_surfaces) == 1
+
+        overhang = shading_surfaces[0]
+
+        assert overhang.Name == "Window_0_overhang"
+        assert overhang.Number_of_Vertices == 4
 
     # def test_envelope_shades_modifier(self, toy_building):
     #     loc_toy = deepcopy(toy_building)

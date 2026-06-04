@@ -1,4 +1,5 @@
 from typing import Any
+import numpy as np
 
 from energytool.base.idf_utils import get_objects_name_list
 from energytool.base.idfobject_utils import (
@@ -699,7 +700,7 @@ def set_system(model, description, **kwargs):
 def set_ahu_night_ventilation(
     model: Building,
     description: dict[str, dict[str, Any]],
-    name_filter: str = None,
+    name_filter: str = None, ##m list of string
 ):
     """
     Modify DesignSpecification:OutdoorAir objects to represent a
@@ -812,3 +813,164 @@ def set_ahu_night_ventilation(
             obj.Outdoor_Air_Schedule_Name = (
                 params["Outdoor_Air_Schedule_Name"]
             )
+
+
+def set_shading_geometry(
+        model: Building,
+        shading_type: str,
+        description: dict = None,
+        name_filter: str = None,
+):
+    default_parameters = {
+        "overhang": {
+            "Depth": 0.5,
+            "Offset": 0.0,
+        },
+        "sidefins": {
+            "Depth": 0.5,
+            "Left": True,
+            "Right": True,
+        },
+    }
+
+    if shading_type not in default_parameters:
+        raise ValueError(
+            f"shading_type must be one of "
+            f"{list(default_parameters.keys())}"
+        )
+
+    params = default_parameters[shading_type].copy()
+
+    if description is not None:
+        params.update(description)
+
+    windows = [
+        window
+        for window in model.idf.idfobjects["FenestrationSurface:Detailed"]
+        if (not window.Surface_Type or window.Surface_Type.upper() == "WINDOW")
+           and (name_filter is None or name_filter in window.Name)
+    ]
+
+    def get_vertices(window):
+        return [
+            np.array(
+                [
+                    float(getattr(window, f"Vertex_{i}_Xcoordinate") or 0),
+                    float(getattr(window, f"Vertex_{i}_Ycoordinate") or 0),
+                    float(getattr(window, f"Vertex_{i}_Zcoordinate") or 0),
+                ]
+            )
+            for i in range(1, 5)
+        ]
+
+    def get_outward_normal(vertices):
+        p1, p2 = vertices[:2]
+        horizontal = p2 - p1
+        normal = np.cross(horizontal, np.array([0.0, 0.0, 1.0]))
+        norm = np.linalg.norm(normal)
+        if norm < 1e-10:
+            return np.array([1.0, 0.0, 0.0])
+        return normal / norm
+
+    def delete_existing_shading(window_name):
+        objects = model.idf.idfobjects["Shading:Zone:Detailed"]
+        for obj in list(objects):
+            if obj.Name.startswith(f"{window_name}_{shading_type}"):
+                model.idf.removeidfobject(obj)
+
+    def create_shading_surface(
+            name,
+            vertices,
+            base_surface_name,
+    ):
+        kwargs = {
+            "Name": name,
+            'Base_Surface_Name': base_surface_name,
+            "Number_of_Vertices": 4,
+        }
+        for i, vertex in enumerate(vertices, start=1):
+            kwargs[f"Vertex_{i}_Xcoordinate"] = float(vertex[0])
+            kwargs[f"Vertex_{i}_Ycoordinate"] = float(vertex[1])
+            kwargs[f"Vertex_{i}_Zcoordinate"] = float(vertex[2])
+        model.idf.newidfobject(
+            "Shading:Zone:Detailed",
+            **kwargs,
+        )
+
+    for window in windows:
+        delete_existing_shading(window.Name)
+        vertices = get_vertices(window)
+        p1, p2, p3, p4 = vertices
+
+        normal = get_outward_normal(vertices)
+        depth = params["Depth"]
+
+        if shading_type == "overhang":
+            offset = params["Offset"]
+
+            top_vertices = sorted(
+                vertices,
+                key=lambda p: p[2],
+                reverse=True,
+            )[:2]
+
+            edge = top_vertices[1] - top_vertices[0]
+
+            if np.linalg.norm(edge) > 1e-10:
+                edge = edge / np.linalg.norm(edge)
+
+            if abs(edge[0]) >= abs(edge[1]):
+                top_vertices = sorted(top_vertices, key=lambda p: p[0])
+            else:
+                top_vertices = sorted(top_vertices, key=lambda p: p[1])
+
+            top_1, top_2 = top_vertices
+
+            top_1 = top_1 + np.array([0.0, 0.0, offset])
+            top_2 = top_2 + np.array([0.0, 0.0, offset])
+
+            q1 = top_1 + depth * normal
+            q2 = top_2 + depth * normal
+
+            create_shading_surface(
+                f"{window.Name}_overhang",
+                [
+                    top_1,
+                    top_2,
+                    q2,
+                    q1,
+                ],
+                window.Building_Surface_Name,
+            )
+
+        elif shading_type == "sidefins":
+
+            if params["Left"]:
+                q1 = p1 + depth * normal
+                q4 = p4 + depth * normal
+
+                create_shading_surface(
+                    f"{window.Name}_left_fin",
+                    [
+                        p1,
+                        q1,
+                        q4,
+                        p4,
+                    ],
+                    window.Building_Surface_Name,
+                )
+
+            if params["Right"]:
+                q2 = p2 + depth * normal
+                q3 = p3 + depth * normal
+
+                create_shading_surface(
+                    f"{window.Name}_right_fin",
+                    [
+                        p2,
+                        p3,
+                        q3,
+                        q2,
+                    ],
+                    window.Building_Surface_Name,
+                )
