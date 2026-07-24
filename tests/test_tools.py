@@ -306,3 +306,116 @@ class TestPlotIdfGeometry:
         fig = tl.plot_idf_geometry(geo_building, opacity=0.3)
         mesh_traces = [t for t in fig.data if isinstance(t, go.Mesh3d)]
         assert all(t.opacity == 0.3 for t in mesh_traces)
+
+
+@pytest.fixture(scope="module")
+def geo_building_blank_num_vertices():
+    """Mimics IDF generators (e.g. Honeybee/OpenStudio) that commonly leave
+    "Number of Vertices" unset, relying on EnergyPlus's own autocalculation
+    rather than eppy's."""
+    try:
+        IDF.setiddname(RESOURCES_PATH / "Energy+.idd")
+    except eppy.modeleditor.IDDAlreadySetError:
+        pass
+
+    idf = IDF(StringIO(""))
+    idf.idfname = None
+
+    idf.newidfobject(key="Zone", Name="ConditionedZone")
+
+    def add_surface(obj_type, name, vertices, num_vertices_value, **attrs):
+        s = idf.newidfobject(key=obj_type, Name=name)
+        for k, v in attrs.items():
+            setattr(s, k, v)
+        if num_vertices_value is not None:
+            s.Number_of_Vertices = num_vertices_value
+        for idx, (x, y, z) in enumerate(vertices, start=1):
+            setattr(s, f"Vertex_{idx}_Xcoordinate", x)
+            setattr(s, f"Vertex_{idx}_Ycoordinate", y)
+            setattr(s, f"Vertex_{idx}_Zcoordinate", z)
+        return s
+
+    # left at the IDD default ("autocalculate"), as when the field is never touched
+    add_surface(
+        "BuildingSurface:Detailed", "ExtWall",
+        [(0, 0, 0), (3, 0, 0), (3, 0, 3), (0, 0, 3)],
+        None,
+        Surface_Type="Wall",
+        Outside_Boundary_Condition="Outdoors",
+        Zone_Name="ConditionedZone",
+    )
+    # explicitly blank, as found in some Honeybee-exported IDF text files
+    add_surface(
+        "Shading:Zone:Detailed", "Overhang1",
+        [(-0.5, 0, 2.5), (2.5, 0, 2.5), (2.5, -1, 2.5), (-0.5, -1, 2.5)],
+        "",
+    )
+
+    return FakeBuilding(idf)
+
+
+class TestPlotIdfGeometryBlankNumVertices:
+    def test_does_not_raise_and_infers_vertex_count(self, geo_building_blank_num_vertices):
+        fig = tl.plot_idf_geometry(geo_building_blank_num_vertices)
+        assert isinstance(fig, go.Figure)
+
+        mesh_traces = [t for t in fig.data if isinstance(t, go.Mesh3d)]
+        # 4 vertices per surface (wall + shading), correctly inferred despite
+        # a missing/blank "Number of Vertices" field
+        assert len(mesh_traces) == 2
+        assert all(len(t.x) == 4 for t in mesh_traces)
+
+
+@pytest.fixture(scope="module")
+def geo_building_mixed_shading():
+    """Honeybee/OpenStudio exports commonly represent context shading (PV
+    panels, balcony railings, neighbouring building masks) as
+    Shading:Building:Detailed / Shading:Site:Detailed rather than
+    Shading:Zone:Detailed."""
+    try:
+        IDF.setiddname(RESOURCES_PATH / "Energy+.idd")
+    except eppy.modeleditor.IDDAlreadySetError:
+        pass
+
+    idf = IDF(StringIO(""))
+    idf.idfname = None
+
+    def add_surface(obj_type, name, vertices):
+        s = idf.newidfobject(key=obj_type, Name=name)
+        s.Number_of_Vertices = len(vertices)
+        for idx, (x, y, z) in enumerate(vertices, start=1):
+            setattr(s, f"Vertex_{idx}_Xcoordinate", x)
+            setattr(s, f"Vertex_{idx}_Ycoordinate", y)
+            setattr(s, f"Vertex_{idx}_Zcoordinate", z)
+        return s
+
+    add_surface(
+        "Shading:Zone:Detailed", "Overhang1",
+        [(-0.5, 0, 2.5), (2.5, 0, 2.5), (2.5, -1, 2.5), (-0.5, -1, 2.5)],
+    )
+    add_surface(
+        "Shading:Building:Detailed", "PVPanel1",
+        [(0, -0.5, 1), (3, -0.5, 1), (3, -0.5, 2), (0, -0.5, 2)],
+    )
+    add_surface(
+        "Shading:Site:Detailed", "NeighbourMask1",
+        [(10, 0, 0), (10, 10, 0), (10, 10, 8), (10, 0, 8)],
+    )
+
+    return FakeBuilding(idf)
+
+
+class TestPlotIdfGeometryMixedShading:
+    def test_all_shading_types_are_displayed(self, geo_building_mixed_shading):
+        fig = tl.plot_idf_geometry(geo_building_mixed_shading)
+
+        shading_traces = [t for t in fig.data if isinstance(t, go.Mesh3d) and t.name == "Shading"]
+        assert len(shading_traces) == 1
+
+        names = set(shading_traces[0].text)
+        assert names == {"Overhang1", "PVPanel1", "NeighbourMask1"}
+        assert len(shading_traces[0].x) == 12  # 3 surfaces x 4 vertices
+
+    def test_hide_shading_hides_all_types(self, geo_building_mixed_shading):
+        fig = tl.plot_idf_geometry(geo_building_mixed_shading, show_shading_surfaces=False)
+        assert not any(isinstance(t, go.Mesh3d) and t.name == "Shading" for t in fig.data)
