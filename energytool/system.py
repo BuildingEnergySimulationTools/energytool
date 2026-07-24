@@ -244,7 +244,9 @@ class Sensor(System):
         (list of strings). Default is '*' meaning all the available variables.
     """
 
-    def __init__(self, name: str, variables: str, key_values: str | list[str] = "*"):
+    def __init__(
+        self, name: str, variables: str | list[str], key_values: str | list[str] = "*"
+    ):
         super().__init__(name=name, category=SystemCategories.SENSOR)
         self.variables = variables
         self.key_values = key_values
@@ -257,13 +259,16 @@ class Sensor(System):
         )
 
     def post_process(self, idf: IDF = None, eplus_results: pd.DataFrame = None):
-        results = get_output_variable(
-            eplus_res=eplus_results,
-            key_values=self.key_values,
-            variables=self.variables,
-        )
-        results.columns = results.columns + f"_{self.variables}"
-        return results
+        per_variable_results = []
+        for variable in to_list(self.variables):
+            res = get_output_variable(
+                eplus_res=eplus_results,
+                key_values=self.key_values,
+                variables=variable,
+            )
+            res.columns = res.columns + f"_{variable}"
+            per_variable_results.append(res)
+        return pd.concat(per_variable_results, axis=1)
 
 
 class SimplifiedChiller(System):

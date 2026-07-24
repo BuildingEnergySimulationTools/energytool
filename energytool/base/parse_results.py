@@ -141,7 +141,9 @@ def get_output_variable(
     results = eplus_res.loc[:, mask]
 
     if drop_suffix:
-        new_columns = [re.sub(f":{variables}.+", "", col) for col in results.columns]
-        results.columns = new_columns
+        strip_pattern = re.compile(
+            ":(?:" + "|".join(re.escape(v) for v in variable_names_list) + ").+"
+        )
+        results.columns = [strip_pattern.sub("", col) for col in results.columns]
 
     return results

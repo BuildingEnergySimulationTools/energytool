@@ -127,14 +127,20 @@ class TestEplusPostProcess:
             ),
         )
 
-        pd.testing.assert_frame_equal(
-            toy_df.iloc[:, [0, 4]],
-            get_output_variable(
-                eplus_res=toy_df,
-                key_values="Zone1",
-                variables=[
-                    "Equipment Total Heating Energy",
-                    "Ideal Loads Supply Air Total Heating Energy",
-                ],
-            ),
+        # Real Sensor usage passes variable names that themselves start with
+        # "Zone" (e.g. "Zone Ideal Loads Supply Air Total Heating Energy"), so
+        # this must mirror that instead of variable names with no relation to
+        # the column's own key prefix - otherwise the drop_suffix regex bug
+        # (corrupted char-class silently failing to match) goes unnoticed.
+        multi_variable_result = get_output_variable(
+            eplus_res=toy_df,
+            key_values="Zone1",
+            variables=[
+                "Zone Other Equipment Total Heating Energy",
+                "Zone Ideal Loads Supply Air Total Heating Energy",
+            ],
+        )
+        assert list(multi_variable_result.columns) == ["ZONE1", "ZONE1"]
+        assert list(multi_variable_result.iloc[0]) == list(
+            toy_df.iloc[0, [0, 4]]
         )

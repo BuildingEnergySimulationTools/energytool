@@ -133,6 +133,50 @@ class TestSystems:
             rel=0.05,
         )
 
+    def test_sensor_multi_variable(self):
+        """A Sensor built with a list of several variables must return one
+        distinctly-named, non-collapsed column per variable (regression test
+        for the silent multi-variable column collapse bug)."""
+        test_build = Building(idf_path=RESOURCES_PATH / "test.idf")
+        test_build.add_system(
+            sys.Sensor(
+                name="IDEAL_LOADS",
+                variables=[
+                    "Zone Ideal Loads Supply Air Total Heating Energy",
+                    "Zone Ideal Loads Supply Air Total Cooling Energy",
+                ],
+                key_values="*",
+            )
+        )
+
+        result = test_build.simulate(
+            parameter_dict={},
+            simulation_options={
+                "epw_file": (RESOURCES_PATH / "Paris_2020.epw").as_posix(),
+                "outputs": "SENSOR",
+                "verbose": "v",
+            },
+        )
+
+        heating_cols = [
+            c
+            for c in result.columns
+            if c.endswith("_Zone Ideal Loads Supply Air Total Heating Energy")
+        ]
+        cooling_cols = [
+            c
+            for c in result.columns
+            if c.endswith("_Zone Ideal Loads Supply Air Total Cooling Energy")
+        ]
+
+        assert len(heating_cols) == 4
+        assert len(cooling_cols) == 4
+        assert not set(heating_cols) & set(cooling_cols)
+        # the two variables must carry distinct, non-collapsed values
+        assert not np.allclose(
+            result[heating_cols].sum().to_numpy(), result[cooling_cols].sum().to_numpy()
+        )
+
     def test_heater_simple(self, idf):
         gas_boiler = sys.HeaterSimple(
             name="Main_boiler",
