@@ -19,6 +19,70 @@ def _matches_filter(name: str, name_filter: Union[str, list, None]) -> bool:
     return name_filter in name
 
 
+def _get_window_zone_name(idf, window) -> str:
+    """A ``FenestrationSurface:Detailed`` has no ``Zone_Name`` field of its
+    own: it belongs to the zone of its host ``BuildingSurface:Detailed``
+    (``Building_Surface_Name``). ``WindowShadingControl`` requires a
+    ``Zone_Name`` — resolve it through the host surface."""
+    host_surface = idf.getobject(
+        "BuildingSurface:Detailed", window.Building_Surface_Name
+    )
+    return getattr(host_surface, "Zone_Name", "") if host_surface is not None else ""
+
+
+def _build_shaded_construction(idf, window, shading_material_name, shading_type, name_hint):
+    """
+    Build (or reuse) the full window construction referenced by a
+    ``WindowShadingControl``'s ``Construction_with_Shading_Name``: the
+    window's *current* base construction with ``shading_material_name``
+    added as an extra layer.
+
+    EnergyPlus infers interior/exterior/between-glass shading purely from
+    where that layer sits in the construction's layer list — a single-layer
+    construction made of just the shading material (as if it replaced the
+    glazing outright) is invalid and won't have a sensible U-factor. The
+    layer is positioned according to ``shading_type``:
+
+    - ``Exterior*`` — outermost layer (``Outside_Layer``).
+    - ``Interior*`` — innermost layer (last).
+    - anything else (``BetweenGlassBlind``/``BetweenGlassShade``,
+      ``SwitchableGlazing``, ...) — inserted after the first base layer, a
+      reasonable approximation for a typical double-glazed base
+      construction; build the construction by hand for anything more
+      specific.
+
+    Returns the resulting ``Construction``'s ``Name``. Raises ``ValueError``
+    if the window's current ``Construction_Name`` does not resolve to an
+    existing ``Construction``.
+    """
+    base_construction = idf.getobject("Construction", window.Construction_Name)
+    if base_construction is None:
+        raise ValueError(
+            f"Window '{window.Name}' references an unknown Construction "
+            f"'{window.Construction_Name}'; cannot attach "
+            f"'{shading_material_name}' to it."
+        )
+
+    base_layers = [value for value in base_construction.fieldvalues[2:] if value]
+
+    if shading_type.upper().startswith("EXTERIOR"):
+        layers = [shading_material_name] + base_layers
+    elif shading_type.upper().startswith("INTERIOR"):
+        layers = base_layers + [shading_material_name]
+    else:
+        layers = base_layers[:1] + [shading_material_name] + base_layers[1:]
+
+    construction_name = f"{window.Construction_Name}_{name_hint}"
+
+    if idf.getobject("Construction", construction_name) is None:
+        kwargs = {"Name": construction_name, "Outside_Layer": layers[0]}
+        for idx, layer in enumerate(layers[1:]):
+            kwargs[f"Layer_{idx + 2}"] = layer
+        idf.newidfobject("Construction", **kwargs)
+
+    return construction_name
+
+
 def reverse_kwargs(construction_kwargs):
     construction_name = construction_kwargs["Name"]
 
@@ -1613,7 +1677,6 @@ def set_shade(
         params.update(description)
 
     shade_name = params["Name"]
-    construction_name = f"{shade_name}_CONSTRUCTION"
 
     existing_shades = {
         obj.Name
@@ -1634,19 +1697,6 @@ def set_shade(
             ],
             Thickness=params["Thickness"],
             Conductivity=params["Conductivity"],
-        )
-
-    existing_constructions = {
-        obj.Name
-        for obj in model.idf.idfobjects["CONSTRUCTION"]
-    }
-
-    if construction_name not in existing_constructions:
-
-        model.idf.newidfobject(
-            "CONSTRUCTION",
-            Name=construction_name,
-            Outside_Layer=shade_name,
         )
 
     windows = [
@@ -1690,20 +1740,22 @@ def set_shade(
             )
 
         control.Zone_Name = (
-            getattr(window, "Zone_Name", "")
+            _get_window_zone_name(model.idf, window)
         )
 
         control.Shading_Type = (
             params["Shading_Type"]
         )
 
-        control.Construction_with_Shading_Name = (
-            construction_name
+        control.Construction_with_Shading_Name = _build_shaded_construction(
+            model.idf, window, shade_name, params["Shading_Type"], shade_name
         )
 
         control.Shading_Control_Type = (
             "OnIfScheduleAllows"
         )
+
+        control.Shading_Control_Is_Scheduled = "Yes"
 
         if params["Schedule"] is not None:
 
@@ -1840,7 +1892,6 @@ def set_screen(
         diameter = spacing * (1 - np.sqrt(params["Perforation_Ratio"]))
 
     screen_name = params["Name"]
-    construction_name = f"{screen_name}_CONSTRUCTION"
 
     existing_screens = {
         obj.Name
@@ -1871,19 +1922,6 @@ def set_screen(
             Angle_of_Resolution_for_Screen_Transmittance_Output_Map=params[
                 "Angle_of_Resolution_for_Screen_Transmittance_Output_Map"
             ],
-        )
-
-    existing_constructions = {
-        obj.Name
-        for obj in model.idf.idfobjects["CONSTRUCTION"]
-    }
-
-    if construction_name not in existing_constructions:
-
-        model.idf.newidfobject(
-            "CONSTRUCTION",
-            Name=construction_name,
-            Outside_Layer=screen_name,
         )
 
     windows = [
@@ -1926,17 +1964,23 @@ def set_screen(
                 Name=control_name,
             )
 
+        control.Zone_Name = (
+            _get_window_zone_name(model.idf, window)
+        )
+
         control.Shading_Type = (
             params["Shading_Type"]
         )
 
-        control.Construction_with_Shading_Name = (
-            construction_name
+        control.Construction_with_Shading_Name = _build_shaded_construction(
+            model.idf, window, screen_name, params["Shading_Type"], screen_name
         )
 
         control.Shading_Control_Type = (
             "OnIfScheduleAllows"
         )
+
+        control.Shading_Control_Is_Scheduled = "Yes"
 
         if params["Schedule"] is not None:
 
@@ -2459,7 +2503,6 @@ def set_blind(
         params.update(description)
 
     blind_name = params["Name"]
-    construction_name = f"{blind_name}_CONSTRUCTION"
 
     existing_blinds = {
         obj.Name
@@ -2520,21 +2563,6 @@ def set_blind(
             params["Maximum_Slat_Angle"],
         )
 
-    existing_constructions = {
-        obj.Name
-        for obj in model.idf.idfobjects[
-            "CONSTRUCTION"
-        ]
-    }
-
-    if construction_name not in existing_constructions:
-
-        model.idf.newidfobject(
-            "CONSTRUCTION",
-            Name=construction_name,
-            Outside_Layer=blind_name,
-        )
-
     windows = [
         window
         for window in model.idf.idfobjects[
@@ -2575,17 +2603,23 @@ def set_blind(
                 Name=control_name,
             )
 
+        control.Zone_Name = (
+            _get_window_zone_name(model.idf, window)
+        )
+
         control.Shading_Type = (
             params["Shading_Type"]
         )
 
-        control.Construction_with_Shading_Name = (
-            construction_name
+        control.Construction_with_Shading_Name = _build_shaded_construction(
+            model.idf, window, blind_name, params["Shading_Type"], blind_name
         )
 
         control.Shading_Control_Type = (
             "OnIfScheduleAllows"
         )
+
+        control.Shading_Control_Is_Scheduled = "Yes"
 
         if params["Schedule"] is not None:
 

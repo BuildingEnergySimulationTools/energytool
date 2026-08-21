@@ -1156,14 +1156,22 @@ class TestModifier:
         assert default_shade.Solar_Reflectance == pytest.approx(0.70)
         assert default_shade.Visible_Transmittance == pytest.approx(0.10)
 
-        assert "DEFAULT_SHADE_CONSTRUCTION" in {c.Name for c in loc.idf.idfobjects["CONSTRUCTION"]}
+        # the combined construction keeps Window_0's base glazing ("Ext_win_2")
+        # and, since Shading_Type defaults to "InteriorShade", adds the shade
+        # as the *innermost* layer rather than replacing the glazing outright
+        shaded_construction = loc.idf.getobject("Construction", "Construction_Ext_win_2_DEFAULT_SHADE")
+        assert shaded_construction is not None
+        assert shaded_construction.Outside_Layer == "Ext_win_2"
+        assert shaded_construction.Layer_2 == "DEFAULT_SHADE"
 
         controls = loc.idf.idfobjects["WINDOWSHADINGCONTROL"]
         ctrl = next((c for c in controls if c.Name == "Window_0_DEFAULT_SHADE_control"), None)
         assert ctrl is not None
+        assert ctrl.Zone_Name == "zone_0"
         assert ctrl.Shading_Type == "InteriorShade"
-        assert ctrl.Construction_with_Shading_Name == "DEFAULT_SHADE_CONSTRUCTION"
+        assert ctrl.Construction_with_Shading_Name == "Construction_Ext_win_2_DEFAULT_SHADE"
         assert ctrl.Shading_Control_Type == "OnIfScheduleAllows"
+        assert ctrl.Shading_Control_Is_Scheduled == "Yes"
         # Window_1 excluded by name_filter
         assert not any(c.Name == "Window_1_DEFAULT_SHADE_control" for c in controls)
 
@@ -1181,6 +1189,10 @@ class TestModifier:
         )
         shade = next(s for s in loc.idf.idfobjects["WINDOWMATERIAL:SHADE"] if s.Name == "MY_SHADE")
         assert shade.Solar_Transmittance == pytest.approx(0.05)
+        # ExteriorShade -> the shade is the *outermost* layer this time
+        exterior_shaded_construction = loc.idf.getobject("Construction", "Construction_Ext_win_2_MY_SHADE")
+        assert exterior_shaded_construction.Outside_Layer == "MY_SHADE"
+        assert exterior_shaded_construction.Layer_2 == "Ext_win_2"
         ctrl = next(
             c for c in loc.idf.idfobjects["WINDOWSHADINGCONTROL"]
             if c.Name == "Window_0_MY_SHADE_control"
@@ -1214,14 +1226,21 @@ class TestModifier:
         assert default_blind.Slat_Angle == pytest.approx(45)
         assert default_blind.Slat_Separation == pytest.approx(0.07)
 
-        assert "DEFAULT_BLIND_CONSTRUCTION" in {c.Name for c in loc.idf.idfobjects["CONSTRUCTION"]}
+        # ExteriorBlind (default Shading_Type) -> blind is the outermost layer,
+        # the window's base glazing ("Ext_win_2") is kept as the next layer
+        blind_construction = loc.idf.getobject("Construction", "Construction_Ext_win_2_DEFAULT_BLIND")
+        assert blind_construction is not None
+        assert blind_construction.Outside_Layer == "DEFAULT_BLIND"
+        assert blind_construction.Layer_2 == "Ext_win_2"
 
         controls = loc.idf.idfobjects["WINDOWSHADINGCONTROL"]
         ctrl = next((c for c in controls if c.Name == "Window_0_DEFAULT_BLIND_control"), None)
         assert ctrl is not None
+        assert ctrl.Zone_Name == "zone_0"
         assert ctrl.Shading_Type == "ExteriorBlind"  # default Shading_Type
-        assert ctrl.Construction_with_Shading_Name == "DEFAULT_BLIND_CONSTRUCTION"
+        assert ctrl.Construction_with_Shading_Name == "Construction_Ext_win_2_DEFAULT_BLIND"
         assert ctrl.Shading_Control_Type == "OnIfScheduleAllows"
+        assert ctrl.Shading_Control_Is_Scheduled == "Yes"
         assert not any(c.Name == "Window_1_DEFAULT_BLIND_control" for c in controls)
 
         # preset "venetian_indoor": InteriorBlind, Slat_Angle=45, reflectance=0.7
@@ -1289,14 +1308,21 @@ class TestModifier:
         )
         assert default_screen.Reflected_Beam_Transmittance_Accounting_Method == "ModelAsDiffuse"
 
-        assert "DEFAULT_SCREEN_CONSTRUCTION" in {c.Name for c in loc.idf.idfobjects["CONSTRUCTION"]}
+        # ExteriorScreen -> the screen is the outermost layer, the window's
+        # base glazing ("Ext_win_2") is kept as the next layer
+        screen_construction = loc.idf.getobject("Construction", "Construction_Ext_win_2_DEFAULT_SCREEN")
+        assert screen_construction is not None
+        assert screen_construction.Outside_Layer == "DEFAULT_SCREEN"
+        assert screen_construction.Layer_2 == "Ext_win_2"
 
         controls = loc.idf.idfobjects["WINDOWSHADINGCONTROL"]
         ctrl = next((c for c in controls if c.Name == "Window_0_DEFAULT_SCREEN_control"), None)
         assert ctrl is not None
+        assert ctrl.Zone_Name == "zone_0"
         assert ctrl.Shading_Type == "ExteriorScreen"
-        assert ctrl.Construction_with_Shading_Name == "DEFAULT_SCREEN_CONSTRUCTION"
+        assert ctrl.Construction_with_Shading_Name == "Construction_Ext_win_2_DEFAULT_SCREEN"
         assert ctrl.Shading_Control_Type == "OnIfScheduleAllows"
+        assert ctrl.Shading_Control_Is_Scheduled == "Yes"
         assert not any(c.Name == "Window_1_DEFAULT_SCREEN_control" for c in controls)
 
         # explicit native fields override the Perforation_Ratio/Pitch derivation
