@@ -941,6 +941,92 @@ class TestModifier:
         with pytest.raises(ValueError):
             set_shading_geometry(deepcopy(toy_building), "invalid_type")
 
+        # --- horizontal_louvers: non-uniform Positions/Tilts override Spacing/Tilt ---
+        loc = deepcopy(toy_building)
+        set_shading_geometry(
+            loc,
+            "horizontal_louvers",
+            {"Positions": [0.0, 0.5, 1.0], "Tilts": [0, 30, 45]},
+            name_filter="_0",
+        )
+        louvers = {
+            s.Name: s
+            for s in loc.idf.idfobjects["Shading:Zone:Detailed"]
+            if "Window_0_horizontal_louver" in s.Name
+        }
+        assert len(louvers) == 3
+        # z_offset=0 -> top edge unchanged (z = 1.5)
+        assert louvers["Window_0_horizontal_louver_0"].Vertex_1_Zcoordinate == pytest.approx(1.5)
+        # z_offset=1.0 -> shifted down to the bottom edge (z = 0.5)
+        assert louvers["Window_0_horizontal_louver_2"].Vertex_1_Zcoordinate == pytest.approx(0.5)
+
+        # a scalar Tilts value applies to every louver
+        loc = deepcopy(toy_building)
+        set_shading_geometry(
+            loc,
+            "horizontal_louvers",
+            {"Positions": [0.0, 0.5], "Tilts": 30},
+            name_filter="_0",
+        )
+        louvers = [
+            s for s in loc.idf.idfobjects["Shading:Zone:Detailed"]
+            if "Window_0_horizontal_louver" in s.Name
+        ]
+        assert len(louvers) == 2
+
+        # --- vertical_louvers: non-uniform Positions override Spacing ---
+        loc = deepcopy(toy_building)
+        set_shading_geometry(
+            loc,
+            "vertical_louvers",
+            {"Positions": [0.1, 0.5, 0.9]},
+            name_filter="_0",
+        )
+        louvers = [
+            s for s in loc.idf.idfobjects["Shading:Zone:Detailed"]
+            if "Window_0_vertical_louver" in s.Name
+        ]
+        assert len(louvers) == 3
+
+        # --- eggcrate: crossed horizontal + vertical louvers, default params ---
+        loc = deepcopy(toy_building)
+        set_shading_geometry(loc, "eggcrate", name_filter="_0")
+        shading = loc.idf.idfobjects["Shading:Zone:Detailed"]
+        h_louvers = [s for s in shading if "Window_0_eggcrate_h" in s.Name]
+        v_louvers = [s for s in shading if "Window_0_eggcrate_v" in s.Name]
+        assert len(h_louvers) == 5  # same default spacing as horizontal_louvers
+        assert len(v_louvers) == 4  # same default spacing as vertical_louvers
+        assert not any(s.Name.startswith("Window_1_eggcrate") for s in shading)
+
+        # replacing an eggcrate removes the previous grid (idempotent)
+        set_shading_geometry(
+            loc, "eggcrate", {"Spacing_H": 0.5, "Spacing_V": 0.5}, name_filter="_0"
+        )
+        shading = loc.idf.idfobjects["Shading:Zone:Detailed"]
+        h_louvers = [s for s in shading if "Window_0_eggcrate_h" in s.Name]
+        v_louvers = [s for s in shading if "Window_0_eggcrate_v" in s.Name]
+        assert len(h_louvers) == 3  # arange(0, 1+1e-6, 0.5) -> 0, 0.5, 1.0
+        assert len(v_louvers) == 3  # margin=0 -> arange(0, 1+1e-6, 0.5) -> 0, 0.5, 1.0
+
+        # independent H/V depths and per-direction non-uniform positions
+        loc = deepcopy(toy_building)
+        set_shading_geometry(
+            loc,
+            "eggcrate",
+            {
+                "Depth_H": 0.3,
+                "Depth_V": 0.6,
+                "Positions_H": [0.0, 1.0],
+                "Positions_V": [0.2, 0.8],
+            },
+            name_filter="_0",
+        )
+        shading = loc.idf.idfobjects["Shading:Zone:Detailed"]
+        h_louvers = [s for s in shading if "Window_0_eggcrate_h" in s.Name]
+        v_louvers = [s for s in shading if "Window_0_eggcrate_v" in s.Name]
+        assert len(h_louvers) == 2
+        assert len(v_louvers) == 2
+
     def test_set_shading_properties(self, toy_building):
         # setup: one overhang on Window_0
         loc = deepcopy(toy_building)

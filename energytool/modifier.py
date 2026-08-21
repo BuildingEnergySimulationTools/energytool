@@ -835,15 +835,48 @@ def set_shading_geometry(
 
         - ``Depth`` (m, default 0.5): depth of each louver.
         - ``Spacing`` (m, default 0.25): vertical distance between louvers.
+          Ignored if ``Positions`` is provided.
         - ``Tilt`` (°, default 0): tilt of the louvers (0 = horizontal plane).
+          Ignored (per-louver) if ``Tilts`` is provided.
         - ``Offset`` (m, default 0): horizontal gap between the louver and the wall.
+        - ``Positions`` (list[m], default None): explicit vertical offsets
+          (measured downward from the top edge of the window) at which to
+          place each louver.  Overrides ``Spacing`` and allows a non-uniform
+          (e.g. denser near eye level) distribution.
+        - ``Tilts`` (float or list[°], default None): per-louver tilt angle(s).
+          A single value applies to every louver; a list must match the
+          number of louvers (either ``len(Positions)`` or the number derived
+          from ``Spacing``). Overrides ``Tilt``.
 
     ``"vertical_louvers"``
         Vertical slats distributed over the window width.
 
         - ``Depth`` (m, default 0.5): depth of each louver.
         - ``Spacing`` (m, default 0.30): horizontal distance between louvers.
+          Ignored if ``Positions`` is provided.
         - ``Tilt`` (°, default 0): tilt of the louvers (0 = perpendicular to wall).
+          Ignored (per-louver) if ``Tilts`` is provided.
+        - ``Positions`` (list[m], default None): explicit horizontal offsets
+          (measured from the left edge of the window) at which to place each
+          louver. Overrides ``Spacing``.
+        - ``Tilts`` (float or list[°], default None): per-louver tilt angle(s),
+          same semantics as for ``"horizontal_louvers"``. Overrides ``Tilt``.
+
+    ``"eggcrate"``
+        Crossed grid of horizontal and vertical louvers (a "caisson" /
+        egg-crate brise-soleil), combining both patterns above on the same
+        window. Each direction has its own independent parameters, suffixed
+        ``_H`` (horizontal louvers) and ``_V`` (vertical louvers):
+
+        - ``Depth_H``, ``Spacing_H``, ``Tilt_H``, ``Offset_H``,
+          ``Positions_H``, ``Tilts_H`` — same meaning as the corresponding
+          keys of ``"horizontal_louvers"``.
+        - ``Depth_V``, ``Spacing_V``, ``Tilt_V``, ``Positions_V``,
+          ``Tilts_V`` — same meaning as the corresponding keys of
+          ``"vertical_louvers"``.
+
+        Defaults: ``Depth_H=Depth_V=0.5``, ``Spacing_H=0.25``,
+        ``Spacing_V=0.30``, ``Tilt_H=Tilt_V=0``, ``Offset_H=0``.
 
     Parameters
     ----------
@@ -852,7 +885,7 @@ def set_shading_geometry(
     shading_type : str
         Type of shading geometry to create.  Must be one of
         ``"overhang"``, ``"sidefins"``, ``"horizontal_louvers"``,
-        ``"vertical_louvers"``.
+        ``"vertical_louvers"``, ``"eggcrate"``.
     description : dict, optional
         Parameter overrides for the chosen shading type.
         Only keys that exist in the default parameters are meaningful.
@@ -880,11 +913,28 @@ def set_shading_geometry(
             "Spacing": 0.25,
             "Tilt": 0,
             "Offset": 0,
+            "Positions": None,
+            "Tilts": None,
         },
         "vertical_louvers": {
             "Depth": 0.5,
             "Spacing": 0.30,
             "Tilt": 0,
+            "Positions": None,
+            "Tilts": None,
+        },
+        "eggcrate": {
+            "Depth_H": 0.5,
+            "Spacing_H": 0.25,
+            "Tilt_H": 0,
+            "Offset_H": 0,
+            "Positions_H": None,
+            "Tilts_H": None,
+            "Depth_V": 0.5,
+            "Spacing_V": 0.30,
+            "Tilt_V": 0,
+            "Positions_V": None,
+            "Tilts_V": None,
         },
     }
 
@@ -995,13 +1045,125 @@ def set_shading_geometry(
             **kwargs,
         )
 
+    def create_horizontal_louvers(
+            depth,
+            spacing,
+            tilt,
+            offset,
+            positions,
+            tilts,
+            top_1,
+            top_2,
+            height,
+            normal,
+            name_prefix,
+            base_surface_name,
+    ):
+        vertical = np.array([0.0, 0.0, 1.0])
+
+        if positions is not None:
+            z_positions = np.asarray(positions, dtype=float)
+        else:
+            z_positions = np.arange(0, height + 1e-6, spacing)
+
+        if tilts is not None:
+            tilt_values = (
+                [tilts] * len(z_positions)
+                if np.isscalar(tilts)
+                else list(tilts)
+            )
+        else:
+            tilt_values = [tilt] * len(z_positions)
+
+        for i, (z_offset, tilt_deg) in enumerate(zip(z_positions, tilt_values)):
+            tilt_rad = np.deg2rad(tilt_deg)
+            louver_direction = (
+                    np.cos(tilt_rad) * normal
+                    - np.sin(tilt_rad) * vertical
+            )
+
+            p1_louver = top_1 - np.array([0, 0, z_offset]) + offset * normal
+            p2_louver = top_2 - np.array([0, 0, z_offset]) + offset * normal
+
+            q1 = p1_louver + depth * louver_direction
+            q2 = p2_louver + depth * louver_direction
+
+            create_shading_surface(
+                f"{name_prefix}_{i}",
+                [p1_louver, p2_louver, q2, q1],
+                base_surface_name,
+            )
+
+    def create_vertical_louvers(
+            depth,
+            spacing,
+            tilt,
+            positions,
+            tilts,
+            top_1,
+            top_2,
+            bottom_1,
+            width,
+            normal,
+            name_prefix,
+            base_surface_name,
+    ):
+        edge_vector = top_2 - top_1
+        edge_vector = edge_vector / np.linalg.norm(edge_vector)
+
+        horizontal_normal = normal.copy()
+        horizontal_normal[2] = 0.0
+        horizontal_normal /= np.linalg.norm(horizontal_normal)
+
+        vertical = np.array([0.0, 0.0, 1.0])
+        local_right = np.cross(vertical, horizontal_normal)
+        local_right /= np.linalg.norm(local_right)
+
+        if positions is not None:
+            x_positions = np.asarray(positions, dtype=float)
+        else:
+            n_louvers = int(np.floor(width / spacing))
+            occupied_width = n_louvers * spacing
+            margin = (width - occupied_width) / 2
+            x_positions = np.arange(margin, width - margin + 1e-6, spacing)
+
+        if tilts is not None:
+            tilt_values = (
+                [tilts] * len(x_positions)
+                if np.isscalar(tilts)
+                else list(tilts)
+            )
+        else:
+            tilt_values = [tilt] * len(x_positions)
+
+        for i, (x_offset, tilt_deg) in enumerate(zip(x_positions, tilt_values)):
+            tilt_rad = np.deg2rad(tilt_deg)
+            louver_direction = (
+                    np.cos(tilt_rad) * horizontal_normal
+                    + np.sin(tilt_rad) * local_right
+            )
+
+            offset_vector = x_offset * edge_vector
+
+            p_bottom = bottom_1 + offset_vector
+            p_top = top_1 + offset_vector
+
+            q_bottom = p_bottom + depth * louver_direction
+            q_top = p_top + depth * louver_direction
+
+            create_shading_surface(
+                f"{name_prefix}_{i}",
+                [p_bottom, q_bottom, q_top, p_top],
+                base_surface_name,
+            )
+
     for window in windows:
         delete_existing_shading(window.Name)
         vertices = get_vertices(window)
         p1, p2, p3, p4 = vertices
 
         normal = get_outward_normal(vertices)
-        depth = params["Depth"]
+        depth = params.get("Depth")
 
         top_1, top_2 = get_top_edge(vertices)
         bottom_1, bottom_2 = get_bottom_edge(vertices)
@@ -1087,138 +1249,69 @@ def set_shading_geometry(
 
         elif shading_type == "horizontal_louvers":
 
-            spacing = params["Spacing"]
-            offset = params["Offset"]
-            tilt = np.deg2rad(params["Tilt"])
-
-            vertical = np.array([0.0, 0.0, 1.0])
-
-            louver_direction = (
-                    np.cos(tilt) * normal
-                    - np.sin(tilt) * vertical
+            create_horizontal_louvers(
+                depth=params["Depth"],
+                spacing=params["Spacing"],
+                tilt=params["Tilt"],
+                offset=params["Offset"],
+                positions=params.get("Positions"),
+                tilts=params.get("Tilts"),
+                top_1=top_1,
+                top_2=top_2,
+                height=height,
+                normal=normal,
+                name_prefix=f"{window.Name}_horizontal_louver",
+                base_surface_name=window.Building_Surface_Name,
             )
-
-            z_positions = np.arange(
-                0,
-                height + 1e-6,
-                spacing,
-            )
-
-            for i, z_offset in enumerate(z_positions):
-                p1_louver = (
-                        top_1
-                        - np.array([0, 0, z_offset])
-                        + offset * normal
-                )
-
-                p2_louver = (
-                        top_2
-                        - np.array([0, 0, z_offset])
-                        + offset * normal
-                )
-
-                q1 = (
-                        p1_louver
-                        + depth * louver_direction
-                )
-
-                q2 = (
-                        p2_louver
-                        + depth * louver_direction
-                )
-
-                create_shading_surface(
-                    f"{window.Name}_horizontal_louver_{i}",
-                    [
-                        p1_louver,
-                        p2_louver,
-                        q2,
-                        q1,
-                    ],
-                    window.Building_Surface_Name,
-                )
 
         elif shading_type == "vertical_louvers":
 
-            spacing = params["Spacing"]
-            tilt = np.deg2rad(params["Tilt"])
-
-            edge_vector = top_2 - top_1
-            edge_vector /= np.linalg.norm(edge_vector)
-
-            horizontal_normal = normal.copy()
-            horizontal_normal[2] = 0.0
-            horizontal_normal /= np.linalg.norm(horizontal_normal)
-
-            vertical = np.array(
-                [0.0, 0.0, 1.0]
+            create_vertical_louvers(
+                depth=params["Depth"],
+                spacing=params["Spacing"],
+                tilt=params["Tilt"],
+                positions=params.get("Positions"),
+                tilts=params.get("Tilts"),
+                top_1=top_1,
+                top_2=top_2,
+                bottom_1=bottom_1,
+                width=width,
+                normal=normal,
+                name_prefix=f"{window.Name}_vertical_louver",
+                base_surface_name=window.Building_Surface_Name,
             )
 
-            local_right = np.cross(
-                vertical,
-                horizontal_normal,
-            )
-            local_right /= np.linalg.norm(local_right)
+        elif shading_type == "eggcrate":
 
-            louver_direction = (
-                    np.cos(tilt) * horizontal_normal
-                    + np.sin(tilt) * local_right
-            )
-
-            n_louvers = int(
-                np.floor(width / spacing)
-            )
-
-            occupied_width = (
-                    n_louvers * spacing
+            create_horizontal_louvers(
+                depth=params["Depth_H"],
+                spacing=params["Spacing_H"],
+                tilt=params["Tilt_H"],
+                offset=params["Offset_H"],
+                positions=params.get("Positions_H"),
+                tilts=params.get("Tilts_H"),
+                top_1=top_1,
+                top_2=top_2,
+                height=height,
+                normal=normal,
+                name_prefix=f"{window.Name}_eggcrate_h",
+                base_surface_name=window.Building_Surface_Name,
             )
 
-            margin = (
-                             width - occupied_width
-                     ) / 2
-
-            x_positions = np.arange(
-                margin,
-                width - margin + 1e-6,
-                spacing,
+            create_vertical_louvers(
+                depth=params["Depth_V"],
+                spacing=params["Spacing_V"],
+                tilt=params["Tilt_V"],
+                positions=params.get("Positions_V"),
+                tilts=params.get("Tilts_V"),
+                top_1=top_1,
+                top_2=top_2,
+                bottom_1=bottom_1,
+                width=width,
+                normal=normal,
+                name_prefix=f"{window.Name}_eggcrate_v",
+                base_surface_name=window.Building_Surface_Name,
             )
-
-            for i, x_offset in enumerate(x_positions):
-                offset_vector = (
-                        x_offset
-                        * edge_vector
-                )
-
-                p_bottom = (
-                        bottom_1
-                        + offset_vector
-                )
-
-                p_top = (
-                        top_1
-                        + offset_vector
-                )
-
-                q_bottom = (
-                        p_bottom
-                        + depth * louver_direction
-                )
-
-                q_top = (
-                        p_top
-                        + depth * louver_direction
-                )
-
-                create_shading_surface(
-                    f"{window.Name}_vertical_louver_{i}",
-                    [
-                        p_bottom,
-                        q_bottom,
-                        q_top,
-                        p_top,
-                    ],
-                    window.Building_Surface_Name,
-                )
 
 
 def set_shading_properties(
@@ -1623,6 +1716,7 @@ def set_shade(
             )
         except Exception:
             pass
+
 
 def set_blind(
     model: Building,
