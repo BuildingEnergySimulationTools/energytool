@@ -31,6 +31,7 @@ from energytool.modifier import (
     set_shade,
     set_blind,
     set_screen,
+    set_complex_fenestration_state,
     update_idf_objects,
     reverse_kwargs,
 )
@@ -1334,6 +1335,87 @@ class TestModifier:
         assert any(c.Name == "Window_0_DEFAULT_SCREEN_control" for c in controls)
         assert any(c.Name == "Window_1_DEFAULT_SCREEN_control" for c in controls)
         assert not any(c.Name == "Window_2_DEFAULT_SCREEN_control" for c in controls)
+
+    def test_set_complex_fenestration_state(self, toy_building, tmp_path):
+        # one small matrix file per required BSDF matrix (2x2, arbitrary values)
+        matrix_keys = [
+            "Basis_Matrix",
+            "Solar_Front_Transmittance",
+            "Solar_Back_Reflectance",
+            "Visible_Front_Transmittance",
+            "Visible_Back_Transmittance",
+            "Outside_Layer_Front_Absorptance",
+            "Outside_Layer_Back_Absorptance",
+        ]
+        matrix_paths = {}
+        for i, key in enumerate(matrix_keys):
+            path = tmp_path / f"{key}.txt"
+            path.write_text(f"{i}.0 {i}.1\n{i}.2 {i}.3\n")
+            matrix_paths[key] = str(path)
+
+        loc = deepcopy(toy_building)
+        description = {
+            "Name": "BSDF_TEST",
+            "Outside_Layer_Name": "Ext_win_1",
+            **matrix_paths,
+        }
+
+        set_complex_fenestration_state(loc, description, name_filter="Window_0")
+
+        # one Matrix:TwoDimension per matrix key, correctly sized/filled
+        matrices = {m.Name: m for m in loc.idf.idfobjects["MATRIX:TWODIMENSION"]}
+        basis_matrix = matrices["BSDF_TEST_Basis_Matrix"]
+        assert basis_matrix.Number_of_Rows == 2
+        assert basis_matrix.Number_of_Columns == 2
+        assert basis_matrix.Value_1 == pytest.approx(0.0)
+        assert basis_matrix.Value_4 == pytest.approx(0.3)
+        assert len(matrices) == len(matrix_keys)
+
+        # a default ISO15099 thermal model is created
+        thermal_models = loc.idf.idfobjects["WINDOWTHERMALMODEL:PARAMS"]
+        default_model = next(
+            (m for m in thermal_models if m.Name == "Default_CFS_Thermal_Model"), None
+        )
+        assert default_model is not None
+        assert default_model.standard == "ISO15099"
+
+        # the Construction:ComplexFenestrationState references the matrices
+        cfs = loc.idf.idfobjects["CONSTRUCTION:COMPLEXFENESTRATIONSTATE"]
+        state = next(c for c in cfs if c.Name == "BSDF_TEST")
+        assert state.Basis_Matrix_Name == "BSDF_TEST_Basis_Matrix"
+        assert state.Outside_Layer_Name == "Ext_win_1"
+        assert state.Window_Thermal_Model == "Default_CFS_Thermal_Model"
+
+        # only Window_0 is reassigned to the new construction
+        windows = {w.Name: w for w in loc.idf.idfobjects["FENESTRATIONSURFACE:DETAILED"]}
+        assert windows["Window_0"].Construction_Name == "BSDF_TEST"
+        assert windows["Window_1"].Construction_Name != "BSDF_TEST"
+
+        # missing a required matrix key raises ValueError
+        incomplete = {k: v for k, v in description.items() if k != "Solar_Front_Transmittance"}
+        with pytest.raises(ValueError):
+            set_complex_fenestration_state(deepcopy(toy_building), incomplete)
+
+        # missing Outside_Layer_Name raises ValueError
+        no_layer = {k: v for k, v in description.items() if k != "Outside_Layer_Name"}
+        with pytest.raises(ValueError):
+            set_complex_fenestration_state(deepcopy(toy_building), no_layer)
+
+        # an explicit, existing Window_Thermal_Model name is reused as-is
+        loc2 = deepcopy(toy_building)
+        loc2.idf.newidfobject(
+            "WindowThermalModel:Params", Name="MyThermalModel", standard="EN673Design"
+        )
+        set_complex_fenestration_state(
+            loc2,
+            {**description, "Window_Thermal_Model": "MyThermalModel"},
+            name_filter="Window_0",
+        )
+        state2 = next(
+            c for c in loc2.idf.idfobjects["CONSTRUCTION:COMPLEXFENESTRATIONSTATE"]
+            if c.Name == "BSDF_TEST"
+        )
+        assert state2.Window_Thermal_Model == "MyThermalModel"
 
     # def test_envelope_shades_modifier(self, toy_building):
     #     loc_toy = deepcopy(toy_building)

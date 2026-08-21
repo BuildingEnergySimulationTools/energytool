@@ -1951,6 +1951,227 @@ def set_screen(
             pass
 
 
+def _load_matrix_file(path, delimiter: str = None) -> np.ndarray:
+    """Read a BSDF angular-scattering matrix from a text file (one row per
+    line, values separated by whitespace or ``delimiter``)."""
+    return np.atleast_2d(np.loadtxt(path, delimiter=delimiter))
+
+
+def _set_matrix_two_dimension(idf, name: str, array: np.ndarray) -> str:
+    """Create (or replace) a ``Matrix:TwoDimension`` object named ``name``
+    holding ``array``'s values in row-major order."""
+    nrows, ncols = array.shape
+    max_values = 21040  # Value_1..Value_21040, as declared in the E+ IDD
+
+    if nrows * ncols > max_values:
+        raise ValueError(
+            f"Matrix '{name}' has {nrows * ncols} values "
+            f"({nrows}x{ncols}), exceeding the {max_values} values "
+            f"supported by Matrix:TwoDimension."
+        )
+
+    existing = idf.getobject("Matrix:TwoDimension", name)
+    if existing is not None:
+        idf.removeidfobject(existing)
+
+    matrix_obj = idf.newidfobject(
+        "Matrix:TwoDimension",
+        Name=name,
+        Number_of_Rows=nrows,
+        Number_of_Columns=ncols,
+    )
+
+    for idx, value in enumerate(array.flatten(order="C"), start=1):
+        matrix_obj[f"Value_{idx}"] = float(value)
+
+    return name
+
+
+def set_complex_fenestration_state(
+    model: Building,
+    description: dict = None,
+    name_filter: Union[str, list[str]] = None,
+    surface_name_filter: Union[str, list[str]] = None,
+):
+    """
+    Assign a BSDF-based ``Construction:ComplexFenestrationState`` to matching
+    windows, built from externally supplied angular-scattering matrices.
+
+    EnergyPlus has no way to derive a BSDF from geometric or material
+    parameters: the angular transmittance/reflectance data must come from an
+    external optical calculation (e.g. LBNL WINDOW, ``pywincalc``, or
+    Radiance's ``genBSDF``), typically exported as one text matrix per
+    optical quantity. This modifier only assembles the resulting IDF objects
+    (``Matrix:TwoDimension``, ``WindowThermalModel:Params``,
+    ``Construction:ComplexFenestrationState``) from those files and
+    reassigns matching windows to the new construction.
+
+    Use this for shading geometries whose angular optical behaviour is not
+    well captured by a simple isotropic transmittance/reflectance (e.g.
+    ``set_shading_properties``) nor by the semi-empirical
+    ``WindowMaterial:Screen`` model (see :func:`set_screen`) — for instance
+    an irregular perforation pattern, a woven fabric, or a diagrid
+    brise-soleil.
+
+    Parameters
+    ----------
+    model : Building
+        EnergyTool Building object.
+    description : dict
+        Must contain:
+
+        - ``"Name"`` (str): name of the resulting
+          ``Construction:ComplexFenestrationState``.
+        - ``"Outside_Layer_Name"`` (str): name of an existing glazing
+          material or ``WindowMaterial:ComplexShade`` used as the outside
+          layer.
+        - ``"Basis_Matrix"``, ``"Solar_Front_Transmittance"``,
+          ``"Solar_Back_Reflectance"``, ``"Visible_Front_Transmittance"``,
+          ``"Visible_Back_Transmittance"``,
+          ``"Outside_Layer_Front_Absorptance"``,
+          ``"Outside_Layer_Back_Absorptance"`` (str or ``Path``): paths to
+          the corresponding angular matrix text files (one row per line,
+          whitespace- or ``Delimiter``-separated), each read with
+          :func:`numpy.loadtxt`.
+
+        Optional keys:
+
+        - ``"Delimiter"`` (str, default None): column delimiter used for all
+          matrix files (None = whitespace, as exported by LBNL WINDOW).
+        - ``"Basis_Type"`` (default ``"LBNLWINDOW"``) and
+          ``"Basis_Symmetry_Type"`` (default ``"None"``).
+        - ``"Window_Thermal_Model"``: either the name (str) of an existing
+          ``WindowThermalModel:Params`` object, or a dict (with a ``"Name"``
+          key plus any field to create/update it). If omitted, a default
+          ISO15099 model is created/reused.
+
+        Example::
+
+            {
+                "Name": "BSDF_PERFORATED_SCREEN",
+                "Outside_Layer_Name": "Perforated_Metal_Layer",
+                "Basis_Matrix": "bsdf/basis_klems_full.txt",
+                "Solar_Front_Transmittance": "bsdf/solar_tf.txt",
+                "Solar_Back_Reflectance": "bsdf/solar_rb.txt",
+                "Visible_Front_Transmittance": "bsdf/visible_tf.txt",
+                "Visible_Back_Transmittance": "bsdf/visible_tb.txt",
+                "Outside_Layer_Front_Absorptance": "bsdf/abs_front.txt",
+                "Outside_Layer_Back_Absorptance": "bsdf/abs_back.txt",
+            }
+
+    name_filter : str or list[str], optional
+        Forwarded to the window selection, matched against window names.
+    surface_name_filter : str or list[str], optional
+        Forwarded to the window selection, matched against the host
+        surface (``Building_Surface_Name``) names.
+    """
+    if description is None:
+        raise ValueError(
+            "description is required for set_complex_fenestration_state"
+        )
+
+    if "Name" not in description:
+        raise ValueError("description must provide 'Name'")
+
+    if "Outside_Layer_Name" not in description:
+        raise ValueError(
+            "description must provide 'Outside_Layer_Name' (an existing "
+            "glazing or WindowMaterial:ComplexShade name)"
+        )
+
+    matrix_field_map = {
+        "Basis_Matrix": "Basis_Matrix_Name",
+        "Solar_Front_Transmittance": (
+            "Solar_Optical_Complex_Front_Transmittance_Matrix_Name"
+        ),
+        "Solar_Back_Reflectance": (
+            "Solar_Optical_Complex_Back_Reflectance_Matrix_Name"
+        ),
+        "Visible_Front_Transmittance": (
+            "Visible_Optical_Complex_Front_Transmittance_Matrix_Name"
+        ),
+        "Visible_Back_Transmittance": (
+            "Visible_Optical_Complex_Back_Transmittance_Matrix_Name"
+        ),
+        "Outside_Layer_Front_Absorptance": (
+            "Outside_Layer_Directional_Front_Absoptance_Matrix_Name"
+        ),
+        "Outside_Layer_Back_Absorptance": (
+            "Outside_Layer_Directional_Back_Absoptance_Matrix_Name"
+        ),
+    }
+
+    missing = [key for key in matrix_field_map if key not in description]
+    if missing:
+        raise ValueError(
+            f"Missing required BSDF matrix file path(s) in description: "
+            f"{missing}"
+        )
+
+    idf = model.idf
+    state_name = description["Name"]
+    delimiter = description.get("Delimiter")
+
+    cfs_kwargs = {"Name": state_name}
+    for key, field_name in matrix_field_map.items():
+        matrix = _load_matrix_file(description[key], delimiter=delimiter)
+        matrix_name = f"{state_name}_{key}"
+        _set_matrix_two_dimension(idf, matrix_name, matrix)
+        cfs_kwargs[field_name] = matrix_name
+
+    thermal_model = description.get("Window_Thermal_Model")
+
+    if isinstance(thermal_model, dict):
+        thermal_model_name = thermal_model["Name"]
+        update_idf_objects(
+            model,
+            {thermal_model_name: thermal_model},
+            "WindowThermalModel:Params",
+        )
+    elif isinstance(thermal_model, str):
+        thermal_model_name = thermal_model
+        if idf.getobject("WindowThermalModel:Params", thermal_model_name) is None:
+            raise ValueError(
+                f"Window_Thermal_Model '{thermal_model_name}' not found in "
+                f"IDF. Provide a dict to create it, or the name of an "
+                f"existing object."
+            )
+    else:
+        thermal_model_name = "Default_CFS_Thermal_Model"
+        if idf.getobject("WindowThermalModel:Params", thermal_model_name) is None:
+            idf.newidfobject(
+                "WindowThermalModel:Params",
+                Name=thermal_model_name,
+                standard="ISO15099",
+                Thermal_Model="ISO15099",
+            )
+
+    cfs_kwargs["Window_Thermal_Model"] = thermal_model_name
+    cfs_kwargs["Basis_Type"] = description.get("Basis_Type", "LBNLWINDOW")
+    cfs_kwargs["Basis_Symmetry_Type"] = description.get(
+        "Basis_Symmetry_Type", "None"
+    )
+    cfs_kwargs["Outside_Layer_Name"] = description["Outside_Layer_Name"]
+
+    existing_cfs = idf.getobject(
+        "Construction:ComplexFenestrationState", state_name
+    )
+    if existing_cfs is not None:
+        idf.removeidfobject(existing_cfs)
+
+    idf.newidfobject("Construction:ComplexFenestrationState", **cfs_kwargs)
+
+    windows = [
+        win
+        for win in idf.idfobjects["FenestrationSurface:Detailed"]
+        if _matches_filter(win.Name, name_filter)
+        and _matches_filter(win.Building_Surface_Name, surface_name_filter)
+    ]
+
+    for win in windows:
+        win.Construction_Name = state_name
+
+
 def set_blind(
     model: Building,
     description: dict = None,
