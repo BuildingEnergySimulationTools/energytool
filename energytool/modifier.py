@@ -1718,6 +1718,239 @@ def set_shade(
             pass
 
 
+def set_screen(
+    model: Building,
+    description: dict = None,
+    name_filter: Union[str, list[str]] = None,
+):
+    """
+    Attach a perforated screen material (e.g. perforated sheet metal) to
+    windows via a ``WindowShadingControl``.
+
+    Creates a ``WindowMaterial:Screen`` and an associated construction, then
+    assigns a ``WindowShadingControl`` (type ``OnIfScheduleAllows`` by
+    default, screen type ``ExteriorScreen``) to each matching window.
+    Existing screen material and construction objects are reused if their
+    names already exist in the IDF.
+
+    Unlike ``WindowMaterial:Shade``/``WindowMaterial:Blind``, a screen's
+    optical properties come from its physical perforation pattern (wire/hole
+    ``Diameter`` and ``Spacing``) rather than a flat transmittance value.
+    This models the homogenized porosity of a perforated panel; it does not
+    represent the panel's own geometry (use :func:`set_shading_geometry`
+    with ``"eggcrate"`` for a 3D grid of solid fins, optionally coated with
+    a screen material via :func:`set_shading_properties`).
+
+    Perforation convenience parameters
+    -----------------------------------
+    Instead of specifying EnergyPlus's native ``Screen_Material_Diameter``
+    and ``Screen_Material_Spacing`` directly, you can provide:
+
+    - ``Perforation_Ratio`` (0-1, default 0.30): open area fraction of the
+      screen (i.e. the fraction of the panel that is actually holes).
+    - ``Pitch`` (m, default 0.01): center-to-center spacing of the
+      perforation pattern (assumed identical in both directions, as per the
+      EnergyPlus screen model).
+
+    These are converted to ``Screen_Material_Spacing = Pitch`` and
+    ``Screen_Material_Diameter = Pitch * (1 - sqrt(Perforation_Ratio))``
+    (square-mesh approximation used by the EnergyPlus screen model).
+    Explicitly providing ``Screen_Material_Diameter`` and/or
+    ``Screen_Material_Spacing`` in ``description`` overrides this
+    computation field-by-field.
+
+    Default parameters
+    -------------------
+    - ``Name``: ``"DEFAULT_SCREEN"``
+    - ``Perforation_Ratio``: 0.30
+    - ``Pitch`` (m): 0.01
+    - ``Screen_Material_Diameter``: None (derived from ``Perforation_Ratio``/``Pitch``)
+    - ``Screen_Material_Spacing``: None (derived from ``Pitch``)
+    - ``Reflected_Beam_Transmittance_Accounting_Method``: ``"ModelAsDiffuse"``
+    - ``Diffuse_Solar_Reflectance``: 0.30
+    - ``Diffuse_Visible_Reflectance``: 0.30
+    - ``Thermal_Hemispherical_Emissivity``: 0.90
+    - ``Conductivity`` (W/m·K): 221.0 (aluminum)
+    - ``Screen_to_Glass_Distance`` (m): 0.025
+    - ``Top_Opening_Multiplier`` / ``Bottom_Opening_Multiplier`` /
+      ``Left_Side_Opening_Multiplier`` / ``Right_Side_Opening_Multiplier``: 0.0
+    - ``Angle_of_Resolution_for_Screen_Transmittance_Output_Map``: 0
+    - ``Shading_Type``: ``"ExteriorScreen"`` (the only screen type EnergyPlus
+      supports on a ``WindowShadingControl``)
+    - ``Schedule``: None (no schedule assigned, control is always considered active)
+
+    Parameters
+    ----------
+    model : Building
+        EnergyTool Building object.
+    description : dict, optional
+        Parameter overrides. Any key from the default list above can be set.
+
+        - ``"Schedule"`` (str): name of an existing EnergyPlus schedule used to
+          drive the shading control (value 1 = active, 0 = inactive).
+
+        Example::
+
+            {
+                "Name": "PERFORATED_PANEL",
+                "Perforation_Ratio": 0.40,
+                "Pitch": 0.008,
+                "Diffuse_Solar_Reflectance": 0.55,
+                "Schedule": "SummerOnlySchedule",
+            }
+
+    name_filter : str or list[str], optional
+        If provided, only windows whose name contains the filter string
+        (or any string in the list) receive the screen control.
+        If None, all windows are processed.
+    """
+    DEFAULT_SCREEN = {
+        "Name": "DEFAULT_SCREEN",
+        "Perforation_Ratio": 0.30,
+        "Pitch": 0.01,
+        "Screen_Material_Diameter": None,
+        "Screen_Material_Spacing": None,
+        "Reflected_Beam_Transmittance_Accounting_Method": "ModelAsDiffuse",
+        "Diffuse_Solar_Reflectance": 0.30,
+        "Diffuse_Visible_Reflectance": 0.30,
+        "Thermal_Hemispherical_Emissivity": 0.90,
+        "Conductivity": 221.0,
+        "Screen_to_Glass_Distance": 0.025,
+        "Top_Opening_Multiplier": 0.0,
+        "Bottom_Opening_Multiplier": 0.0,
+        "Left_Side_Opening_Multiplier": 0.0,
+        "Right_Side_Opening_Multiplier": 0.0,
+        "Angle_of_Resolution_for_Screen_Transmittance_Output_Map": 0,
+        "Schedule": None,
+        "Shading_Type": "ExteriorScreen",
+    }
+
+    params = DEFAULT_SCREEN.copy()
+
+    if description is not None:
+        params.update(description)
+
+    spacing = params["Screen_Material_Spacing"]
+    if spacing is None:
+        spacing = params["Pitch"]
+
+    diameter = params["Screen_Material_Diameter"]
+    if diameter is None:
+        diameter = spacing * (1 - np.sqrt(params["Perforation_Ratio"]))
+
+    screen_name = params["Name"]
+    construction_name = f"{screen_name}_CONSTRUCTION"
+
+    existing_screens = {
+        obj.Name
+        for obj in model.idf.idfobjects["WINDOWMATERIAL:SCREEN"]
+    }
+
+    if screen_name not in existing_screens:
+
+        model.idf.newidfobject(
+            "WINDOWMATERIAL:SCREEN",
+            Name=screen_name,
+            Reflected_Beam_Transmittance_Accounting_Method=params[
+                "Reflected_Beam_Transmittance_Accounting_Method"
+            ],
+            Diffuse_Solar_Reflectance=params["Diffuse_Solar_Reflectance"],
+            Diffuse_Visible_Reflectance=params["Diffuse_Visible_Reflectance"],
+            Thermal_Hemispherical_Emissivity=params[
+                "Thermal_Hemispherical_Emissivity"
+            ],
+            Conductivity=params["Conductivity"],
+            Screen_Material_Spacing=spacing,
+            Screen_Material_Diameter=diameter,
+            Screen_to_Glass_Distance=params["Screen_to_Glass_Distance"],
+            Top_Opening_Multiplier=params["Top_Opening_Multiplier"],
+            Bottom_Opening_Multiplier=params["Bottom_Opening_Multiplier"],
+            Left_Side_Opening_Multiplier=params["Left_Side_Opening_Multiplier"],
+            Right_Side_Opening_Multiplier=params["Right_Side_Opening_Multiplier"],
+            Angle_of_Resolution_for_Screen_Transmittance_Output_Map=params[
+                "Angle_of_Resolution_for_Screen_Transmittance_Output_Map"
+            ],
+        )
+
+    existing_constructions = {
+        obj.Name
+        for obj in model.idf.idfobjects["CONSTRUCTION"]
+    }
+
+    if construction_name not in existing_constructions:
+
+        model.idf.newidfobject(
+            "CONSTRUCTION",
+            Name=construction_name,
+            Outside_Layer=screen_name,
+        )
+
+    windows = [
+        window
+        for window in model.idf.idfobjects[
+            "FENESTRATIONSURFACE:DETAILED"
+        ]
+        if (
+            (
+                not window.Surface_Type
+                or window.Surface_Type.upper() == "WINDOW"
+            )
+            and _matches_filter(window.Name, name_filter)
+        )
+    ]
+
+    existing_controls = {
+        obj.Name: obj
+        for obj in model.idf.idfobjects[
+            "WINDOWSHADINGCONTROL"
+        ]
+    }
+
+    for window in windows:
+
+        control_name = (
+            f"{window.Name}_{screen_name}_control"
+        )
+
+        if control_name in existing_controls:
+
+            control = existing_controls[
+                control_name
+            ]
+
+        else:
+
+            control = model.idf.newidfobject(
+                "WINDOWSHADINGCONTROL",
+                Name=control_name,
+            )
+
+        control.Shading_Type = (
+            params["Shading_Type"]
+        )
+
+        control.Construction_with_Shading_Name = (
+            construction_name
+        )
+
+        control.Shading_Control_Type = (
+            "OnIfScheduleAllows"
+        )
+
+        if params["Schedule"] is not None:
+
+            control.Schedule_Name = (
+                params["Schedule"]
+            )
+
+        try:
+            control.Fenestration_Surface_1_Name = (
+                window.Name
+            )
+        except Exception:
+            pass
+
+
 def set_blind(
     model: Building,
     description: dict = None,

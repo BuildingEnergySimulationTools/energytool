@@ -30,6 +30,7 @@ from energytool.modifier import (
     set_shading_object,
     set_shade,
     set_blind,
+    set_screen,
     update_idf_objects,
     reverse_kwargs,
 )
@@ -1271,6 +1272,68 @@ class TestModifier:
         assert any(c.Name == "Window_0_DEFAULT_BLIND_control" for c in controls)
         assert any(c.Name == "Window_1_DEFAULT_BLIND_control" for c in controls)
         assert not any(c.Name == "Window_2_DEFAULT_BLIND_control" for c in controls)
+
+    def test_set_screen(self, toy_building):
+        # default screen on Window_0 only: diameter derived from
+        # Perforation_Ratio (0.30) and Pitch (0.01)
+        loc = deepcopy(toy_building)
+        set_screen(loc, name_filter="_0")
+
+        screens = loc.idf.idfobjects["WINDOWMATERIAL:SCREEN"]
+        default_screen = next((s for s in screens if s.Name == "DEFAULT_SCREEN"), None)
+        assert default_screen is not None
+        assert default_screen.Screen_Material_Spacing == pytest.approx(0.01)
+        assert default_screen.Screen_Material_Diameter == pytest.approx(
+            0.01 * (1 - 0.30 ** 0.5)
+        )
+        assert default_screen.Reflected_Beam_Transmittance_Accounting_Method == "ModelAsDiffuse"
+
+        assert "DEFAULT_SCREEN_CONSTRUCTION" in {c.Name for c in loc.idf.idfobjects["CONSTRUCTION"]}
+
+        controls = loc.idf.idfobjects["WINDOWSHADINGCONTROL"]
+        ctrl = next((c for c in controls if c.Name == "Window_0_DEFAULT_SCREEN_control"), None)
+        assert ctrl is not None
+        assert ctrl.Shading_Type == "ExteriorScreen"
+        assert ctrl.Construction_with_Shading_Name == "DEFAULT_SCREEN_CONSTRUCTION"
+        assert ctrl.Shading_Control_Type == "OnIfScheduleAllows"
+        assert not any(c.Name == "Window_1_DEFAULT_SCREEN_control" for c in controls)
+
+        # explicit native fields override the Perforation_Ratio/Pitch derivation
+        loc = deepcopy(toy_building)
+        set_screen(
+            loc,
+            description={
+                "Name": "PERFORATED_PANEL",
+                "Screen_Material_Spacing": 0.02,
+                "Screen_Material_Diameter": 0.015,
+                "Diffuse_Solar_Reflectance": 0.55,
+                "Schedule": "Shading_control_bis",
+            },
+            name_filter="_0",
+        )
+        screen = next(s for s in loc.idf.idfobjects["WINDOWMATERIAL:SCREEN"] if s.Name == "PERFORATED_PANEL")
+        assert screen.Screen_Material_Spacing == pytest.approx(0.02)
+        assert screen.Screen_Material_Diameter == pytest.approx(0.015)
+        assert screen.Diffuse_Solar_Reflectance == pytest.approx(0.55)
+        ctrl = next(
+            c for c in loc.idf.idfobjects["WINDOWSHADINGCONTROL"]
+            if c.Name == "Window_0_PERFORATED_PANEL_control"
+        )
+        assert ctrl.Schedule_Name == "Shading_control_bis"
+
+        # second call with same name reuses material, does not duplicate it
+        loc = deepcopy(toy_building)
+        set_screen(loc)
+        set_screen(loc)
+        assert sum(1 for s in loc.idf.idfobjects["WINDOWMATERIAL:SCREEN"] if s.Name == "DEFAULT_SCREEN") == 1
+
+        # list name_filter: Window_0 and Window_1 only
+        loc = deepcopy(toy_building)
+        set_screen(loc, name_filter=["_0", "_1"])
+        controls = loc.idf.idfobjects["WINDOWSHADINGCONTROL"]
+        assert any(c.Name == "Window_0_DEFAULT_SCREEN_control" for c in controls)
+        assert any(c.Name == "Window_1_DEFAULT_SCREEN_control" for c in controls)
+        assert not any(c.Name == "Window_2_DEFAULT_SCREEN_control" for c in controls)
 
     # def test_envelope_shades_modifier(self, toy_building):
     #     loc_toy = deepcopy(toy_building)
