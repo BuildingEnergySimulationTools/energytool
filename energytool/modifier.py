@@ -1,5 +1,6 @@
 from typing import Any, Union
 import numpy as np
+from eppy.modeleditor import IDF
 
 from energytool.base.idf_utils import get_objects_name_list
 from energytool.base.idfobject_utils import (
@@ -1987,89 +1988,9 @@ def _set_matrix_two_dimension(idf, name: str, array: np.ndarray) -> str:
     return name
 
 
-def set_complex_fenestration_state(
-    model: Building,
-    description: dict = None,
-    name_filter: Union[str, list[str]] = None,
-    surface_name_filter: Union[str, list[str]] = None,
-):
-    """
-    Assign a BSDF-based ``Construction:ComplexFenestrationState`` to matching
-    windows, built from externally supplied angular-scattering matrices.
-
-    EnergyPlus has no way to derive a BSDF from geometric or material
-    parameters: the angular transmittance/reflectance data must come from an
-    external optical calculation (e.g. LBNL WINDOW, ``pywincalc``, or
-    Radiance's ``genBSDF``), typically exported as one text matrix per
-    optical quantity. This modifier only assembles the resulting IDF objects
-    (``Matrix:TwoDimension``, ``WindowThermalModel:Params``,
-    ``Construction:ComplexFenestrationState``) from those files and
-    reassigns matching windows to the new construction.
-
-    Use this for shading geometries whose angular optical behaviour is not
-    well captured by a simple isotropic transmittance/reflectance (e.g.
-    ``set_shading_properties``) nor by the semi-empirical
-    ``WindowMaterial:Screen`` model (see :func:`set_screen`) — for instance
-    an irregular perforation pattern, a woven fabric, or a diagrid
-    brise-soleil.
-
-    Parameters
-    ----------
-    model : Building
-        EnergyTool Building object.
-    description : dict
-        Must contain:
-
-        - ``"Name"`` (str): name of the resulting
-          ``Construction:ComplexFenestrationState``.
-        - ``"Outside_Layer_Name"`` (str): name of an existing glazing
-          material or ``WindowMaterial:ComplexShade`` used as the outside
-          layer.
-        - ``"Basis_Matrix"``, ``"Solar_Front_Transmittance"``,
-          ``"Solar_Back_Reflectance"``, ``"Visible_Front_Transmittance"``,
-          ``"Visible_Back_Transmittance"``,
-          ``"Outside_Layer_Front_Absorptance"``,
-          ``"Outside_Layer_Back_Absorptance"`` (str or ``Path``): paths to
-          the corresponding angular matrix text files (one row per line,
-          whitespace- or ``Delimiter``-separated), each read with
-          :func:`numpy.loadtxt`.
-
-        Optional keys:
-
-        - ``"Delimiter"`` (str, default None): column delimiter used for all
-          matrix files (None = whitespace, as exported by LBNL WINDOW).
-        - ``"Basis_Type"`` (default ``"LBNLWINDOW"``) and
-          ``"Basis_Symmetry_Type"`` (default ``"None"``).
-        - ``"Window_Thermal_Model"``: either the name (str) of an existing
-          ``WindowThermalModel:Params`` object, or a dict (with a ``"Name"``
-          key plus any field to create/update it). If omitted, a default
-          ISO15099 model is created/reused.
-
-        Example::
-
-            {
-                "Name": "BSDF_PERFORATED_SCREEN",
-                "Outside_Layer_Name": "Perforated_Metal_Layer",
-                "Basis_Matrix": "bsdf/basis_klems_full.txt",
-                "Solar_Front_Transmittance": "bsdf/solar_tf.txt",
-                "Solar_Back_Reflectance": "bsdf/solar_rb.txt",
-                "Visible_Front_Transmittance": "bsdf/visible_tf.txt",
-                "Visible_Back_Transmittance": "bsdf/visible_tb.txt",
-                "Outside_Layer_Front_Absorptance": "bsdf/abs_front.txt",
-                "Outside_Layer_Back_Absorptance": "bsdf/abs_back.txt",
-            }
-
-    name_filter : str or list[str], optional
-        Forwarded to the window selection, matched against window names.
-    surface_name_filter : str or list[str], optional
-        Forwarded to the window selection, matched against the host
-        surface (``Building_Surface_Name``) names.
-    """
-    if description is None:
-        raise ValueError(
-            "description is required for set_complex_fenestration_state"
-        )
-
+def _build_complex_fenestration_from_matrices(model: Building, description: dict) -> str:
+    """Raw-matrices mode of :func:`set_complex_fenestration_state` — see its
+    docstring. Returns the resulting construction's Name."""
     if "Name" not in description:
         raise ValueError("description must provide 'Name'")
 
@@ -2161,15 +2082,248 @@ def set_complex_fenestration_state(
 
     idf.newidfobject("Construction:ComplexFenestrationState", **cfs_kwargs)
 
+    return state_name
+
+
+# Object types that make up a WINDOW "export to EnergyPlus (BSDF)" fragment.
+# Only these are migrated from an imported fragment file — everything else
+# (comments, a stray Version object, ...) is ignored.
+_BSDF_FRAGMENT_OBJECT_TYPES = [
+    "WindowMaterial:Glazing",
+    "WindowMaterial:Gas",
+    "WindowMaterial:GasMixture",
+    "WindowMaterial:Gap",
+    "WindowMaterial:ComplexShade",
+    "WindowMaterial:Blind",
+    "WindowThermalModel:Params",
+    "Matrix:TwoDimension",
+    "Construction:ComplexFenestrationState",
+]
+
+
+def _import_complex_fenestration_fragment(model: Building, idf_fragment_path) -> str:
+    """Import mode of :func:`set_complex_fenestration_state` — see its
+    docstring. Returns the resulting construction's Name."""
+    fragment_idf = IDF(str(idf_fragment_path))
+
+    states = fragment_idf.idfobjects["Construction:ComplexFenestrationState"]
+    if len(states) != 1:
+        raise ValueError(
+            f"Expected exactly one Construction:ComplexFenestrationState "
+            f"object in '{idf_fragment_path}', found {len(states)}."
+        )
+
+    idf = model.idf
+
+    fragment_objects = [
+        (obj_type, obj)
+        for obj_type in _BSDF_FRAGMENT_OBJECT_TYPES
+        for obj in fragment_idf.idfobjects[obj_type]
+    ]
+    # obj.Name is read (and, later, rewritten) in place, so the *original*
+    # name of each object must be captured up front.
+    original_names = {id(obj): obj.Name for _, obj in fragment_objects}
+
+    def normalized_values(obj):
+        return [str(value).strip() for value in obj.fieldvalues[1:]]
+
+    def rewrite_references(obj, rename_map):
+        # Field access by name (obj[field_name]) is O(n) in eppy (it
+        # searches fieldnames linearly), which is fine for small objects but
+        # pathological for a Matrix:TwoDimension with 20k+ fields. Working
+        # directly on the underlying value list (obj.obj, positionally
+        # aligned with obj.fieldnames) keeps this O(n) per object instead of
+        # O(n^2).
+        values = obj.obj
+        for i in range(1, len(values)):
+            value = values[i]
+            if (
+                isinstance(value, str)
+                and value in rename_map
+                and rename_map[value] != value
+            ):
+                values[i] = rename_map[value]
+
+    # For every fragment object, in dependency order (materials/gases/gaps/
+    # thermal models/matrices before the Construction:ComplexFenestrationState
+    # that references them — the order _BSDF_FRAGMENT_OBJECT_TYPES is built
+    # in): first rewrite any reference this object holds to an
+    # already-processed, renamed object, *then* decide whether this object
+    # itself can reuse an identically-named/valued object already in the
+    # model, needs a fresh (renamed) copy because the existing one differs,
+    # or is simply new. Rewriting before comparing is what makes the
+    # comparison meaningful for objects (like the CFS itself) that refer to
+    # other, possibly-renamed objects.
+    rename_map = {}
+    reuse_keys = set()
+
+    for obj_type, obj in fragment_objects:
+        rewrite_references(obj, rename_map)
+
+        name = original_names[id(obj)]
+        existing = idf.getobject(obj_type, name)
+
+        if existing is None:
+            rename_map[name] = name
+            continue
+
+        if normalized_values(existing) == normalized_values(obj):
+            rename_map[name] = name
+            reuse_keys.add((obj_type, name))
+            continue
+
+        candidate = name
+        suffix = 2
+        while (
+            idf.getobject(obj_type, candidate) is not None
+            or candidate in rename_map.values()
+        ):
+            candidate = f"{name}_{suffix}"
+            suffix += 1
+        rename_map[name] = candidate
+        obj.obj[1] = candidate
+
+    # Copy whatever isn't a pure reuse into the target model.
+    state_name = None
+    for obj_type, obj in fragment_objects:
+        name = original_names[id(obj)]
+
+        if (obj_type, name) in reuse_keys:
+            if obj_type == "Construction:ComplexFenestrationState":
+                state_name = obj.obj[1]
+            continue
+
+        # Same reasoning as above: bulk-copy the value list positionally
+        # (obj.objls, the field-name list, is identical for every object of
+        # the same type, so the two lists stay index-aligned) instead of
+        # setting each field by name.
+        new_obj = idf.newidfobject(obj_type)
+        new_obj.obj = list(obj.obj)
+
+        if obj_type == "Construction:ComplexFenestrationState":
+            state_name = new_obj.Name
+
+    return state_name
+
+
+def set_complex_fenestration_state(
+    model: Building,
+    description: dict = None,
+    idf_fragment_path=None,
+    name_filter: Union[str, list[str]] = None,
+    surface_name_filter: Union[str, list[str]] = None,
+):
+    """
+    Assign a BSDF-based ``Construction:ComplexFenestrationState`` to matching
+    windows, and return the resulting construction's ``Name``.
+
+    EnergyPlus has no way to derive a BSDF from geometric or material
+    parameters: the angular transmittance/reflectance data must come from an
+    external optical calculation. Exactly one of the following two inputs
+    must be given.
+
+    Mode 1 — ``idf_fragment_path`` (recommended for LBNL WINDOW users)
+    ---------------------------------------------------------------------
+    WINDOW's "Export to EnergyPlus (BSDF)" feature does not export raw
+    matrices: it exports a complete, ready-to-use IDF fragment already
+    containing ``WindowMaterial:Glazing``/``WindowMaterial:ComplexShade``/
+    ``WindowMaterial:Gas``/``WindowMaterial:Gap`` layers, a
+    ``WindowThermalModel:Params``, the ``Matrix:TwoDimension`` matrices and
+    the ``Construction:ComplexFenestrationState`` itself, all pre-computed
+    and mutually consistent. Passing that fragment's file path here loads it
+    and copies its objects into ``model``, exactly as WINDOW produced them —
+    no matrix math is redone.
+
+    The fragment must contain **exactly one**
+    ``Construction:ComplexFenestrationState``. Objects that already exist in
+    ``model`` under the same name are reused if their field values are
+    identical (the common case: several WINDOW exports for different
+    variants/orientations typically share the same glazing/gas layers), and
+    otherwise renamed on import (e.g. ``Glass_3083_Layer_2``) to avoid
+    silently overwriting a different, same-named object — including the
+    ``Construction:ComplexFenestrationState`` itself, so re-importing a
+    *modified* fragment under a name already used in ``model`` creates an
+    additional, renamed construction rather than replacing the existing one.
+
+    Only ``pywincalc``/WINDOW-style IDF fragments are supported this way. A
+    raw ``genBSDF``/Radiance BSDF XML file cannot be imported directly: it
+    only carries one broadband (visible) dataset with no EnergyPlus Basis
+    Matrix or layer absorptance data, so producing a correct
+    ``Construction:ComplexFenestrationState`` from it requires optical
+    calculations this modifier does not perform. Run it through WINDOW (or
+    ``pywincalc``) to obtain an IDF fragment first.
+
+    Mode 2 — ``description`` (raw matrix files)
+    ---------------------------------------------------------------------
+    For matrices computed independently of WINDOW (e.g. via a custom
+    ``pywincalc`` script), provide the individual matrix files directly.
+    ``description`` must contain:
+
+    - ``"Name"`` (str): name of the resulting
+      ``Construction:ComplexFenestrationState``.
+    - ``"Outside_Layer_Name"`` (str): name of an existing glazing
+      material or ``WindowMaterial:ComplexShade`` used as the outside
+      layer.
+    - ``"Basis_Matrix"``, ``"Solar_Front_Transmittance"``,
+      ``"Solar_Back_Reflectance"``, ``"Visible_Front_Transmittance"``,
+      ``"Visible_Back_Transmittance"``,
+      ``"Outside_Layer_Front_Absorptance"``,
+      ``"Outside_Layer_Back_Absorptance"`` (str or ``Path``): paths to
+      the corresponding angular matrix text files (one row per line,
+      whitespace- or ``Delimiter``-separated), each read with
+      :func:`numpy.loadtxt`.
+
+    Optional keys: ``"Delimiter"`` (default None = whitespace),
+    ``"Basis_Type"`` (default ``"LBNLWINDOW"``), ``"Basis_Symmetry_Type"``
+    (default ``"None"``), and ``"Window_Thermal_Model"`` (name of an
+    existing ``WindowThermalModel:Params``, or a dict to create/update one;
+    defaults to a shared ISO15099 model).
+
+    Parameters
+    ----------
+    model : Building
+        EnergyTool Building object.
+    description : dict, optional
+        Raw-matrices mode input — see above. Mutually exclusive with
+        ``idf_fragment_path``.
+    idf_fragment_path : str or Path, optional
+        Path to an IDF fragment exported by WINDOW — see above. Mutually
+        exclusive with ``description``.
+    name_filter : str or list[str], optional
+        Forwarded to the window selection, matched against window names.
+    surface_name_filter : str or list[str], optional
+        Forwarded to the window selection, matched against the host
+        surface (``Building_Surface_Name``) names.
+
+    Returns
+    -------
+    str
+        The ``Name`` of the ``Construction:ComplexFenestrationState`` that
+        matching windows were assigned to.
+    """
+    if (description is None) == (idf_fragment_path is None):
+        raise ValueError(
+            "set_complex_fenestration_state requires exactly one of "
+            "'description' (raw BSDF matrix files) or 'idf_fragment_path' "
+            "(an IDF fragment exported by WINDOW)."
+        )
+
+    if idf_fragment_path is not None:
+        state_name = _import_complex_fenestration_fragment(model, idf_fragment_path)
+    else:
+        state_name = _build_complex_fenestration_from_matrices(model, description)
+
     windows = [
         win
-        for win in idf.idfobjects["FenestrationSurface:Detailed"]
+        for win in model.idf.idfobjects["FenestrationSurface:Detailed"]
         if _matches_filter(win.Name, name_filter)
         and _matches_filter(win.Building_Surface_Name, surface_name_filter)
     ]
 
     for win in windows:
         win.Construction_Name = state_name
+
+    return state_name
 
 
 def set_blind(

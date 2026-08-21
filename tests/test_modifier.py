@@ -1417,6 +1417,152 @@ class TestModifier:
         )
         assert state2.Window_Thermal_Model == "MyThermalModel"
 
+    def _write_bsdf_fragment(
+        self,
+        path,
+        cfs_name="TestCFS",
+        glazing_name="TestGlazing",
+        glazing_transmittance=0.6,
+        gas_name="TestGas",
+        n_states=1,
+    ):
+        """
+        Build a minimal but structurally realistic "WINDOW export to
+        EnergyPlus (BSDF)" fragment: a glazing + a complex shade + a gas gap
+        + a thermal model + a couple of small Matrix:TwoDimension objects,
+        tied together by a Construction:ComplexFenestrationState - the same
+        object types/relationships a real WINDOW export produces, just with
+        tiny 2x2 matrices instead of a real 145x145 Klems basis.
+        """
+        frag = IDF(StringIO(""))
+        frag.idfname = None
+
+        frag.newidfobject(
+            "WindowMaterial:Glazing",
+            Name=glazing_name,
+            Optical_Data_Type="BSDF",
+            Solar_Transmittance_at_Normal_Incidence=glazing_transmittance,
+            Thickness=0.006,
+        )
+        frag.newidfobject("WindowMaterial:ComplexShade", Name="TestShade")
+        frag.newidfobject("WindowMaterial:Gas", Name=gas_name, Gas_Type="Air", Thickness=0.012)
+        frag.newidfobject("WindowMaterial:Gap", Name="TestGap", Thickness=0.012, Gas_or_Gas_Mixture="1")
+        frag.newidfobject(
+            "WindowThermalModel:Params", Name="TestThermalModel", standard="ISO15099"
+        )
+
+        for i in range(n_states):
+            suffix = "" if i == 0 else f"_{i}"
+            matrix_names = {}
+            for key in [
+                "Basis", "TfSol", "RbSol", "Tfvis", "Rbvis", "fAbs", "bAbs",
+            ]:
+                mname = f"{cfs_name}{suffix}_{key}"
+                frag.newidfobject(
+                    "Matrix:TwoDimension",
+                    Name=mname,
+                    Number_of_Rows=2,
+                    Number_of_Columns=2,
+                    Value_1=0.1, Value_2=0.2, Value_3=0.3, Value_4=0.4,
+                )
+                matrix_names[key] = mname
+
+            frag.newidfobject(
+                "Construction:ComplexFenestrationState",
+                Name=f"{cfs_name}{suffix}",
+                Basis_Type="LBNLWINDOW",
+                Basis_Symmetry_Type="None",
+                Window_Thermal_Model="TestThermalModel",
+                Basis_Matrix_Name=matrix_names["Basis"],
+                Solar_Optical_Complex_Front_Transmittance_Matrix_Name=matrix_names["TfSol"],
+                Solar_Optical_Complex_Back_Reflectance_Matrix_Name=matrix_names["RbSol"],
+                Visible_Optical_Complex_Front_Transmittance_Matrix_Name=matrix_names["Tfvis"],
+                Visible_Optical_Complex_Back_Transmittance_Matrix_Name=matrix_names["Rbvis"],
+                Outside_Layer_Name="TestShade",
+                Outside_Layer_Directional_Front_Absoptance_Matrix_Name=matrix_names["fAbs"],
+                Outside_Layer_Directional_Back_Absoptance_Matrix_Name=matrix_names["bAbs"],
+                Gap_1_Name="TestGap",
+                Layer_2_Name=glazing_name,
+            )
+
+        frag.saveas(str(path))
+        return path
+
+    def test_set_complex_fenestration_state_requires_one_input(self, toy_building):
+        loc = deepcopy(toy_building)
+        with pytest.raises(ValueError):
+            set_complex_fenestration_state(loc)
+        with pytest.raises(ValueError):
+            set_complex_fenestration_state(
+                loc, description={"Name": "X"}, idf_fragment_path="whatever.idf"
+            )
+
+    def test_set_complex_fenestration_state_from_idf_fragment(self, toy_building, tmp_path):
+        # a fragment with zero or several states is rejected
+        empty_path = tmp_path / "empty.idf"
+        IDF(StringIO("")).saveas(str(empty_path))
+        with pytest.raises(ValueError):
+            set_complex_fenestration_state(
+                deepcopy(toy_building), idf_fragment_path=str(empty_path)
+            )
+
+        two_states_path = self._write_bsdf_fragment(
+            tmp_path / "two_states.idf", cfs_name="TwoStates", n_states=2
+        )
+        with pytest.raises(ValueError):
+            set_complex_fenestration_state(
+                deepcopy(toy_building), idf_fragment_path=str(two_states_path)
+            )
+
+        # basic import: objects copied, window(s) reassigned
+        frag_path = self._write_bsdf_fragment(tmp_path / "frag.idf")
+        loc = deepcopy(toy_building)
+        state_name = set_complex_fenestration_state(
+            loc, idf_fragment_path=str(frag_path), name_filter="Window_0"
+        )
+        assert state_name == "TestCFS"
+        assert {o.Name for o in loc.idf.idfobjects["WINDOWMATERIAL:GLAZING"]} == {"TestGlazing"}
+        assert {o.Name for o in loc.idf.idfobjects["WINDOWMATERIAL:COMPLEXSHADE"]} == {"TestShade"}
+        assert len(loc.idf.idfobjects["MATRIX:TWODIMENSION"]) == 7
+        windows = {w.Name: w for w in loc.idf.idfobjects["FENESTRATIONSURFACE:DETAILED"]}
+        assert windows["Window_0"].Construction_Name == "TestCFS"
+        assert windows["Window_1"].Construction_Name != "TestCFS"
+
+        # re-importing the identical fragment is idempotent (no duplicates)
+        state_name_2 = set_complex_fenestration_state(
+            loc, idf_fragment_path=str(frag_path), name_filter="Window_0"
+        )
+        assert state_name_2 == "TestCFS"
+        assert len(loc.idf.idfobjects["CONSTRUCTION:COMPLEXFENESTRATIONSTATE"]) == 1
+        assert len(loc.idf.idfobjects["MATRIX:TWODIMENSION"]) == 7
+
+        # a sub-object that already exists with IDENTICAL values is reused,
+        # not duplicated, across two otherwise-different fragments
+        frag_path_2 = self._write_bsdf_fragment(
+            tmp_path / "frag2.idf", cfs_name="OtherCFS", glazing_name="TestGlazing",
+            glazing_transmittance=0.6,  # same value as frag_path's glazing
+        )
+        set_complex_fenestration_state(loc, idf_fragment_path=str(frag_path_2))
+        assert {o.Name for o in loc.idf.idfobjects["WINDOWMATERIAL:GLAZING"]} == {"TestGlazing"}
+        assert len(loc.idf.idfobjects["CONSTRUCTION:COMPLEXFENESTRATIONSTATE"]) == 2
+
+        # a genuine collision (same glazing name, different value) is
+        # auto-renamed, and the rename propagates to whatever references it
+        frag_path_3 = self._write_bsdf_fragment(
+            tmp_path / "frag3.idf", cfs_name="ThirdCFS", glazing_name="TestGlazing",
+            glazing_transmittance=0.15,  # different value -> forces a rename
+        )
+        set_complex_fenestration_state(loc, idf_fragment_path=str(frag_path_3))
+        glazing_names = {o.Name for o in loc.idf.idfobjects["WINDOWMATERIAL:GLAZING"]}
+        assert glazing_names == {"TestGlazing", "TestGlazing_2"}
+        renamed_glazing = loc.idf.getobject("WindowMaterial:Glazing", "TestGlazing_2")
+        assert renamed_glazing.Solar_Transmittance_at_Normal_Incidence == pytest.approx(0.15)
+        third_cfs = loc.idf.getobject("Construction:ComplexFenestrationState", "ThirdCFS")
+        assert third_cfs.Layer_2_Name == "TestGlazing_2"
+        # the original, untouched by the collision
+        original_glazing = loc.idf.getobject("WindowMaterial:Glazing", "TestGlazing")
+        assert original_glazing.Solar_Transmittance_at_Normal_Incidence == pytest.approx(0.6)
+
     # def test_envelope_shades_modifier(self, toy_building):
     #     loc_toy = deepcopy(toy_building)
     #
