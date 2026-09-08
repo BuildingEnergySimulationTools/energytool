@@ -30,6 +30,8 @@ from energytool.modifier import (
     set_shading_object,
     set_shade,
     set_blind,
+    set_screen,
+    set_complex_fenestration_state,
     update_idf_objects,
     reverse_kwargs,
 )
@@ -941,6 +943,92 @@ class TestModifier:
         with pytest.raises(ValueError):
             set_shading_geometry(deepcopy(toy_building), "invalid_type")
 
+        # --- horizontal_louvers: non-uniform Positions/Tilts override Spacing/Tilt ---
+        loc = deepcopy(toy_building)
+        set_shading_geometry(
+            loc,
+            "horizontal_louvers",
+            {"Positions": [0.0, 0.5, 1.0], "Tilts": [0, 30, 45]},
+            name_filter="_0",
+        )
+        louvers = {
+            s.Name: s
+            for s in loc.idf.idfobjects["Shading:Zone:Detailed"]
+            if "Window_0_horizontal_louver" in s.Name
+        }
+        assert len(louvers) == 3
+        # z_offset=0 -> top edge unchanged (z = 1.5)
+        assert louvers["Window_0_horizontal_louver_0"].Vertex_1_Zcoordinate == pytest.approx(1.5)
+        # z_offset=1.0 -> shifted down to the bottom edge (z = 0.5)
+        assert louvers["Window_0_horizontal_louver_2"].Vertex_1_Zcoordinate == pytest.approx(0.5)
+
+        # a scalar Tilts value applies to every louver
+        loc = deepcopy(toy_building)
+        set_shading_geometry(
+            loc,
+            "horizontal_louvers",
+            {"Positions": [0.0, 0.5], "Tilts": 30},
+            name_filter="_0",
+        )
+        louvers = [
+            s for s in loc.idf.idfobjects["Shading:Zone:Detailed"]
+            if "Window_0_horizontal_louver" in s.Name
+        ]
+        assert len(louvers) == 2
+
+        # --- vertical_louvers: non-uniform Positions override Spacing ---
+        loc = deepcopy(toy_building)
+        set_shading_geometry(
+            loc,
+            "vertical_louvers",
+            {"Positions": [0.1, 0.5, 0.9]},
+            name_filter="_0",
+        )
+        louvers = [
+            s for s in loc.idf.idfobjects["Shading:Zone:Detailed"]
+            if "Window_0_vertical_louver" in s.Name
+        ]
+        assert len(louvers) == 3
+
+        # --- eggcrate: crossed horizontal + vertical louvers, default params ---
+        loc = deepcopy(toy_building)
+        set_shading_geometry(loc, "eggcrate", name_filter="_0")
+        shading = loc.idf.idfobjects["Shading:Zone:Detailed"]
+        h_louvers = [s for s in shading if "Window_0_eggcrate_h" in s.Name]
+        v_louvers = [s for s in shading if "Window_0_eggcrate_v" in s.Name]
+        assert len(h_louvers) == 5  # same default spacing as horizontal_louvers
+        assert len(v_louvers) == 4  # same default spacing as vertical_louvers
+        assert not any(s.Name.startswith("Window_1_eggcrate") for s in shading)
+
+        # replacing an eggcrate removes the previous grid (idempotent)
+        set_shading_geometry(
+            loc, "eggcrate", {"Spacing_H": 0.5, "Spacing_V": 0.5}, name_filter="_0"
+        )
+        shading = loc.idf.idfobjects["Shading:Zone:Detailed"]
+        h_louvers = [s for s in shading if "Window_0_eggcrate_h" in s.Name]
+        v_louvers = [s for s in shading if "Window_0_eggcrate_v" in s.Name]
+        assert len(h_louvers) == 3  # arange(0, 1+1e-6, 0.5) -> 0, 0.5, 1.0
+        assert len(v_louvers) == 3  # margin=0 -> arange(0, 1+1e-6, 0.5) -> 0, 0.5, 1.0
+
+        # independent H/V depths and per-direction non-uniform positions
+        loc = deepcopy(toy_building)
+        set_shading_geometry(
+            loc,
+            "eggcrate",
+            {
+                "Depth_H": 0.3,
+                "Depth_V": 0.6,
+                "Positions_H": [0.0, 1.0],
+                "Positions_V": [0.2, 0.8],
+            },
+            name_filter="_0",
+        )
+        shading = loc.idf.idfobjects["Shading:Zone:Detailed"]
+        h_louvers = [s for s in shading if "Window_0_eggcrate_h" in s.Name]
+        v_louvers = [s for s in shading if "Window_0_eggcrate_v" in s.Name]
+        assert len(h_louvers) == 2
+        assert len(v_louvers) == 2
+
     def test_set_shading_properties(self, toy_building):
         # setup: one overhang on Window_0
         loc = deepcopy(toy_building)
@@ -1068,14 +1156,22 @@ class TestModifier:
         assert default_shade.Solar_Reflectance == pytest.approx(0.70)
         assert default_shade.Visible_Transmittance == pytest.approx(0.10)
 
-        assert "DEFAULT_SHADE_CONSTRUCTION" in {c.Name for c in loc.idf.idfobjects["CONSTRUCTION"]}
+        # the combined construction keeps Window_0's base glazing ("Ext_win_2")
+        # and, since Shading_Type defaults to "InteriorShade", adds the shade
+        # as the *innermost* layer rather than replacing the glazing outright
+        shaded_construction = loc.idf.getobject("Construction", "Construction_Ext_win_2_DEFAULT_SHADE")
+        assert shaded_construction is not None
+        assert shaded_construction.Outside_Layer == "Ext_win_2"
+        assert shaded_construction.Layer_2 == "DEFAULT_SHADE"
 
         controls = loc.idf.idfobjects["WINDOWSHADINGCONTROL"]
         ctrl = next((c for c in controls if c.Name == "Window_0_DEFAULT_SHADE_control"), None)
         assert ctrl is not None
+        assert ctrl.Zone_Name == "zone_0"
         assert ctrl.Shading_Type == "InteriorShade"
-        assert ctrl.Construction_with_Shading_Name == "DEFAULT_SHADE_CONSTRUCTION"
+        assert ctrl.Construction_with_Shading_Name == "Construction_Ext_win_2_DEFAULT_SHADE"
         assert ctrl.Shading_Control_Type == "OnIfScheduleAllows"
+        assert ctrl.Shading_Control_Is_Scheduled == "Yes"
         # Window_1 excluded by name_filter
         assert not any(c.Name == "Window_1_DEFAULT_SHADE_control" for c in controls)
 
@@ -1093,6 +1189,10 @@ class TestModifier:
         )
         shade = next(s for s in loc.idf.idfobjects["WINDOWMATERIAL:SHADE"] if s.Name == "MY_SHADE")
         assert shade.Solar_Transmittance == pytest.approx(0.05)
+        # ExteriorShade -> the shade is the *outermost* layer this time
+        exterior_shaded_construction = loc.idf.getobject("Construction", "Construction_Ext_win_2_MY_SHADE")
+        assert exterior_shaded_construction.Outside_Layer == "MY_SHADE"
+        assert exterior_shaded_construction.Layer_2 == "Ext_win_2"
         ctrl = next(
             c for c in loc.idf.idfobjects["WINDOWSHADINGCONTROL"]
             if c.Name == "Window_0_MY_SHADE_control"
@@ -1126,14 +1226,21 @@ class TestModifier:
         assert default_blind.Slat_Angle == pytest.approx(45)
         assert default_blind.Slat_Separation == pytest.approx(0.07)
 
-        assert "DEFAULT_BLIND_CONSTRUCTION" in {c.Name for c in loc.idf.idfobjects["CONSTRUCTION"]}
+        # ExteriorBlind (default Shading_Type) -> blind is the outermost layer,
+        # the window's base glazing ("Ext_win_2") is kept as the next layer
+        blind_construction = loc.idf.getobject("Construction", "Construction_Ext_win_2_DEFAULT_BLIND")
+        assert blind_construction is not None
+        assert blind_construction.Outside_Layer == "DEFAULT_BLIND"
+        assert blind_construction.Layer_2 == "Ext_win_2"
 
         controls = loc.idf.idfobjects["WINDOWSHADINGCONTROL"]
         ctrl = next((c for c in controls if c.Name == "Window_0_DEFAULT_BLIND_control"), None)
         assert ctrl is not None
+        assert ctrl.Zone_Name == "zone_0"
         assert ctrl.Shading_Type == "ExteriorBlind"  # default Shading_Type
-        assert ctrl.Construction_with_Shading_Name == "DEFAULT_BLIND_CONSTRUCTION"
+        assert ctrl.Construction_with_Shading_Name == "Construction_Ext_win_2_DEFAULT_BLIND"
         assert ctrl.Shading_Control_Type == "OnIfScheduleAllows"
+        assert ctrl.Shading_Control_Is_Scheduled == "Yes"
         assert not any(c.Name == "Window_1_DEFAULT_BLIND_control" for c in controls)
 
         # preset "venetian_indoor": InteriorBlind, Slat_Angle=45, reflectance=0.7
@@ -1185,6 +1292,302 @@ class TestModifier:
         assert any(c.Name == "Window_0_DEFAULT_BLIND_control" for c in controls)
         assert any(c.Name == "Window_1_DEFAULT_BLIND_control" for c in controls)
         assert not any(c.Name == "Window_2_DEFAULT_BLIND_control" for c in controls)
+
+    def test_set_screen(self, toy_building):
+        # default screen on Window_0 only: diameter derived from
+        # Perforation_Ratio (0.30) and Pitch (0.01)
+        loc = deepcopy(toy_building)
+        set_screen(loc, name_filter="_0")
+
+        screens = loc.idf.idfobjects["WINDOWMATERIAL:SCREEN"]
+        default_screen = next((s for s in screens if s.Name == "DEFAULT_SCREEN"), None)
+        assert default_screen is not None
+        assert default_screen.Screen_Material_Spacing == pytest.approx(0.01)
+        assert default_screen.Screen_Material_Diameter == pytest.approx(
+            0.01 * (1 - 0.30 ** 0.5)
+        )
+        assert default_screen.Reflected_Beam_Transmittance_Accounting_Method == "ModelAsDiffuse"
+
+        # ExteriorScreen -> the screen is the outermost layer, the window's
+        # base glazing ("Ext_win_2") is kept as the next layer
+        screen_construction = loc.idf.getobject("Construction", "Construction_Ext_win_2_DEFAULT_SCREEN")
+        assert screen_construction is not None
+        assert screen_construction.Outside_Layer == "DEFAULT_SCREEN"
+        assert screen_construction.Layer_2 == "Ext_win_2"
+
+        controls = loc.idf.idfobjects["WINDOWSHADINGCONTROL"]
+        ctrl = next((c for c in controls if c.Name == "Window_0_DEFAULT_SCREEN_control"), None)
+        assert ctrl is not None
+        assert ctrl.Zone_Name == "zone_0"
+        assert ctrl.Shading_Type == "ExteriorScreen"
+        assert ctrl.Construction_with_Shading_Name == "Construction_Ext_win_2_DEFAULT_SCREEN"
+        assert ctrl.Shading_Control_Type == "OnIfScheduleAllows"
+        assert ctrl.Shading_Control_Is_Scheduled == "Yes"
+        assert not any(c.Name == "Window_1_DEFAULT_SCREEN_control" for c in controls)
+
+        # explicit native fields override the Perforation_Ratio/Pitch derivation
+        loc = deepcopy(toy_building)
+        set_screen(
+            loc,
+            description={
+                "Name": "PERFORATED_PANEL",
+                "Screen_Material_Spacing": 0.02,
+                "Screen_Material_Diameter": 0.015,
+                "Diffuse_Solar_Reflectance": 0.55,
+                "Schedule": "Shading_control_bis",
+            },
+            name_filter="_0",
+        )
+        screen = next(s for s in loc.idf.idfobjects["WINDOWMATERIAL:SCREEN"] if s.Name == "PERFORATED_PANEL")
+        assert screen.Screen_Material_Spacing == pytest.approx(0.02)
+        assert screen.Screen_Material_Diameter == pytest.approx(0.015)
+        assert screen.Diffuse_Solar_Reflectance == pytest.approx(0.55)
+        ctrl = next(
+            c for c in loc.idf.idfobjects["WINDOWSHADINGCONTROL"]
+            if c.Name == "Window_0_PERFORATED_PANEL_control"
+        )
+        assert ctrl.Schedule_Name == "Shading_control_bis"
+
+        # second call with same name reuses material, does not duplicate it
+        loc = deepcopy(toy_building)
+        set_screen(loc)
+        set_screen(loc)
+        assert sum(1 for s in loc.idf.idfobjects["WINDOWMATERIAL:SCREEN"] if s.Name == "DEFAULT_SCREEN") == 1
+
+        # list name_filter: Window_0 and Window_1 only
+        loc = deepcopy(toy_building)
+        set_screen(loc, name_filter=["_0", "_1"])
+        controls = loc.idf.idfobjects["WINDOWSHADINGCONTROL"]
+        assert any(c.Name == "Window_0_DEFAULT_SCREEN_control" for c in controls)
+        assert any(c.Name == "Window_1_DEFAULT_SCREEN_control" for c in controls)
+        assert not any(c.Name == "Window_2_DEFAULT_SCREEN_control" for c in controls)
+
+    def test_set_complex_fenestration_state(self, toy_building, tmp_path):
+        # one small matrix file per required BSDF matrix (2x2, arbitrary values)
+        matrix_keys = [
+            "Basis_Matrix",
+            "Solar_Front_Transmittance",
+            "Solar_Back_Reflectance",
+            "Visible_Front_Transmittance",
+            "Visible_Back_Transmittance",
+            "Outside_Layer_Front_Absorptance",
+            "Outside_Layer_Back_Absorptance",
+        ]
+        matrix_paths = {}
+        for i, key in enumerate(matrix_keys):
+            path = tmp_path / f"{key}.txt"
+            path.write_text(f"{i}.0 {i}.1\n{i}.2 {i}.3\n")
+            matrix_paths[key] = str(path)
+
+        loc = deepcopy(toy_building)
+        description = {
+            "Name": "BSDF_TEST",
+            "Outside_Layer_Name": "Ext_win_1",
+            **matrix_paths,
+        }
+
+        set_complex_fenestration_state(loc, description, name_filter="Window_0")
+
+        # one Matrix:TwoDimension per matrix key, correctly sized/filled
+        matrices = {m.Name: m for m in loc.idf.idfobjects["MATRIX:TWODIMENSION"]}
+        basis_matrix = matrices["BSDF_TEST_Basis_Matrix"]
+        assert basis_matrix.Number_of_Rows == 2
+        assert basis_matrix.Number_of_Columns == 2
+        assert basis_matrix.Value_1 == pytest.approx(0.0)
+        assert basis_matrix.Value_4 == pytest.approx(0.3)
+        assert len(matrices) == len(matrix_keys)
+
+        # a default ISO15099 thermal model is created
+        thermal_models = loc.idf.idfobjects["WINDOWTHERMALMODEL:PARAMS"]
+        default_model = next(
+            (m for m in thermal_models if m.Name == "Default_CFS_Thermal_Model"), None
+        )
+        assert default_model is not None
+        assert default_model.standard == "ISO15099"
+
+        # the Construction:ComplexFenestrationState references the matrices
+        cfs = loc.idf.idfobjects["CONSTRUCTION:COMPLEXFENESTRATIONSTATE"]
+        state = next(c for c in cfs if c.Name == "BSDF_TEST")
+        assert state.Basis_Matrix_Name == "BSDF_TEST_Basis_Matrix"
+        assert state.Outside_Layer_Name == "Ext_win_1"
+        assert state.Window_Thermal_Model == "Default_CFS_Thermal_Model"
+
+        # only Window_0 is reassigned to the new construction
+        windows = {w.Name: w for w in loc.idf.idfobjects["FENESTRATIONSURFACE:DETAILED"]}
+        assert windows["Window_0"].Construction_Name == "BSDF_TEST"
+        assert windows["Window_1"].Construction_Name != "BSDF_TEST"
+
+        # missing a required matrix key raises ValueError
+        incomplete = {k: v for k, v in description.items() if k != "Solar_Front_Transmittance"}
+        with pytest.raises(ValueError):
+            set_complex_fenestration_state(deepcopy(toy_building), incomplete)
+
+        # missing Outside_Layer_Name raises ValueError
+        no_layer = {k: v for k, v in description.items() if k != "Outside_Layer_Name"}
+        with pytest.raises(ValueError):
+            set_complex_fenestration_state(deepcopy(toy_building), no_layer)
+
+        # an explicit, existing Window_Thermal_Model name is reused as-is
+        loc2 = deepcopy(toy_building)
+        loc2.idf.newidfobject(
+            "WindowThermalModel:Params", Name="MyThermalModel", standard="EN673Design"
+        )
+        set_complex_fenestration_state(
+            loc2,
+            {**description, "Window_Thermal_Model": "MyThermalModel"},
+            name_filter="Window_0",
+        )
+        state2 = next(
+            c for c in loc2.idf.idfobjects["CONSTRUCTION:COMPLEXFENESTRATIONSTATE"]
+            if c.Name == "BSDF_TEST"
+        )
+        assert state2.Window_Thermal_Model == "MyThermalModel"
+
+    def _write_bsdf_fragment(
+        self,
+        path,
+        cfs_name="TestCFS",
+        glazing_name="TestGlazing",
+        glazing_transmittance=0.6,
+        gas_name="TestGas",
+        n_states=1,
+    ):
+        """
+        Build a minimal but structurally realistic "WINDOW export to
+        EnergyPlus (BSDF)" fragment: a glazing + a complex shade + a gas gap
+        + a thermal model + a couple of small Matrix:TwoDimension objects,
+        tied together by a Construction:ComplexFenestrationState - the same
+        object types/relationships a real WINDOW export produces, just with
+        tiny 2x2 matrices instead of a real 145x145 Klems basis.
+        """
+        frag = IDF(StringIO(""))
+        frag.idfname = None
+
+        frag.newidfobject(
+            "WindowMaterial:Glazing",
+            Name=glazing_name,
+            Optical_Data_Type="BSDF",
+            Solar_Transmittance_at_Normal_Incidence=glazing_transmittance,
+            Thickness=0.006,
+        )
+        frag.newidfobject("WindowMaterial:ComplexShade", Name="TestShade")
+        frag.newidfobject("WindowMaterial:Gas", Name=gas_name, Gas_Type="Air", Thickness=0.012)
+        frag.newidfobject("WindowMaterial:Gap", Name="TestGap", Thickness=0.012, Gas_or_Gas_Mixture="1")
+        frag.newidfobject(
+            "WindowThermalModel:Params", Name="TestThermalModel", standard="ISO15099"
+        )
+
+        for i in range(n_states):
+            suffix = "" if i == 0 else f"_{i}"
+            matrix_names = {}
+            for key in [
+                "Basis", "TfSol", "RbSol", "Tfvis", "Rbvis", "fAbs", "bAbs",
+            ]:
+                mname = f"{cfs_name}{suffix}_{key}"
+                frag.newidfobject(
+                    "Matrix:TwoDimension",
+                    Name=mname,
+                    Number_of_Rows=2,
+                    Number_of_Columns=2,
+                    Value_1=0.1, Value_2=0.2, Value_3=0.3, Value_4=0.4,
+                )
+                matrix_names[key] = mname
+
+            frag.newidfobject(
+                "Construction:ComplexFenestrationState",
+                Name=f"{cfs_name}{suffix}",
+                Basis_Type="LBNLWINDOW",
+                Basis_Symmetry_Type="None",
+                Window_Thermal_Model="TestThermalModel",
+                Basis_Matrix_Name=matrix_names["Basis"],
+                Solar_Optical_Complex_Front_Transmittance_Matrix_Name=matrix_names["TfSol"],
+                Solar_Optical_Complex_Back_Reflectance_Matrix_Name=matrix_names["RbSol"],
+                Visible_Optical_Complex_Front_Transmittance_Matrix_Name=matrix_names["Tfvis"],
+                Visible_Optical_Complex_Back_Transmittance_Matrix_Name=matrix_names["Rbvis"],
+                Outside_Layer_Name="TestShade",
+                Outside_Layer_Directional_Front_Absoptance_Matrix_Name=matrix_names["fAbs"],
+                Outside_Layer_Directional_Back_Absoptance_Matrix_Name=matrix_names["bAbs"],
+                Gap_1_Name="TestGap",
+                Layer_2_Name=glazing_name,
+            )
+
+        frag.saveas(str(path))
+        return path
+
+    def test_set_complex_fenestration_state_requires_one_input(self, toy_building):
+        loc = deepcopy(toy_building)
+        with pytest.raises(ValueError):
+            set_complex_fenestration_state(loc)
+        with pytest.raises(ValueError):
+            set_complex_fenestration_state(
+                loc, description={"Name": "X"}, idf_fragment_path="whatever.idf"
+            )
+
+    def test_set_complex_fenestration_state_from_idf_fragment(self, toy_building, tmp_path):
+        # a fragment with zero or several states is rejected
+        empty_path = tmp_path / "empty.idf"
+        IDF(StringIO("")).saveas(str(empty_path))
+        with pytest.raises(ValueError):
+            set_complex_fenestration_state(
+                deepcopy(toy_building), idf_fragment_path=str(empty_path)
+            )
+
+        two_states_path = self._write_bsdf_fragment(
+            tmp_path / "two_states.idf", cfs_name="TwoStates", n_states=2
+        )
+        with pytest.raises(ValueError):
+            set_complex_fenestration_state(
+                deepcopy(toy_building), idf_fragment_path=str(two_states_path)
+            )
+
+        # basic import: objects copied, window(s) reassigned
+        frag_path = self._write_bsdf_fragment(tmp_path / "frag.idf")
+        loc = deepcopy(toy_building)
+        state_name = set_complex_fenestration_state(
+            loc, idf_fragment_path=str(frag_path), name_filter="Window_0"
+        )
+        assert state_name == "TestCFS"
+        assert {o.Name for o in loc.idf.idfobjects["WINDOWMATERIAL:GLAZING"]} == {"TestGlazing"}
+        assert {o.Name for o in loc.idf.idfobjects["WINDOWMATERIAL:COMPLEXSHADE"]} == {"TestShade"}
+        assert len(loc.idf.idfobjects["MATRIX:TWODIMENSION"]) == 7
+        windows = {w.Name: w for w in loc.idf.idfobjects["FENESTRATIONSURFACE:DETAILED"]}
+        assert windows["Window_0"].Construction_Name == "TestCFS"
+        assert windows["Window_1"].Construction_Name != "TestCFS"
+
+        # re-importing the identical fragment is idempotent (no duplicates)
+        state_name_2 = set_complex_fenestration_state(
+            loc, idf_fragment_path=str(frag_path), name_filter="Window_0"
+        )
+        assert state_name_2 == "TestCFS"
+        assert len(loc.idf.idfobjects["CONSTRUCTION:COMPLEXFENESTRATIONSTATE"]) == 1
+        assert len(loc.idf.idfobjects["MATRIX:TWODIMENSION"]) == 7
+
+        # a sub-object that already exists with IDENTICAL values is reused,
+        # not duplicated, across two otherwise-different fragments
+        frag_path_2 = self._write_bsdf_fragment(
+            tmp_path / "frag2.idf", cfs_name="OtherCFS", glazing_name="TestGlazing",
+            glazing_transmittance=0.6,  # same value as frag_path's glazing
+        )
+        set_complex_fenestration_state(loc, idf_fragment_path=str(frag_path_2))
+        assert {o.Name for o in loc.idf.idfobjects["WINDOWMATERIAL:GLAZING"]} == {"TestGlazing"}
+        assert len(loc.idf.idfobjects["CONSTRUCTION:COMPLEXFENESTRATIONSTATE"]) == 2
+
+        # a genuine collision (same glazing name, different value) is
+        # auto-renamed, and the rename propagates to whatever references it
+        frag_path_3 = self._write_bsdf_fragment(
+            tmp_path / "frag3.idf", cfs_name="ThirdCFS", glazing_name="TestGlazing",
+            glazing_transmittance=0.15,  # different value -> forces a rename
+        )
+        set_complex_fenestration_state(loc, idf_fragment_path=str(frag_path_3))
+        glazing_names = {o.Name for o in loc.idf.idfobjects["WINDOWMATERIAL:GLAZING"]}
+        assert glazing_names == {"TestGlazing", "TestGlazing_2"}
+        renamed_glazing = loc.idf.getobject("WindowMaterial:Glazing", "TestGlazing_2")
+        assert renamed_glazing.Solar_Transmittance_at_Normal_Incidence == pytest.approx(0.15)
+        third_cfs = loc.idf.getobject("Construction:ComplexFenestrationState", "ThirdCFS")
+        assert third_cfs.Layer_2_Name == "TestGlazing_2"
+        # the original, untouched by the collision
+        original_glazing = loc.idf.getobject("WindowMaterial:Glazing", "TestGlazing")
+        assert original_glazing.Solar_Transmittance_at_Normal_Incidence == pytest.approx(0.6)
 
     # def test_envelope_shades_modifier(self, toy_building):
     #     loc_toy = deepcopy(toy_building)

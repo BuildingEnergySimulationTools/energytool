@@ -1,5 +1,6 @@
 from typing import Any, Union
 import numpy as np
+from eppy.modeleditor import IDF
 
 from energytool.base.idf_utils import get_objects_name_list
 from energytool.base.idfobject_utils import (
@@ -16,6 +17,70 @@ def _matches_filter(name: str, name_filter: Union[str, list, None]) -> bool:
     if isinstance(name_filter, list):
         return any(f in name for f in name_filter)
     return name_filter in name
+
+
+def _get_window_zone_name(idf, window) -> str:
+    """A ``FenestrationSurface:Detailed`` has no ``Zone_Name`` field of its
+    own: it belongs to the zone of its host ``BuildingSurface:Detailed``
+    (``Building_Surface_Name``). ``WindowShadingControl`` requires a
+    ``Zone_Name`` — resolve it through the host surface."""
+    host_surface = idf.getobject(
+        "BuildingSurface:Detailed", window.Building_Surface_Name
+    )
+    return getattr(host_surface, "Zone_Name", "") if host_surface is not None else ""
+
+
+def _build_shaded_construction(idf, window, shading_material_name, shading_type, name_hint):
+    """
+    Build (or reuse) the full window construction referenced by a
+    ``WindowShadingControl``'s ``Construction_with_Shading_Name``: the
+    window's *current* base construction with ``shading_material_name``
+    added as an extra layer.
+
+    EnergyPlus infers interior/exterior/between-glass shading purely from
+    where that layer sits in the construction's layer list — a single-layer
+    construction made of just the shading material (as if it replaced the
+    glazing outright) is invalid and won't have a sensible U-factor. The
+    layer is positioned according to ``shading_type``:
+
+    - ``Exterior*`` — outermost layer (``Outside_Layer``).
+    - ``Interior*`` — innermost layer (last).
+    - anything else (``BetweenGlassBlind``/``BetweenGlassShade``,
+      ``SwitchableGlazing``, ...) — inserted after the first base layer, a
+      reasonable approximation for a typical double-glazed base
+      construction; build the construction by hand for anything more
+      specific.
+
+    Returns the resulting ``Construction``'s ``Name``. Raises ``ValueError``
+    if the window's current ``Construction_Name`` does not resolve to an
+    existing ``Construction``.
+    """
+    base_construction = idf.getobject("Construction", window.Construction_Name)
+    if base_construction is None:
+        raise ValueError(
+            f"Window '{window.Name}' references an unknown Construction "
+            f"'{window.Construction_Name}'; cannot attach "
+            f"'{shading_material_name}' to it."
+        )
+
+    base_layers = [value for value in base_construction.fieldvalues[2:] if value]
+
+    if shading_type.upper().startswith("EXTERIOR"):
+        layers = [shading_material_name] + base_layers
+    elif shading_type.upper().startswith("INTERIOR"):
+        layers = base_layers + [shading_material_name]
+    else:
+        layers = base_layers[:1] + [shading_material_name] + base_layers[1:]
+
+    construction_name = f"{window.Construction_Name}_{name_hint}"
+
+    if idf.getobject("Construction", construction_name) is None:
+        kwargs = {"Name": construction_name, "Outside_Layer": layers[0]}
+        for idx, layer in enumerate(layers[1:]):
+            kwargs[f"Layer_{idx + 2}"] = layer
+        idf.newidfobject("Construction", **kwargs)
+
+    return construction_name
 
 
 def reverse_kwargs(construction_kwargs):
@@ -835,15 +900,48 @@ def set_shading_geometry(
 
         - ``Depth`` (m, default 0.5): depth of each louver.
         - ``Spacing`` (m, default 0.25): vertical distance between louvers.
+          Ignored if ``Positions`` is provided.
         - ``Tilt`` (°, default 0): tilt of the louvers (0 = horizontal plane).
+          Ignored (per-louver) if ``Tilts`` is provided.
         - ``Offset`` (m, default 0): horizontal gap between the louver and the wall.
+        - ``Positions`` (list[m], default None): explicit vertical offsets
+          (measured downward from the top edge of the window) at which to
+          place each louver.  Overrides ``Spacing`` and allows a non-uniform
+          (e.g. denser near eye level) distribution.
+        - ``Tilts`` (float or list[°], default None): per-louver tilt angle(s).
+          A single value applies to every louver; a list must match the
+          number of louvers (either ``len(Positions)`` or the number derived
+          from ``Spacing``). Overrides ``Tilt``.
 
     ``"vertical_louvers"``
         Vertical slats distributed over the window width.
 
         - ``Depth`` (m, default 0.5): depth of each louver.
         - ``Spacing`` (m, default 0.30): horizontal distance between louvers.
+          Ignored if ``Positions`` is provided.
         - ``Tilt`` (°, default 0): tilt of the louvers (0 = perpendicular to wall).
+          Ignored (per-louver) if ``Tilts`` is provided.
+        - ``Positions`` (list[m], default None): explicit horizontal offsets
+          (measured from the left edge of the window) at which to place each
+          louver. Overrides ``Spacing``.
+        - ``Tilts`` (float or list[°], default None): per-louver tilt angle(s),
+          same semantics as for ``"horizontal_louvers"``. Overrides ``Tilt``.
+
+    ``"eggcrate"``
+        Crossed grid of horizontal and vertical louvers (a "caisson" /
+        egg-crate brise-soleil), combining both patterns above on the same
+        window. Each direction has its own independent parameters, suffixed
+        ``_H`` (horizontal louvers) and ``_V`` (vertical louvers):
+
+        - ``Depth_H``, ``Spacing_H``, ``Tilt_H``, ``Offset_H``,
+          ``Positions_H``, ``Tilts_H`` — same meaning as the corresponding
+          keys of ``"horizontal_louvers"``.
+        - ``Depth_V``, ``Spacing_V``, ``Tilt_V``, ``Positions_V``,
+          ``Tilts_V`` — same meaning as the corresponding keys of
+          ``"vertical_louvers"``.
+
+        Defaults: ``Depth_H=Depth_V=0.5``, ``Spacing_H=0.25``,
+        ``Spacing_V=0.30``, ``Tilt_H=Tilt_V=0``, ``Offset_H=0``.
 
     Parameters
     ----------
@@ -852,7 +950,7 @@ def set_shading_geometry(
     shading_type : str
         Type of shading geometry to create.  Must be one of
         ``"overhang"``, ``"sidefins"``, ``"horizontal_louvers"``,
-        ``"vertical_louvers"``.
+        ``"vertical_louvers"``, ``"eggcrate"``.
     description : dict, optional
         Parameter overrides for the chosen shading type.
         Only keys that exist in the default parameters are meaningful.
@@ -880,11 +978,28 @@ def set_shading_geometry(
             "Spacing": 0.25,
             "Tilt": 0,
             "Offset": 0,
+            "Positions": None,
+            "Tilts": None,
         },
         "vertical_louvers": {
             "Depth": 0.5,
             "Spacing": 0.30,
             "Tilt": 0,
+            "Positions": None,
+            "Tilts": None,
+        },
+        "eggcrate": {
+            "Depth_H": 0.5,
+            "Spacing_H": 0.25,
+            "Tilt_H": 0,
+            "Offset_H": 0,
+            "Positions_H": None,
+            "Tilts_H": None,
+            "Depth_V": 0.5,
+            "Spacing_V": 0.30,
+            "Tilt_V": 0,
+            "Positions_V": None,
+            "Tilts_V": None,
         },
     }
 
@@ -995,13 +1110,125 @@ def set_shading_geometry(
             **kwargs,
         )
 
+    def create_horizontal_louvers(
+            depth,
+            spacing,
+            tilt,
+            offset,
+            positions,
+            tilts,
+            top_1,
+            top_2,
+            height,
+            normal,
+            name_prefix,
+            base_surface_name,
+    ):
+        vertical = np.array([0.0, 0.0, 1.0])
+
+        if positions is not None:
+            z_positions = np.asarray(positions, dtype=float)
+        else:
+            z_positions = np.arange(0, height + 1e-6, spacing)
+
+        if tilts is not None:
+            tilt_values = (
+                [tilts] * len(z_positions)
+                if np.isscalar(tilts)
+                else list(tilts)
+            )
+        else:
+            tilt_values = [tilt] * len(z_positions)
+
+        for i, (z_offset, tilt_deg) in enumerate(zip(z_positions, tilt_values)):
+            tilt_rad = np.deg2rad(tilt_deg)
+            louver_direction = (
+                    np.cos(tilt_rad) * normal
+                    - np.sin(tilt_rad) * vertical
+            )
+
+            p1_louver = top_1 - np.array([0, 0, z_offset]) + offset * normal
+            p2_louver = top_2 - np.array([0, 0, z_offset]) + offset * normal
+
+            q1 = p1_louver + depth * louver_direction
+            q2 = p2_louver + depth * louver_direction
+
+            create_shading_surface(
+                f"{name_prefix}_{i}",
+                [p1_louver, p2_louver, q2, q1],
+                base_surface_name,
+            )
+
+    def create_vertical_louvers(
+            depth,
+            spacing,
+            tilt,
+            positions,
+            tilts,
+            top_1,
+            top_2,
+            bottom_1,
+            width,
+            normal,
+            name_prefix,
+            base_surface_name,
+    ):
+        edge_vector = top_2 - top_1
+        edge_vector = edge_vector / np.linalg.norm(edge_vector)
+
+        horizontal_normal = normal.copy()
+        horizontal_normal[2] = 0.0
+        horizontal_normal /= np.linalg.norm(horizontal_normal)
+
+        vertical = np.array([0.0, 0.0, 1.0])
+        local_right = np.cross(vertical, horizontal_normal)
+        local_right /= np.linalg.norm(local_right)
+
+        if positions is not None:
+            x_positions = np.asarray(positions, dtype=float)
+        else:
+            n_louvers = int(np.floor(width / spacing))
+            occupied_width = n_louvers * spacing
+            margin = (width - occupied_width) / 2
+            x_positions = np.arange(margin, width - margin + 1e-6, spacing)
+
+        if tilts is not None:
+            tilt_values = (
+                [tilts] * len(x_positions)
+                if np.isscalar(tilts)
+                else list(tilts)
+            )
+        else:
+            tilt_values = [tilt] * len(x_positions)
+
+        for i, (x_offset, tilt_deg) in enumerate(zip(x_positions, tilt_values)):
+            tilt_rad = np.deg2rad(tilt_deg)
+            louver_direction = (
+                    np.cos(tilt_rad) * horizontal_normal
+                    + np.sin(tilt_rad) * local_right
+            )
+
+            offset_vector = x_offset * edge_vector
+
+            p_bottom = bottom_1 + offset_vector
+            p_top = top_1 + offset_vector
+
+            q_bottom = p_bottom + depth * louver_direction
+            q_top = p_top + depth * louver_direction
+
+            create_shading_surface(
+                f"{name_prefix}_{i}",
+                [p_bottom, q_bottom, q_top, p_top],
+                base_surface_name,
+            )
+
     for window in windows:
         delete_existing_shading(window.Name)
         vertices = get_vertices(window)
         p1, p2, p3, p4 = vertices
 
         normal = get_outward_normal(vertices)
-        depth = params["Depth"]
+        depth = params.get("Depth")
 
         top_1, top_2 = get_top_edge(vertices)
         bottom_1, bottom_2 = get_bottom_edge(vertices)
@@ -1087,138 +1314,69 @@ def set_shading_geometry(
 
         elif shading_type == "horizontal_louvers":
 
-            spacing = params["Spacing"]
-            offset = params["Offset"]
-            tilt = np.deg2rad(params["Tilt"])
-
-            vertical = np.array([0.0, 0.0, 1.0])
-
-            louver_direction = (
-                    np.cos(tilt) * normal
-                    - np.sin(tilt) * vertical
+            create_horizontal_louvers(
+                depth=params["Depth"],
+                spacing=params["Spacing"],
+                tilt=params["Tilt"],
+                offset=params["Offset"],
+                positions=params.get("Positions"),
+                tilts=params.get("Tilts"),
+                top_1=top_1,
+                top_2=top_2,
+                height=height,
+                normal=normal,
+                name_prefix=f"{window.Name}_horizontal_louver",
+                base_surface_name=window.Building_Surface_Name,
             )
-
-            z_positions = np.arange(
-                0,
-                height + 1e-6,
-                spacing,
-            )
-
-            for i, z_offset in enumerate(z_positions):
-                p1_louver = (
-                        top_1
-                        - np.array([0, 0, z_offset])
-                        + offset * normal
-                )
-
-                p2_louver = (
-                        top_2
-                        - np.array([0, 0, z_offset])
-                        + offset * normal
-                )
-
-                q1 = (
-                        p1_louver
-                        + depth * louver_direction
-                )
-
-                q2 = (
-                        p2_louver
-                        + depth * louver_direction
-                )
-
-                create_shading_surface(
-                    f"{window.Name}_horizontal_louver_{i}",
-                    [
-                        p1_louver,
-                        p2_louver,
-                        q2,
-                        q1,
-                    ],
-                    window.Building_Surface_Name,
-                )
 
         elif shading_type == "vertical_louvers":
 
-            spacing = params["Spacing"]
-            tilt = np.deg2rad(params["Tilt"])
-
-            edge_vector = top_2 - top_1
-            edge_vector /= np.linalg.norm(edge_vector)
-
-            horizontal_normal = normal.copy()
-            horizontal_normal[2] = 0.0
-            horizontal_normal /= np.linalg.norm(horizontal_normal)
-
-            vertical = np.array(
-                [0.0, 0.0, 1.0]
+            create_vertical_louvers(
+                depth=params["Depth"],
+                spacing=params["Spacing"],
+                tilt=params["Tilt"],
+                positions=params.get("Positions"),
+                tilts=params.get("Tilts"),
+                top_1=top_1,
+                top_2=top_2,
+                bottom_1=bottom_1,
+                width=width,
+                normal=normal,
+                name_prefix=f"{window.Name}_vertical_louver",
+                base_surface_name=window.Building_Surface_Name,
             )
 
-            local_right = np.cross(
-                vertical,
-                horizontal_normal,
-            )
-            local_right /= np.linalg.norm(local_right)
+        elif shading_type == "eggcrate":
 
-            louver_direction = (
-                    np.cos(tilt) * horizontal_normal
-                    + np.sin(tilt) * local_right
-            )
-
-            n_louvers = int(
-                np.floor(width / spacing)
-            )
-
-            occupied_width = (
-                    n_louvers * spacing
+            create_horizontal_louvers(
+                depth=params["Depth_H"],
+                spacing=params["Spacing_H"],
+                tilt=params["Tilt_H"],
+                offset=params["Offset_H"],
+                positions=params.get("Positions_H"),
+                tilts=params.get("Tilts_H"),
+                top_1=top_1,
+                top_2=top_2,
+                height=height,
+                normal=normal,
+                name_prefix=f"{window.Name}_eggcrate_h",
+                base_surface_name=window.Building_Surface_Name,
             )
 
-            margin = (
-                             width - occupied_width
-                     ) / 2
-
-            x_positions = np.arange(
-                margin,
-                width - margin + 1e-6,
-                spacing,
+            create_vertical_louvers(
+                depth=params["Depth_V"],
+                spacing=params["Spacing_V"],
+                tilt=params["Tilt_V"],
+                positions=params.get("Positions_V"),
+                tilts=params.get("Tilts_V"),
+                top_1=top_1,
+                top_2=top_2,
+                bottom_1=bottom_1,
+                width=width,
+                normal=normal,
+                name_prefix=f"{window.Name}_eggcrate_v",
+                base_surface_name=window.Building_Surface_Name,
             )
-
-            for i, x_offset in enumerate(x_positions):
-                offset_vector = (
-                        x_offset
-                        * edge_vector
-                )
-
-                p_bottom = (
-                        bottom_1
-                        + offset_vector
-                )
-
-                p_top = (
-                        top_1
-                        + offset_vector
-                )
-
-                q_bottom = (
-                        p_bottom
-                        + depth * louver_direction
-                )
-
-                q_top = (
-                        p_top
-                        + depth * louver_direction
-                )
-
-                create_shading_surface(
-                    f"{window.Name}_vertical_louver_{i}",
-                    [
-                        p_bottom,
-                        q_bottom,
-                        q_top,
-                        p_top,
-                    ],
-                    window.Building_Surface_Name,
-                )
 
 
 def set_shading_properties(
@@ -1519,7 +1677,6 @@ def set_shade(
         params.update(description)
 
     shade_name = params["Name"]
-    construction_name = f"{shade_name}_CONSTRUCTION"
 
     existing_shades = {
         obj.Name
@@ -1540,19 +1697,6 @@ def set_shade(
             ],
             Thickness=params["Thickness"],
             Conductivity=params["Conductivity"],
-        )
-
-    existing_constructions = {
-        obj.Name
-        for obj in model.idf.idfobjects["CONSTRUCTION"]
-    }
-
-    if construction_name not in existing_constructions:
-
-        model.idf.newidfobject(
-            "CONSTRUCTION",
-            Name=construction_name,
-            Outside_Layer=shade_name,
         )
 
     windows = [
@@ -1596,20 +1740,22 @@ def set_shade(
             )
 
         control.Zone_Name = (
-            getattr(window, "Zone_Name", "")
+            _get_window_zone_name(model.idf, window)
         )
 
         control.Shading_Type = (
             params["Shading_Type"]
         )
 
-        control.Construction_with_Shading_Name = (
-            construction_name
+        control.Construction_with_Shading_Name = _build_shaded_construction(
+            model.idf, window, shade_name, params["Shading_Type"], shade_name
         )
 
         control.Shading_Control_Type = (
             "OnIfScheduleAllows"
         )
+
+        control.Shading_Control_Is_Scheduled = "Yes"
 
         if params["Schedule"] is not None:
 
@@ -1623,6 +1769,606 @@ def set_shade(
             )
         except Exception:
             pass
+
+
+def set_screen(
+    model: Building,
+    description: dict = None,
+    name_filter: Union[str, list[str]] = None,
+):
+    """
+    Attach a perforated screen material (e.g. perforated sheet metal) to
+    windows via a ``WindowShadingControl``.
+
+    Creates a ``WindowMaterial:Screen`` and an associated construction, then
+    assigns a ``WindowShadingControl`` (type ``OnIfScheduleAllows`` by
+    default, screen type ``ExteriorScreen``) to each matching window.
+    Existing screen material and construction objects are reused if their
+    names already exist in the IDF.
+
+    Unlike ``WindowMaterial:Shade``/``WindowMaterial:Blind``, a screen's
+    optical properties come from its physical perforation pattern (wire/hole
+    ``Diameter`` and ``Spacing``) rather than a flat transmittance value.
+    This models the homogenized porosity of a perforated panel; it does not
+    represent the panel's own geometry (use :func:`set_shading_geometry`
+    with ``"eggcrate"`` for a 3D grid of solid fins, optionally coated with
+    a screen material via :func:`set_shading_properties`).
+
+    Perforation convenience parameters
+    -----------------------------------
+    Instead of specifying EnergyPlus's native ``Screen_Material_Diameter``
+    and ``Screen_Material_Spacing`` directly, you can provide:
+
+    - ``Perforation_Ratio`` (0-1, default 0.30): open area fraction of the
+      screen (i.e. the fraction of the panel that is actually holes).
+    - ``Pitch`` (m, default 0.01): center-to-center spacing of the
+      perforation pattern (assumed identical in both directions, as per the
+      EnergyPlus screen model).
+
+    These are converted to ``Screen_Material_Spacing = Pitch`` and
+    ``Screen_Material_Diameter = Pitch * (1 - sqrt(Perforation_Ratio))``
+    (square-mesh approximation used by the EnergyPlus screen model).
+    Explicitly providing ``Screen_Material_Diameter`` and/or
+    ``Screen_Material_Spacing`` in ``description`` overrides this
+    computation field-by-field.
+
+    Default parameters
+    -------------------
+    - ``Name``: ``"DEFAULT_SCREEN"``
+    - ``Perforation_Ratio``: 0.30
+    - ``Pitch`` (m): 0.01
+    - ``Screen_Material_Diameter``: None (derived from ``Perforation_Ratio``/``Pitch``)
+    - ``Screen_Material_Spacing``: None (derived from ``Pitch``)
+    - ``Reflected_Beam_Transmittance_Accounting_Method``: ``"ModelAsDiffuse"``
+    - ``Diffuse_Solar_Reflectance``: 0.30
+    - ``Diffuse_Visible_Reflectance``: 0.30
+    - ``Thermal_Hemispherical_Emissivity``: 0.90
+    - ``Conductivity`` (W/m·K): 221.0 (aluminum)
+    - ``Screen_to_Glass_Distance`` (m): 0.025
+    - ``Top_Opening_Multiplier`` / ``Bottom_Opening_Multiplier`` /
+      ``Left_Side_Opening_Multiplier`` / ``Right_Side_Opening_Multiplier``: 0.0
+    - ``Angle_of_Resolution_for_Screen_Transmittance_Output_Map``: 0
+    - ``Shading_Type``: ``"ExteriorScreen"`` (the only screen type EnergyPlus
+      supports on a ``WindowShadingControl``)
+    - ``Schedule``: None (no schedule assigned, control is always considered active)
+
+    Parameters
+    ----------
+    model : Building
+        EnergyTool Building object.
+    description : dict, optional
+        Parameter overrides. Any key from the default list above can be set.
+
+        - ``"Schedule"`` (str): name of an existing EnergyPlus schedule used to
+          drive the shading control (value 1 = active, 0 = inactive).
+
+        Example::
+
+            {
+                "Name": "PERFORATED_PANEL",
+                "Perforation_Ratio": 0.40,
+                "Pitch": 0.008,
+                "Diffuse_Solar_Reflectance": 0.55,
+                "Schedule": "SummerOnlySchedule",
+            }
+
+    name_filter : str or list[str], optional
+        If provided, only windows whose name contains the filter string
+        (or any string in the list) receive the screen control.
+        If None, all windows are processed.
+    """
+    DEFAULT_SCREEN = {
+        "Name": "DEFAULT_SCREEN",
+        "Perforation_Ratio": 0.30,
+        "Pitch": 0.01,
+        "Screen_Material_Diameter": None,
+        "Screen_Material_Spacing": None,
+        "Reflected_Beam_Transmittance_Accounting_Method": "ModelAsDiffuse",
+        "Diffuse_Solar_Reflectance": 0.30,
+        "Diffuse_Visible_Reflectance": 0.30,
+        "Thermal_Hemispherical_Emissivity": 0.90,
+        "Conductivity": 221.0,
+        "Screen_to_Glass_Distance": 0.025,
+        "Top_Opening_Multiplier": 0.0,
+        "Bottom_Opening_Multiplier": 0.0,
+        "Left_Side_Opening_Multiplier": 0.0,
+        "Right_Side_Opening_Multiplier": 0.0,
+        "Angle_of_Resolution_for_Screen_Transmittance_Output_Map": 0,
+        "Schedule": None,
+        "Shading_Type": "ExteriorScreen",
+    }
+
+    params = DEFAULT_SCREEN.copy()
+
+    if description is not None:
+        params.update(description)
+
+    spacing = params["Screen_Material_Spacing"]
+    if spacing is None:
+        spacing = params["Pitch"]
+
+    diameter = params["Screen_Material_Diameter"]
+    if diameter is None:
+        diameter = spacing * (1 - np.sqrt(params["Perforation_Ratio"]))
+
+    screen_name = params["Name"]
+
+    existing_screens = {
+        obj.Name
+        for obj in model.idf.idfobjects["WINDOWMATERIAL:SCREEN"]
+    }
+
+    if screen_name not in existing_screens:
+
+        model.idf.newidfobject(
+            "WINDOWMATERIAL:SCREEN",
+            Name=screen_name,
+            Reflected_Beam_Transmittance_Accounting_Method=params[
+                "Reflected_Beam_Transmittance_Accounting_Method"
+            ],
+            Diffuse_Solar_Reflectance=params["Diffuse_Solar_Reflectance"],
+            Diffuse_Visible_Reflectance=params["Diffuse_Visible_Reflectance"],
+            Thermal_Hemispherical_Emissivity=params[
+                "Thermal_Hemispherical_Emissivity"
+            ],
+            Conductivity=params["Conductivity"],
+            Screen_Material_Spacing=spacing,
+            Screen_Material_Diameter=diameter,
+            Screen_to_Glass_Distance=params["Screen_to_Glass_Distance"],
+            Top_Opening_Multiplier=params["Top_Opening_Multiplier"],
+            Bottom_Opening_Multiplier=params["Bottom_Opening_Multiplier"],
+            Left_Side_Opening_Multiplier=params["Left_Side_Opening_Multiplier"],
+            Right_Side_Opening_Multiplier=params["Right_Side_Opening_Multiplier"],
+            Angle_of_Resolution_for_Screen_Transmittance_Output_Map=params[
+                "Angle_of_Resolution_for_Screen_Transmittance_Output_Map"
+            ],
+        )
+
+    windows = [
+        window
+        for window in model.idf.idfobjects[
+            "FENESTRATIONSURFACE:DETAILED"
+        ]
+        if (
+            (
+                not window.Surface_Type
+                or window.Surface_Type.upper() == "WINDOW"
+            )
+            and _matches_filter(window.Name, name_filter)
+        )
+    ]
+
+    existing_controls = {
+        obj.Name: obj
+        for obj in model.idf.idfobjects[
+            "WINDOWSHADINGCONTROL"
+        ]
+    }
+
+    for window in windows:
+
+        control_name = (
+            f"{window.Name}_{screen_name}_control"
+        )
+
+        if control_name in existing_controls:
+
+            control = existing_controls[
+                control_name
+            ]
+
+        else:
+
+            control = model.idf.newidfobject(
+                "WINDOWSHADINGCONTROL",
+                Name=control_name,
+            )
+
+        control.Zone_Name = (
+            _get_window_zone_name(model.idf, window)
+        )
+
+        control.Shading_Type = (
+            params["Shading_Type"]
+        )
+
+        control.Construction_with_Shading_Name = _build_shaded_construction(
+            model.idf, window, screen_name, params["Shading_Type"], screen_name
+        )
+
+        control.Shading_Control_Type = (
+            "OnIfScheduleAllows"
+        )
+
+        control.Shading_Control_Is_Scheduled = "Yes"
+
+        if params["Schedule"] is not None:
+
+            control.Schedule_Name = (
+                params["Schedule"]
+            )
+
+        try:
+            control.Fenestration_Surface_1_Name = (
+                window.Name
+            )
+        except Exception:
+            pass
+
+
+def _load_matrix_file(path, delimiter: str = None) -> np.ndarray:
+    """Read a BSDF angular-scattering matrix from a text file (one row per
+    line, values separated by whitespace or ``delimiter``)."""
+    return np.atleast_2d(np.loadtxt(path, delimiter=delimiter))
+
+
+def _set_matrix_two_dimension(idf, name: str, array: np.ndarray) -> str:
+    """Create (or replace) a ``Matrix:TwoDimension`` object named ``name``
+    holding ``array``'s values in row-major order."""
+    nrows, ncols = array.shape
+    max_values = 21040  # Value_1..Value_21040, as declared in the E+ IDD
+
+    if nrows * ncols > max_values:
+        raise ValueError(
+            f"Matrix '{name}' has {nrows * ncols} values "
+            f"({nrows}x{ncols}), exceeding the {max_values} values "
+            f"supported by Matrix:TwoDimension."
+        )
+
+    existing = idf.getobject("Matrix:TwoDimension", name)
+    if existing is not None:
+        idf.removeidfobject(existing)
+
+    matrix_obj = idf.newidfobject(
+        "Matrix:TwoDimension",
+        Name=name,
+        Number_of_Rows=nrows,
+        Number_of_Columns=ncols,
+    )
+
+    for idx, value in enumerate(array.flatten(order="C"), start=1):
+        matrix_obj[f"Value_{idx}"] = float(value)
+
+    return name
+
+
+def _build_complex_fenestration_from_matrices(model: Building, description: dict) -> str:
+    """Raw-matrices mode of :func:`set_complex_fenestration_state` — see its
+    docstring. Returns the resulting construction's Name."""
+    if "Name" not in description:
+        raise ValueError("description must provide 'Name'")
+
+    if "Outside_Layer_Name" not in description:
+        raise ValueError(
+            "description must provide 'Outside_Layer_Name' (an existing "
+            "glazing or WindowMaterial:ComplexShade name)"
+        )
+
+    matrix_field_map = {
+        "Basis_Matrix": "Basis_Matrix_Name",
+        "Solar_Front_Transmittance": (
+            "Solar_Optical_Complex_Front_Transmittance_Matrix_Name"
+        ),
+        "Solar_Back_Reflectance": (
+            "Solar_Optical_Complex_Back_Reflectance_Matrix_Name"
+        ),
+        "Visible_Front_Transmittance": (
+            "Visible_Optical_Complex_Front_Transmittance_Matrix_Name"
+        ),
+        "Visible_Back_Transmittance": (
+            "Visible_Optical_Complex_Back_Transmittance_Matrix_Name"
+        ),
+        "Outside_Layer_Front_Absorptance": (
+            "Outside_Layer_Directional_Front_Absoptance_Matrix_Name"
+        ),
+        "Outside_Layer_Back_Absorptance": (
+            "Outside_Layer_Directional_Back_Absoptance_Matrix_Name"
+        ),
+    }
+
+    missing = [key for key in matrix_field_map if key not in description]
+    if missing:
+        raise ValueError(
+            f"Missing required BSDF matrix file path(s) in description: "
+            f"{missing}"
+        )
+
+    idf = model.idf
+    state_name = description["Name"]
+    delimiter = description.get("Delimiter")
+
+    cfs_kwargs = {"Name": state_name}
+    for key, field_name in matrix_field_map.items():
+        matrix = _load_matrix_file(description[key], delimiter=delimiter)
+        matrix_name = f"{state_name}_{key}"
+        _set_matrix_two_dimension(idf, matrix_name, matrix)
+        cfs_kwargs[field_name] = matrix_name
+
+    thermal_model = description.get("Window_Thermal_Model")
+
+    if isinstance(thermal_model, dict):
+        thermal_model_name = thermal_model["Name"]
+        update_idf_objects(
+            model,
+            {thermal_model_name: thermal_model},
+            "WindowThermalModel:Params",
+        )
+    elif isinstance(thermal_model, str):
+        thermal_model_name = thermal_model
+        if idf.getobject("WindowThermalModel:Params", thermal_model_name) is None:
+            raise ValueError(
+                f"Window_Thermal_Model '{thermal_model_name}' not found in "
+                f"IDF. Provide a dict to create it, or the name of an "
+                f"existing object."
+            )
+    else:
+        thermal_model_name = "Default_CFS_Thermal_Model"
+        if idf.getobject("WindowThermalModel:Params", thermal_model_name) is None:
+            idf.newidfobject(
+                "WindowThermalModel:Params",
+                Name=thermal_model_name,
+                standard="ISO15099",
+                Thermal_Model="ISO15099",
+            )
+
+    cfs_kwargs["Window_Thermal_Model"] = thermal_model_name
+    cfs_kwargs["Basis_Type"] = description.get("Basis_Type", "LBNLWINDOW")
+    cfs_kwargs["Basis_Symmetry_Type"] = description.get(
+        "Basis_Symmetry_Type", "None"
+    )
+    cfs_kwargs["Outside_Layer_Name"] = description["Outside_Layer_Name"]
+
+    existing_cfs = idf.getobject(
+        "Construction:ComplexFenestrationState", state_name
+    )
+    if existing_cfs is not None:
+        idf.removeidfobject(existing_cfs)
+
+    idf.newidfobject("Construction:ComplexFenestrationState", **cfs_kwargs)
+
+    return state_name
+
+
+# Object types that make up a WINDOW "export to EnergyPlus (BSDF)" fragment.
+# Only these are migrated from an imported fragment file — everything else
+# (comments, a stray Version object, ...) is ignored.
+_BSDF_FRAGMENT_OBJECT_TYPES = [
+    "WindowMaterial:Glazing",
+    "WindowMaterial:Gas",
+    "WindowMaterial:GasMixture",
+    "WindowMaterial:Gap",
+    "WindowMaterial:ComplexShade",
+    "WindowMaterial:Blind",
+    "WindowThermalModel:Params",
+    "Matrix:TwoDimension",
+    "Construction:ComplexFenestrationState",
+]
+
+
+def _import_complex_fenestration_fragment(model: Building, idf_fragment_path) -> str:
+    """Import mode of :func:`set_complex_fenestration_state` — see its
+    docstring. Returns the resulting construction's Name."""
+    fragment_idf = IDF(str(idf_fragment_path))
+
+    states = fragment_idf.idfobjects["Construction:ComplexFenestrationState"]
+    if len(states) != 1:
+        raise ValueError(
+            f"Expected exactly one Construction:ComplexFenestrationState "
+            f"object in '{idf_fragment_path}', found {len(states)}."
+        )
+
+    idf = model.idf
+
+    fragment_objects = [
+        (obj_type, obj)
+        for obj_type in _BSDF_FRAGMENT_OBJECT_TYPES
+        for obj in fragment_idf.idfobjects[obj_type]
+    ]
+    # obj.Name is read (and, later, rewritten) in place, so the *original*
+    # name of each object must be captured up front.
+    original_names = {id(obj): obj.Name for _, obj in fragment_objects}
+
+    def normalized_values(obj):
+        return [str(value).strip() for value in obj.fieldvalues[1:]]
+
+    def rewrite_references(obj, rename_map):
+        # Field access by name (obj[field_name]) is O(n) in eppy (it
+        # searches fieldnames linearly), which is fine for small objects but
+        # pathological for a Matrix:TwoDimension with 20k+ fields. Working
+        # directly on the underlying value list (obj.obj, positionally
+        # aligned with obj.fieldnames) keeps this O(n) per object instead of
+        # O(n^2).
+        values = obj.obj
+        for i in range(1, len(values)):
+            value = values[i]
+            if (
+                isinstance(value, str)
+                and value in rename_map
+                and rename_map[value] != value
+            ):
+                values[i] = rename_map[value]
+
+    # For every fragment object, in dependency order (materials/gases/gaps/
+    # thermal models/matrices before the Construction:ComplexFenestrationState
+    # that references them — the order _BSDF_FRAGMENT_OBJECT_TYPES is built
+    # in): first rewrite any reference this object holds to an
+    # already-processed, renamed object, *then* decide whether this object
+    # itself can reuse an identically-named/valued object already in the
+    # model, needs a fresh (renamed) copy because the existing one differs,
+    # or is simply new. Rewriting before comparing is what makes the
+    # comparison meaningful for objects (like the CFS itself) that refer to
+    # other, possibly-renamed objects.
+    rename_map = {}
+    reuse_keys = set()
+
+    for obj_type, obj in fragment_objects:
+        rewrite_references(obj, rename_map)
+
+        name = original_names[id(obj)]
+        existing = idf.getobject(obj_type, name)
+
+        if existing is None:
+            rename_map[name] = name
+            continue
+
+        if normalized_values(existing) == normalized_values(obj):
+            rename_map[name] = name
+            reuse_keys.add((obj_type, name))
+            continue
+
+        candidate = name
+        suffix = 2
+        while (
+            idf.getobject(obj_type, candidate) is not None
+            or candidate in rename_map.values()
+        ):
+            candidate = f"{name}_{suffix}"
+            suffix += 1
+        rename_map[name] = candidate
+        obj.obj[1] = candidate
+
+    # Copy whatever isn't a pure reuse into the target model.
+    state_name = None
+    for obj_type, obj in fragment_objects:
+        name = original_names[id(obj)]
+
+        if (obj_type, name) in reuse_keys:
+            if obj_type == "Construction:ComplexFenestrationState":
+                state_name = obj.obj[1]
+            continue
+
+        # Same reasoning as above: bulk-copy the value list positionally
+        # (obj.objls, the field-name list, is identical for every object of
+        # the same type, so the two lists stay index-aligned) instead of
+        # setting each field by name.
+        new_obj = idf.newidfobject(obj_type)
+        new_obj.obj = list(obj.obj)
+
+        if obj_type == "Construction:ComplexFenestrationState":
+            state_name = new_obj.Name
+
+    return state_name
+
+
+def set_complex_fenestration_state(
+    model: Building,
+    description: dict = None,
+    idf_fragment_path=None,
+    name_filter: Union[str, list[str]] = None,
+    surface_name_filter: Union[str, list[str]] = None,
+):
+    """
+    Assign a BSDF-based ``Construction:ComplexFenestrationState`` to matching
+    windows, and return the resulting construction's ``Name``.
+
+    EnergyPlus has no way to derive a BSDF from geometric or material
+    parameters: the angular transmittance/reflectance data must come from an
+    external optical calculation. Exactly one of the following two inputs
+    must be given.
+
+    Mode 1 — ``idf_fragment_path`` (recommended for LBNL WINDOW users)
+    ---------------------------------------------------------------------
+    WINDOW's "Export to EnergyPlus (BSDF)" feature does not export raw
+    matrices: it exports a complete, ready-to-use IDF fragment already
+    containing ``WindowMaterial:Glazing``/``WindowMaterial:ComplexShade``/
+    ``WindowMaterial:Gas``/``WindowMaterial:Gap`` layers, a
+    ``WindowThermalModel:Params``, the ``Matrix:TwoDimension`` matrices and
+    the ``Construction:ComplexFenestrationState`` itself, all pre-computed
+    and mutually consistent. Passing that fragment's file path here loads it
+    and copies its objects into ``model``, exactly as WINDOW produced them —
+    no matrix math is redone.
+
+    The fragment must contain **exactly one**
+    ``Construction:ComplexFenestrationState``. Objects that already exist in
+    ``model`` under the same name are reused if their field values are
+    identical (the common case: several WINDOW exports for different
+    variants/orientations typically share the same glazing/gas layers), and
+    otherwise renamed on import (e.g. ``Glass_3083_Layer_2``) to avoid
+    silently overwriting a different, same-named object — including the
+    ``Construction:ComplexFenestrationState`` itself, so re-importing a
+    *modified* fragment under a name already used in ``model`` creates an
+    additional, renamed construction rather than replacing the existing one.
+
+    Only ``pywincalc``/WINDOW-style IDF fragments are supported this way. A
+    raw ``genBSDF``/Radiance BSDF XML file cannot be imported directly: it
+    only carries one broadband (visible) dataset with no EnergyPlus Basis
+    Matrix or layer absorptance data, so producing a correct
+    ``Construction:ComplexFenestrationState`` from it requires optical
+    calculations this modifier does not perform. Run it through WINDOW (or
+    ``pywincalc``) to obtain an IDF fragment first.
+
+    Mode 2 — ``description`` (raw matrix files)
+    ---------------------------------------------------------------------
+    For matrices computed independently of WINDOW (e.g. via a custom
+    ``pywincalc`` script), provide the individual matrix files directly.
+    ``description`` must contain:
+
+    - ``"Name"`` (str): name of the resulting
+      ``Construction:ComplexFenestrationState``.
+    - ``"Outside_Layer_Name"`` (str): name of an existing glazing
+      material or ``WindowMaterial:ComplexShade`` used as the outside
+      layer.
+    - ``"Basis_Matrix"``, ``"Solar_Front_Transmittance"``,
+      ``"Solar_Back_Reflectance"``, ``"Visible_Front_Transmittance"``,
+      ``"Visible_Back_Transmittance"``,
+      ``"Outside_Layer_Front_Absorptance"``,
+      ``"Outside_Layer_Back_Absorptance"`` (str or ``Path``): paths to
+      the corresponding angular matrix text files (one row per line,
+      whitespace- or ``Delimiter``-separated), each read with
+      :func:`numpy.loadtxt`.
+
+    Optional keys: ``"Delimiter"`` (default None = whitespace),
+    ``"Basis_Type"`` (default ``"LBNLWINDOW"``), ``"Basis_Symmetry_Type"``
+    (default ``"None"``), and ``"Window_Thermal_Model"`` (name of an
+    existing ``WindowThermalModel:Params``, or a dict to create/update one;
+    defaults to a shared ISO15099 model).
+
+    Parameters
+    ----------
+    model : Building
+        EnergyTool Building object.
+    description : dict, optional
+        Raw-matrices mode input — see above. Mutually exclusive with
+        ``idf_fragment_path``.
+    idf_fragment_path : str or Path, optional
+        Path to an IDF fragment exported by WINDOW — see above. Mutually
+        exclusive with ``description``.
+    name_filter : str or list[str], optional
+        Forwarded to the window selection, matched against window names.
+    surface_name_filter : str or list[str], optional
+        Forwarded to the window selection, matched against the host
+        surface (``Building_Surface_Name``) names.
+
+    Returns
+    -------
+    str
+        The ``Name`` of the ``Construction:ComplexFenestrationState`` that
+        matching windows were assigned to.
+    """
+    if (description is None) == (idf_fragment_path is None):
+        raise ValueError(
+            "set_complex_fenestration_state requires exactly one of "
+            "'description' (raw BSDF matrix files) or 'idf_fragment_path' "
+            "(an IDF fragment exported by WINDOW)."
+        )
+
+    if idf_fragment_path is not None:
+        state_name = _import_complex_fenestration_fragment(model, idf_fragment_path)
+    else:
+        state_name = _build_complex_fenestration_from_matrices(model, description)
+
+    windows = [
+        win
+        for win in model.idf.idfobjects["FenestrationSurface:Detailed"]
+        if _matches_filter(win.Name, name_filter)
+        and _matches_filter(win.Building_Surface_Name, surface_name_filter)
+    ]
+
+    for win in windows:
+        win.Construction_Name = state_name
+
+    return state_name
+
 
 def set_blind(
     model: Building,
@@ -1757,7 +2503,6 @@ def set_blind(
         params.update(description)
 
     blind_name = params["Name"]
-    construction_name = f"{blind_name}_CONSTRUCTION"
 
     existing_blinds = {
         obj.Name
@@ -1818,21 +2563,6 @@ def set_blind(
             params["Maximum_Slat_Angle"],
         )
 
-    existing_constructions = {
-        obj.Name
-        for obj in model.idf.idfobjects[
-            "CONSTRUCTION"
-        ]
-    }
-
-    if construction_name not in existing_constructions:
-
-        model.idf.newidfobject(
-            "CONSTRUCTION",
-            Name=construction_name,
-            Outside_Layer=blind_name,
-        )
-
     windows = [
         window
         for window in model.idf.idfobjects[
@@ -1873,17 +2603,23 @@ def set_blind(
                 Name=control_name,
             )
 
+        control.Zone_Name = (
+            _get_window_zone_name(model.idf, window)
+        )
+
         control.Shading_Type = (
             params["Shading_Type"]
         )
 
-        control.Construction_with_Shading_Name = (
-            construction_name
+        control.Construction_with_Shading_Name = _build_shaded_construction(
+            model.idf, window, blind_name, params["Shading_Type"], blind_name
         )
 
         control.Shading_Control_Type = (
             "OnIfScheduleAllows"
         )
+
+        control.Shading_Control_Is_Scheduled = "Yes"
 
         if params["Schedule"] is not None:
 

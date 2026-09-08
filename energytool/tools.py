@@ -152,7 +152,8 @@ def plot_idf_geometry(
             Display FenestrationSurface:Detailed objects.
 
         show_shading_surfaces : bool, default=True
-            Display Shading:Zone:Detailed objects.
+            Display Shading:Zone:Detailed, Shading:Building:Detailed and
+            Shading:Site:Detailed objects.
 
         show_names : bool, default=False
             Display labels on the geometry.
@@ -238,7 +239,19 @@ def plot_idf_geometry(
     _label_traces = []
 
     def get_vertices(surface):
-        n_vertices = int(surface.Number_of_Vertices)
+        # "Number of Vertices" defaults to "autocalculate" in the E+ IDD and is
+        # frequently left blank by IDF generators (e.g. Honeybee/OpenStudio
+        # exports), so it can't always be relied upon: fall back to counting
+        # the actually populated Vertex_i_Xcoordinate fields in that case.
+        try:
+            n_vertices = int(surface.Number_of_Vertices)
+        except (TypeError, ValueError):
+            n_vertices = 0
+            while getattr(surface, f"Vertex_{n_vertices + 1}_Xcoordinate", "") not in (
+                "",
+                None,
+            ):
+                n_vertices += 1
 
         return np.array(
             [
@@ -462,10 +475,19 @@ def plot_idf_geometry(
             )
 
     if show_shading_surfaces:
-        for surface in building.idf.idfobjects["SHADING:ZONE:DETAILED"]:
-            add_surface(
-                get_vertices(surface), "shading", "Shading", SHADING_COLOR, surface.Name,
-            )
+        # Zone-attached (e.g. overhangs, fins), building-attached (e.g. PV
+        # panels, balcony railings) and site-attached (e.g. neighbouring
+        # building masks) shading surfaces all share the same vertex-list
+        # schema.
+        for shading_key in (
+            "SHADING:ZONE:DETAILED",
+            "SHADING:BUILDING:DETAILED",
+            "SHADING:SITE:DETAILED",
+        ):
+            for surface in building.idf.idfobjects[shading_key]:
+                add_surface(
+                    get_vertices(surface), "shading", "Shading", SHADING_COLOR, surface.Name,
+                )
 
     for key, group in groups.items():
         fig.add_trace(
