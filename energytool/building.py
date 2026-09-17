@@ -17,10 +17,8 @@ from eppy.runner.run_functions import run
 import eppy.json_functions as json_functions
 
 import sqlite3
-import pandas as pd
 
 import energytool.base.idf_utils
-from energytool.base.parse_results import read_eplus_res
 from energytool.outputs import get_results
 from energytool.system import System, SystemCategories
 from energytool.base.idfobject_utils import (
@@ -73,7 +71,6 @@ def ensure_sql_output(idf):
 
 
 def read_sql_timeseries(sql_path, ref_year=None, unify_frequency=True):
-
     query = """
     SELECT
         t.Month,
@@ -87,6 +84,10 @@ def read_sql_timeseries(sql_path, ref_year=None, unify_frequency=True):
         ON rd.ReportDataDictionaryIndex = rdd.ReportDataDictionaryIndex
     JOIN Time t
         ON rd.TimeIndex = t.TimeIndex
+    JOIN EnvironmentPeriods ep
+        ON t.EnvironmentPeriodIndex = ep.EnvironmentPeriodIndex
+    WHERE ep.EnvironmentType = 3
+        AND COALESCE(t.WarmupFlag, 0) = 0
     """
 
     with sqlite3.connect(sql_path) as conn:
@@ -107,7 +108,14 @@ def read_sql_timeseries(sql_path, ref_year=None, unify_frequency=True):
 
     df["datetime"] = dt
 
-    df = df.pivot(index="datetime", columns="variable", values="Value")
+    # Windows using a complex fenestration state combined with a shading
+    # control can be reported by EnergyPlus as two ReportDataDictionary
+    # entries sharing the exact same KeyValue/Name/ReportingFrequency (one
+    # per construction state, e.g. shaded/unshaded). At any given timestep
+    # only one of the two states is active and the other reports 0, so
+    # summing duplicate (datetime, variable) entries reconstructs the
+    # correct value instead of raising on the pivot below.
+    df = df.groupby(["datetime", "variable"])["Value"].sum().unstack("variable")
     df = df.sort_index()
 
     if unify_frequency:
@@ -372,8 +380,7 @@ Others: {[obj.name for obj in self.systems[SystemCategories.OTHER]]}
                 )
         elif SimuOpt.EPW_FILE.value in list(simulation_options.keys()):
             raise ValueError(
-                "'epw_path' have been used in both property_dict and "
-                "simulation_options"
+                "'epw_path' have been used in both property_dict and simulation_options"
             )
         ref_year = None
         if SimuOpt.START.value in simulation_options.keys():
@@ -427,7 +434,6 @@ Others: {[obj.name for obj in self.systems[SystemCategories.OTHER]]}
             context = nullcontext(working_directory)
 
         with context as temp_dir:
-
             working_idf.saveas((Path(temp_dir) / "in.idf").as_posix(), encoding="utf-8")
             idd_ref = working_idf.idd_version
             run(
