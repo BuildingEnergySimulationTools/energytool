@@ -389,8 +389,8 @@ class TestSystems:
 
         assert results.sum().to_dict() == approx(
             {
-                "TOTAL_SYSTEM_Energy_[J]": 5800244198.831992*2,
-                "VENTILATION_Energy_[J]": 5800244198.831992*2,
+                "TOTAL_SYSTEM_Energy_[J]": 5800244198.831992 * 2,
+                "VENTILATION_Energy_[J]": 5800244198.831992 * 2,
             },
             rel=0.05,
         )

@@ -141,6 +141,4 @@ class TestEplusPostProcess:
             ],
         )
         assert list(multi_variable_result.columns) == ["ZONE1", "ZONE1"]
-        assert list(multi_variable_result.iloc[0]) == list(
-            toy_df.iloc[0, [0, 4]]
-        )
+        assert list(multi_variable_result.iloc[0]) == list(toy_df.iloc[0, [0, 4]])

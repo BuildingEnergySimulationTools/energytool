@@ -197,46 +197,53 @@ def geo_building():
 
     # Simple 3 m × 3 m × 3 m box — each surface at a distinct position
     add_surface(
-        "BuildingSurface:Detailed", "ExtWall",
+        "BuildingSurface:Detailed",
+        "ExtWall",
         [(0, 0, 0), (3, 0, 0), (3, 0, 3), (0, 0, 3)],
         Surface_Type="Wall",
         Outside_Boundary_Condition="Outdoors",
         Zone_Name="ConditionedZone",
     )
     add_surface(
-        "BuildingSurface:Detailed", "IntWall",
+        "BuildingSurface:Detailed",
+        "IntWall",
         [(0, 3, 0), (0, 3, 3), (3, 3, 3), (3, 3, 0)],
         Surface_Type="Wall",
         Outside_Boundary_Condition="Surface",
         Zone_Name="ConditionedZone",
     )
     add_surface(
-        "BuildingSurface:Detailed", "Roof",
+        "BuildingSurface:Detailed",
+        "Roof",
         [(0, 0, 3), (3, 0, 3), (3, 3, 3), (0, 3, 3)],
         Surface_Type="Roof",
         Outside_Boundary_Condition="Outdoors",
         Zone_Name="ConditionedZone",
     )
     add_surface(
-        "BuildingSurface:Detailed", "Floor",
+        "BuildingSurface:Detailed",
+        "Floor",
         [(0, 0, 0), (0, 3, 0), (3, 3, 0), (3, 0, 0)],
         Surface_Type="Floor",
         Outside_Boundary_Condition="Ground",
         Zone_Name="ConditionedZone",
     )
     add_surface(
-        "BuildingSurface:Detailed", "AdiabWall",
+        "BuildingSurface:Detailed",
+        "AdiabWall",
         [(0, 0, 0), (0, 0, 3), (0, 3, 3), (0, 3, 0)],
         Surface_Type="Wall",
         Outside_Boundary_Condition="Adiabatic",
         Zone_Name="UnconditionedZone",
     )
     add_surface(
-        "FenestrationSurface:Detailed", "Window1",
+        "FenestrationSurface:Detailed",
+        "Window1",
         [(0.5, 0, 0.5), (1.5, 0, 0.5), (1.5, 0, 2.0), (0.5, 0, 2.0)],
     )
     add_surface(
-        "Shading:Zone:Detailed", "Overhang1",
+        "Shading:Zone:Detailed",
+        "Overhang1",
         [(-0.5, 0, 2.5), (2.5, 0, 2.5), (2.5, -1, 2.5), (-0.5, -1, 2.5)],
     )
 
@@ -283,8 +290,7 @@ class TestPlotIdfGeometry:
         mesh_traces = [t for t in fig.data if isinstance(t, go.Mesh3d)]
         assert all(t.showlegend for t in mesh_traces)
         outline_traces = [
-            t for t in fig.data
-            if isinstance(t, go.Scatter3d) and t.mode == "lines"
+            t for t in fig.data if isinstance(t, go.Scatter3d) and t.mode == "lines"
         ]
         assert all(t.legendgroup is not None for t in outline_traces)
 
@@ -292,14 +298,24 @@ class TestPlotIdfGeometry:
         fig_without = tl.plot_idf_geometry(geo_building, show_names=False)
         fig_with = tl.plot_idf_geometry(geo_building, show_names=True)
         fig_with.show()
-        text_without = [t for t in fig_without.data if isinstance(t, go.Scatter3d) and t.mode == "text"]
-        text_with = [t for t in fig_with.data if isinstance(t, go.Scatter3d) and t.mode == "text"]
+        text_without = [
+            t
+            for t in fig_without.data
+            if isinstance(t, go.Scatter3d) and t.mode == "text"
+        ]
+        text_with = [
+            t for t in fig_with.data if isinstance(t, go.Scatter3d) and t.mode == "text"
+        ]
         assert len(text_without) == 0
-        assert len(text_with) == 7  # one label per surface (5 building + 1 fenestration + 1 shading)
+        assert (
+            len(text_with) == 7
+        )  # one label per surface (5 building + 1 fenestration + 1 shading)
 
     def test_show_names_zone_mode(self, geo_building):
         fig = tl.plot_idf_geometry(geo_building, color_mode="zone", show_names=True)
-        text_traces = [t for t in fig.data if isinstance(t, go.Scatter3d) and t.mode == "text"]
+        text_traces = [
+            t for t in fig.data if isinstance(t, go.Scatter3d) and t.mode == "text"
+        ]
         assert len(text_traces) == 2  # one centroid label per zone
 
     def test_opacity(self, geo_building):
@@ -337,7 +353,8 @@ def geo_building_blank_num_vertices():
 
     # left at the IDD default ("autocalculate"), as when the field is never touched
     add_surface(
-        "BuildingSurface:Detailed", "ExtWall",
+        "BuildingSurface:Detailed",
+        "ExtWall",
         [(0, 0, 0), (3, 0, 0), (3, 0, 3), (0, 0, 3)],
         None,
         Surface_Type="Wall",
@@ -346,7 +363,8 @@ def geo_building_blank_num_vertices():
     )
     # explicitly blank, as found in some Honeybee-exported IDF text files
     add_surface(
-        "Shading:Zone:Detailed", "Overhang1",
+        "Shading:Zone:Detailed",
+        "Overhang1",
         [(-0.5, 0, 2.5), (2.5, 0, 2.5), (2.5, -1, 2.5), (-0.5, -1, 2.5)],
         "",
     )
@@ -355,7 +373,9 @@ def geo_building_blank_num_vertices():
 
 
 class TestPlotIdfGeometryBlankNumVertices:
-    def test_does_not_raise_and_infers_vertex_count(self, geo_building_blank_num_vertices):
+    def test_does_not_raise_and_infers_vertex_count(
+        self, geo_building_blank_num_vertices
+    ):
         fig = tl.plot_idf_geometry(geo_building_blank_num_vertices)
         assert isinstance(fig, go.Figure)
 
@@ -390,15 +410,18 @@ def geo_building_mixed_shading():
         return s
 
     add_surface(
-        "Shading:Zone:Detailed", "Overhang1",
+        "Shading:Zone:Detailed",
+        "Overhang1",
         [(-0.5, 0, 2.5), (2.5, 0, 2.5), (2.5, -1, 2.5), (-0.5, -1, 2.5)],
     )
     add_surface(
-        "Shading:Building:Detailed", "PVPanel1",
+        "Shading:Building:Detailed",
+        "PVPanel1",
         [(0, -0.5, 1), (3, -0.5, 1), (3, -0.5, 2), (0, -0.5, 2)],
     )
     add_surface(
-        "Shading:Site:Detailed", "NeighbourMask1",
+        "Shading:Site:Detailed",
+        "NeighbourMask1",
         [(10, 0, 0), (10, 10, 0), (10, 10, 8), (10, 0, 8)],
     )
 
@@ -409,7 +432,9 @@ class TestPlotIdfGeometryMixedShading:
     def test_all_shading_types_are_displayed(self, geo_building_mixed_shading):
         fig = tl.plot_idf_geometry(geo_building_mixed_shading)
 
-        shading_traces = [t for t in fig.data if isinstance(t, go.Mesh3d) and t.name == "Shading"]
+        shading_traces = [
+            t for t in fig.data if isinstance(t, go.Mesh3d) and t.name == "Shading"
+        ]
         assert len(shading_traces) == 1
 
         names = set(shading_traces[0].text)
@@ -417,5 +442,9 @@ class TestPlotIdfGeometryMixedShading:
         assert len(shading_traces[0].x) == 12  # 3 surfaces x 4 vertices
 
     def test_hide_shading_hides_all_types(self, geo_building_mixed_shading):
-        fig = tl.plot_idf_geometry(geo_building_mixed_shading, show_shading_surfaces=False)
-        assert not any(isinstance(t, go.Mesh3d) and t.name == "Shading" for t in fig.data)
+        fig = tl.plot_idf_geometry(
+            geo_building_mixed_shading, show_shading_surfaces=False
+        )
+        assert not any(
+            isinstance(t, go.Mesh3d) and t.name == "Shading" for t in fig.data
+        )

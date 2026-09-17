@@ -157,8 +157,7 @@ class TestBuilding:
         assert init_values == [1.25, 3]
 
         string_search_start = (
-            "idf.DesignSpecification:OutdoorAir.*."
-            "Outdoor_Air_Flow_Air_Changes_per_Hour"
+            "idf.DesignSpecification:OutdoorAir.*.Outdoor_Air_Flow_Air_Changes_per_Hour"
         )
 
         init_values = test_build.get_param_init_value(string_search_start)

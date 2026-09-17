@@ -30,7 +30,9 @@ def _get_window_zone_name(idf, window) -> str:
     return getattr(host_surface, "Zone_Name", "") if host_surface is not None else ""
 
 
-def _build_shaded_construction(idf, window, shading_material_name, shading_type, name_hint):
+def _build_shaded_construction(
+    idf, window, shading_material_name, shading_type, name_hint
+):
     """
     Build (or reuse) the full window construction referenced by a
     ``WindowShadingControl``'s ``Construction_with_Shading_Name``: the
@@ -380,8 +382,6 @@ def set_afn_surface_opening_factor(
 
     for opening in openings:
         opening["WindowDoor_Opening_Factor_or_Crack_Factor"] = new_opening_ratio
-
-
 
 
 def set_blinds_solar_transmittance(
@@ -852,28 +852,25 @@ def set_ahu_night_ventilation(
         )
 
     for obj in model.idf.idfobjects["DESIGNSPECIFICATION:OUTDOORAIR"]:
-
         if not _matches_filter(obj.Name, name_filter):
             continue
 
         obj.Outdoor_Air_Method = "AirChanges/Hour"
 
         if "Outdoor_Air_Flow_Air_Changes_per_Hour" in params:
-            obj.Outdoor_Air_Flow_Air_Changes_per_Hour = (
-                params["Outdoor_Air_Flow_Air_Changes_per_Hour"]
-            )
+            obj.Outdoor_Air_Flow_Air_Changes_per_Hour = params[
+                "Outdoor_Air_Flow_Air_Changes_per_Hour"
+            ]
 
         if "Outdoor_Air_Schedule_Name" in params:
-            obj.Outdoor_Air_Schedule_Name = (
-                params["Outdoor_Air_Schedule_Name"]
-            )
+            obj.Outdoor_Air_Schedule_Name = params["Outdoor_Air_Schedule_Name"]
 
 
 def set_shading_geometry(
-        model: Building,
-        shading_type: str,
-        description: dict = None,
-        name_filter: Union[str, list[str]] = None,
+    model: Building,
+    shading_type: str,
+    description: dict = None,
+    name_filter: Union[str, list[str]] = None,
 ):
     """
     Create or replace shading geometry attached to fenestration surfaces (windows).
@@ -1005,8 +1002,7 @@ def set_shading_geometry(
 
     if shading_type not in default_parameters:
         raise ValueError(
-            f"shading_type must be one of "
-            f"{list(default_parameters.keys())}"
+            f"shading_type must be one of {list(default_parameters.keys())}"
         )
 
     params = default_parameters[shading_type].copy()
@@ -1018,7 +1014,7 @@ def set_shading_geometry(
         window
         for window in model.idf.idfobjects["FenestrationSurface:Detailed"]
         if (not window.Surface_Type or window.Surface_Type.upper() == "WINDOW")
-           and _matches_filter(window.Name, name_filter)
+        and _matches_filter(window.Name, name_filter)
     ]
 
     def get_top_edge(vertices):
@@ -1092,13 +1088,13 @@ def set_shading_geometry(
                 model.idf.removeidfobject(obj)
 
     def create_shading_surface(
-            name,
-            vertices,
-            base_surface_name,
+        name,
+        vertices,
+        base_surface_name,
     ):
         kwargs = {
             "Name": name,
-            'Base_Surface_Name': base_surface_name,
+            "Base_Surface_Name": base_surface_name,
             "Number_of_Vertices": 4,
         }
         for i, vertex in enumerate(vertices, start=1):
@@ -1111,18 +1107,18 @@ def set_shading_geometry(
         )
 
     def create_horizontal_louvers(
-            depth,
-            spacing,
-            tilt,
-            offset,
-            positions,
-            tilts,
-            top_1,
-            top_2,
-            height,
-            normal,
-            name_prefix,
-            base_surface_name,
+        depth,
+        spacing,
+        tilt,
+        offset,
+        positions,
+        tilts,
+        top_1,
+        top_2,
+        height,
+        normal,
+        name_prefix,
+        base_surface_name,
     ):
         vertical = np.array([0.0, 0.0, 1.0])
 
@@ -1133,19 +1129,14 @@ def set_shading_geometry(
 
         if tilts is not None:
             tilt_values = (
-                [tilts] * len(z_positions)
-                if np.isscalar(tilts)
-                else list(tilts)
+                [tilts] * len(z_positions) if np.isscalar(tilts) else list(tilts)
             )
         else:
             tilt_values = [tilt] * len(z_positions)
 
         for i, (z_offset, tilt_deg) in enumerate(zip(z_positions, tilt_values)):
             tilt_rad = np.deg2rad(tilt_deg)
-            louver_direction = (
-                    np.cos(tilt_rad) * normal
-                    - np.sin(tilt_rad) * vertical
-            )
+            louver_direction = np.cos(tilt_rad) * normal - np.sin(tilt_rad) * vertical
 
             p1_louver = top_1 - np.array([0, 0, z_offset]) + offset * normal
             p2_louver = top_2 - np.array([0, 0, z_offset]) + offset * normal
@@ -1160,18 +1151,18 @@ def set_shading_geometry(
             )
 
     def create_vertical_louvers(
-            depth,
-            spacing,
-            tilt,
-            positions,
-            tilts,
-            top_1,
-            top_2,
-            bottom_1,
-            width,
-            normal,
-            name_prefix,
-            base_surface_name,
+        depth,
+        spacing,
+        tilt,
+        positions,
+        tilts,
+        top_1,
+        top_2,
+        bottom_1,
+        width,
+        normal,
+        name_prefix,
+        base_surface_name,
     ):
         edge_vector = top_2 - top_1
         edge_vector = edge_vector / np.linalg.norm(edge_vector)
@@ -1194,9 +1185,7 @@ def set_shading_geometry(
 
         if tilts is not None:
             tilt_values = (
-                [tilts] * len(x_positions)
-                if np.isscalar(tilts)
-                else list(tilts)
+                [tilts] * len(x_positions) if np.isscalar(tilts) else list(tilts)
             )
         else:
             tilt_values = [tilt] * len(x_positions)
@@ -1204,8 +1193,7 @@ def set_shading_geometry(
         for i, (x_offset, tilt_deg) in enumerate(zip(x_positions, tilt_values)):
             tilt_rad = np.deg2rad(tilt_deg)
             louver_direction = (
-                    np.cos(tilt_rad) * horizontal_normal
-                    + np.sin(tilt_rad) * local_right
+                np.cos(tilt_rad) * horizontal_normal + np.sin(tilt_rad) * local_right
             )
 
             offset_vector = x_offset * edge_vector
@@ -1233,14 +1221,9 @@ def set_shading_geometry(
         top_1, top_2 = get_top_edge(vertices)
         bottom_1, bottom_2 = get_bottom_edge(vertices)
 
-        height = (
-                max(v[2] for v in vertices)
-                - min(v[2] for v in vertices)
-        )
+        height = max(v[2] for v in vertices) - min(v[2] for v in vertices)
 
-        width = np.linalg.norm(
-            top_2 - top_1
-        )
+        width = np.linalg.norm(top_2 - top_1)
 
         if shading_type == "overhang":
             offset = params["Offset"]
@@ -1281,7 +1264,6 @@ def set_shading_geometry(
             )
 
         elif shading_type == "sidefins":
-
             if params["Left"]:
                 q1 = p1 + depth * normal
                 q4 = p4 + depth * normal
@@ -1313,7 +1295,6 @@ def set_shading_geometry(
                 )
 
         elif shading_type == "horizontal_louvers":
-
             create_horizontal_louvers(
                 depth=params["Depth"],
                 spacing=params["Spacing"],
@@ -1330,7 +1311,6 @@ def set_shading_geometry(
             )
 
         elif shading_type == "vertical_louvers":
-
             create_vertical_louvers(
                 depth=params["Depth"],
                 spacing=params["Spacing"],
@@ -1347,7 +1327,6 @@ def set_shading_geometry(
             )
 
         elif shading_type == "eggcrate":
-
             create_horizontal_louvers(
                 depth=params["Depth_H"],
                 spacing=params["Spacing_H"],
@@ -1431,13 +1410,9 @@ def set_shading_properties(
     schedule = None
 
     if description is not None:
-        transmittance = description.get(
-            "Transmittance"
-        )
+        transmittance = description.get("Transmittance")
 
-        schedule = description.get(
-            "Transmittance_Schedule"
-        )
+        schedule = description.get("Transmittance_Schedule")
 
         for key, value in description.items():
             if key not in ("Transmittance", "Transmittance_Schedule"):
@@ -1445,9 +1420,7 @@ def set_shading_properties(
 
     existing = {
         obj.Shading_Surface_Name: obj
-        for obj in model.idf.idfobjects[
-            "SHADINGPROPERTY:REFLECTANCE"
-        ]
+        for obj in model.idf.idfobjects["SHADINGPROPERTY:REFLECTANCE"]
     }
 
     shading_objects = [
@@ -1461,16 +1434,10 @@ def set_shading_properties(
 
     for shading in shading_objects:
         if schedule is not None:
-
-            shading.Transmittance_Schedule_Name = (
-                schedule
-            )
+            shading.Transmittance_Schedule_Name = schedule
 
         elif transmittance is not None:
-
-            schedule_name = (
-                f"{shading.Name}_transmittance"
-            )
+            schedule_name = f"{shading.Name}_transmittance"
 
             update_idf_objects(
                 model,
@@ -1484,9 +1451,7 @@ def set_shading_properties(
                 "Schedule:Constant",
             )
 
-            shading.Transmittance_Schedule_Name = (
-                schedule_name
-            )
+            shading.Transmittance_Schedule_Name = schedule_name
 
         if shading.Name in existing:
             refl_obj = existing[shading.Name]
@@ -1500,11 +1465,12 @@ def set_shading_properties(
         for field, value in params.items():
             setattr(refl_obj, field, value)
 
+
 def set_shading_object(
-        model: Building,
-        geometry: dict = None,
-        properties: dict = None,
-        name_filter: Union[str, list[str]] = None,
+    model: Building,
+    geometry: dict = None,
+    properties: dict = None,
+    name_filter: Union[str, list[str]] = None,
 ):
     """
     Create shading geometry and/or assign shading properties in a single call.
@@ -1587,15 +1553,12 @@ def set_shading_object(
         )
 
     if properties is not None:
-
         properties = properties.copy()
 
         preset = properties.pop("Preset", None)
 
         if preset is not None:
-            preset_values = SHADING_PROPERTY_PRESETS[
-                preset
-            ].copy()
+            preset_values = SHADING_PROPERTY_PRESETS[preset].copy()
 
             preset_values.update(properties)
 
@@ -1606,6 +1569,7 @@ def set_shading_object(
             description=properties,
             name_filter=name_filter,
         )
+
 
 def set_shade(
     model: Building,
@@ -1678,13 +1642,9 @@ def set_shade(
 
     shade_name = params["Name"]
 
-    existing_shades = {
-        obj.Name
-        for obj in model.idf.idfobjects["WINDOWMATERIAL:SHADE"]
-    }
+    existing_shades = {obj.Name for obj in model.idf.idfobjects["WINDOWMATERIAL:SHADE"]}
 
     if shade_name not in existing_shades:
-
         model.idf.newidfobject(
             "WINDOWMATERIAL:SHADE",
             Name=shade_name,
@@ -1701,72 +1661,46 @@ def set_shade(
 
     windows = [
         window
-        for window in model.idf.idfobjects[
-            "FENESTRATIONSURFACE:DETAILED"
-        ]
+        for window in model.idf.idfobjects["FENESTRATIONSURFACE:DETAILED"]
         if (
-            (
-                not window.Surface_Type
-                or window.Surface_Type.upper() == "WINDOW"
-            )
+            (not window.Surface_Type or window.Surface_Type.upper() == "WINDOW")
             and _matches_filter(window.Name, name_filter)
         )
     ]
 
     existing_controls = {
-        obj.Name: obj
-        for obj in model.idf.idfobjects[
-            "WINDOWSHADINGCONTROL"
-        ]
+        obj.Name: obj for obj in model.idf.idfobjects["WINDOWSHADINGCONTROL"]
     }
 
     for window in windows:
-
-        control_name = (
-            f"{window.Name}_{shade_name}_control"
-        )
+        control_name = f"{window.Name}_{shade_name}_control"
 
         if control_name in existing_controls:
-
-            control = existing_controls[
-                control_name
-            ]
+            control = existing_controls[control_name]
 
         else:
-
             control = model.idf.newidfobject(
                 "WINDOWSHADINGCONTROL",
                 Name=control_name,
             )
 
-        control.Zone_Name = (
-            _get_window_zone_name(model.idf, window)
-        )
+        control.Zone_Name = _get_window_zone_name(model.idf, window)
 
-        control.Shading_Type = (
-            params["Shading_Type"]
-        )
+        control.Shading_Type = params["Shading_Type"]
 
         control.Construction_with_Shading_Name = _build_shaded_construction(
             model.idf, window, shade_name, params["Shading_Type"], shade_name
         )
 
-        control.Shading_Control_Type = (
-            "OnIfScheduleAllows"
-        )
+        control.Shading_Control_Type = "OnIfScheduleAllows"
 
         control.Shading_Control_Is_Scheduled = "Yes"
 
         if params["Schedule"] is not None:
-
-            control.Schedule_Name = (
-                params["Schedule"]
-            )
+            control.Schedule_Name = params["Schedule"]
 
         try:
-            control.Fenestration_Surface_1_Name = (
-                window.Name
-            )
+            control.Fenestration_Surface_1_Name = window.Name
         except Exception:
             pass
 
@@ -1894,12 +1828,10 @@ def set_screen(
     screen_name = params["Name"]
 
     existing_screens = {
-        obj.Name
-        for obj in model.idf.idfobjects["WINDOWMATERIAL:SCREEN"]
+        obj.Name for obj in model.idf.idfobjects["WINDOWMATERIAL:SCREEN"]
     }
 
     if screen_name not in existing_screens:
-
         model.idf.newidfobject(
             "WINDOWMATERIAL:SCREEN",
             Name=screen_name,
@@ -1908,9 +1840,7 @@ def set_screen(
             ],
             Diffuse_Solar_Reflectance=params["Diffuse_Solar_Reflectance"],
             Diffuse_Visible_Reflectance=params["Diffuse_Visible_Reflectance"],
-            Thermal_Hemispherical_Emissivity=params[
-                "Thermal_Hemispherical_Emissivity"
-            ],
+            Thermal_Hemispherical_Emissivity=params["Thermal_Hemispherical_Emissivity"],
             Conductivity=params["Conductivity"],
             Screen_Material_Spacing=spacing,
             Screen_Material_Diameter=diameter,
@@ -1926,72 +1856,46 @@ def set_screen(
 
     windows = [
         window
-        for window in model.idf.idfobjects[
-            "FENESTRATIONSURFACE:DETAILED"
-        ]
+        for window in model.idf.idfobjects["FENESTRATIONSURFACE:DETAILED"]
         if (
-            (
-                not window.Surface_Type
-                or window.Surface_Type.upper() == "WINDOW"
-            )
+            (not window.Surface_Type or window.Surface_Type.upper() == "WINDOW")
             and _matches_filter(window.Name, name_filter)
         )
     ]
 
     existing_controls = {
-        obj.Name: obj
-        for obj in model.idf.idfobjects[
-            "WINDOWSHADINGCONTROL"
-        ]
+        obj.Name: obj for obj in model.idf.idfobjects["WINDOWSHADINGCONTROL"]
     }
 
     for window in windows:
-
-        control_name = (
-            f"{window.Name}_{screen_name}_control"
-        )
+        control_name = f"{window.Name}_{screen_name}_control"
 
         if control_name in existing_controls:
-
-            control = existing_controls[
-                control_name
-            ]
+            control = existing_controls[control_name]
 
         else:
-
             control = model.idf.newidfobject(
                 "WINDOWSHADINGCONTROL",
                 Name=control_name,
             )
 
-        control.Zone_Name = (
-            _get_window_zone_name(model.idf, window)
-        )
+        control.Zone_Name = _get_window_zone_name(model.idf, window)
 
-        control.Shading_Type = (
-            params["Shading_Type"]
-        )
+        control.Shading_Type = params["Shading_Type"]
 
         control.Construction_with_Shading_Name = _build_shaded_construction(
             model.idf, window, screen_name, params["Shading_Type"], screen_name
         )
 
-        control.Shading_Control_Type = (
-            "OnIfScheduleAllows"
-        )
+        control.Shading_Control_Type = "OnIfScheduleAllows"
 
         control.Shading_Control_Is_Scheduled = "Yes"
 
         if params["Schedule"] is not None:
-
-            control.Schedule_Name = (
-                params["Schedule"]
-            )
+            control.Schedule_Name = params["Schedule"]
 
         try:
-            control.Fenestration_Surface_1_Name = (
-                window.Name
-            )
+            control.Fenestration_Surface_1_Name = window.Name
         except Exception:
             pass
 
@@ -2032,7 +1936,9 @@ def _set_matrix_two_dimension(idf, name: str, array: np.ndarray) -> str:
     return name
 
 
-def _build_complex_fenestration_from_matrices(model: Building, description: dict) -> str:
+def _build_complex_fenestration_from_matrices(
+    model: Building, description: dict
+) -> str:
     """Raw-matrices mode of :func:`set_complex_fenestration_state` — see its
     docstring. Returns the resulting construction's Name."""
     if "Name" not in description:
@@ -2069,8 +1975,7 @@ def _build_complex_fenestration_from_matrices(model: Building, description: dict
     missing = [key for key in matrix_field_map if key not in description]
     if missing:
         raise ValueError(
-            f"Missing required BSDF matrix file path(s) in description: "
-            f"{missing}"
+            f"Missing required BSDF matrix file path(s) in description: {missing}"
         )
 
     idf = model.idf
@@ -2113,14 +2018,10 @@ def _build_complex_fenestration_from_matrices(model: Building, description: dict
 
     cfs_kwargs["Window_Thermal_Model"] = thermal_model_name
     cfs_kwargs["Basis_Type"] = description.get("Basis_Type", "LBNLWINDOW")
-    cfs_kwargs["Basis_Symmetry_Type"] = description.get(
-        "Basis_Symmetry_Type", "None"
-    )
+    cfs_kwargs["Basis_Symmetry_Type"] = description.get("Basis_Symmetry_Type", "None")
     cfs_kwargs["Outside_Layer_Name"] = description["Outside_Layer_Name"]
 
-    existing_cfs = idf.getobject(
-        "Construction:ComplexFenestrationState", state_name
-    )
+    existing_cfs = idf.getobject("Construction:ComplexFenestrationState", state_name)
     if existing_cfs is not None:
         idf.removeidfobject(existing_cfs)
 
@@ -2497,19 +2398,12 @@ def set_blind(
             None,
         )
         if preset is not None:
-            params.update(
-                BLIND_PRESETS[preset]
-            )
+            params.update(BLIND_PRESETS[preset])
         params.update(description)
 
     blind_name = params["Name"]
 
-    existing_blinds = {
-        obj.Name
-        for obj in model.idf.idfobjects[
-            "WINDOWMATERIAL:BLIND"
-        ]
-    }
+    existing_blinds = {obj.Name for obj in model.idf.idfobjects["WINDOWMATERIAL:BLIND"]}
 
     if blind_name not in existing_blinds:
         model.idf.newidfobject(
@@ -2521,115 +2415,93 @@ def set_blind(
             Slat_Thickness=params["Slat_Thickness"],
             Slat_Angle=params["Slat_Angle"],
             Slat_Conductivity=params["Slat_Conductivity"],
-            Slat_Beam_Solar_Transmittance=
-            params["Slat_Beam_Solar_Transmittance"],
-            Front_Side_Slat_Beam_Solar_Reflectance=
-            params["Slat_Beam_Solar_Reflectance"],
-            Back_Side_Slat_Beam_Solar_Reflectance=
-            params["Slat_Beam_Solar_Reflectance"],
-            Slat_Diffuse_Solar_Transmittance=
-            params["Slat_Diffuse_Solar_Transmittance"],
-            Front_Side_Slat_Diffuse_Solar_Reflectance=
-            params["Slat_Diffuse_Solar_Reflectance"],
-            Back_Side_Slat_Diffuse_Solar_Reflectance=
-            params["Slat_Diffuse_Solar_Reflectance"],
-            Slat_Beam_Visible_Transmittance=
-            params["Slat_Beam_Visible_Transmittance"],
-            Front_Side_Slat_Beam_Visible_Reflectance=
-            params["Slat_Beam_Visible_Reflectance"],
-            Back_Side_Slat_Beam_Visible_Reflectance=
-            params["Slat_Beam_Visible_Reflectance"],
-            Slat_Diffuse_Visible_Transmittance=
-            params["Slat_Diffuse_Visible_Transmittance"],
-            Front_Side_Slat_Diffuse_Visible_Reflectance=
-            params["Slat_Diffuse_Visible_Reflectance"],
-            Back_Side_Slat_Diffuse_Visible_Reflectance=
-            params["Slat_Diffuse_Visible_Reflectance"],
-            Slat_Infrared_Hemispherical_Transmittance=
-            params["Slat_Infrared_Hemispherical_Transmittance"],
-            Front_Side_Slat_Infrared_Hemispherical_Emissivity=
-            params["Slat_Infrared_Hemispherical_Emissivity"],
-            Back_Side_Slat_Infrared_Hemispherical_Emissivity=
-            params["Slat_Infrared_Hemispherical_Emissivity"],
-            Blind_to_Glass_Distance=
-            params["Blind_to_Glass_Distance"],
+            Slat_Beam_Solar_Transmittance=params["Slat_Beam_Solar_Transmittance"],
+            Front_Side_Slat_Beam_Solar_Reflectance=params[
+                "Slat_Beam_Solar_Reflectance"
+            ],
+            Back_Side_Slat_Beam_Solar_Reflectance=params["Slat_Beam_Solar_Reflectance"],
+            Slat_Diffuse_Solar_Transmittance=params["Slat_Diffuse_Solar_Transmittance"],
+            Front_Side_Slat_Diffuse_Solar_Reflectance=params[
+                "Slat_Diffuse_Solar_Reflectance"
+            ],
+            Back_Side_Slat_Diffuse_Solar_Reflectance=params[
+                "Slat_Diffuse_Solar_Reflectance"
+            ],
+            Slat_Beam_Visible_Transmittance=params["Slat_Beam_Visible_Transmittance"],
+            Front_Side_Slat_Beam_Visible_Reflectance=params[
+                "Slat_Beam_Visible_Reflectance"
+            ],
+            Back_Side_Slat_Beam_Visible_Reflectance=params[
+                "Slat_Beam_Visible_Reflectance"
+            ],
+            Slat_Diffuse_Visible_Transmittance=params[
+                "Slat_Diffuse_Visible_Transmittance"
+            ],
+            Front_Side_Slat_Diffuse_Visible_Reflectance=params[
+                "Slat_Diffuse_Visible_Reflectance"
+            ],
+            Back_Side_Slat_Diffuse_Visible_Reflectance=params[
+                "Slat_Diffuse_Visible_Reflectance"
+            ],
+            Slat_Infrared_Hemispherical_Transmittance=params[
+                "Slat_Infrared_Hemispherical_Transmittance"
+            ],
+            Front_Side_Slat_Infrared_Hemispherical_Emissivity=params[
+                "Slat_Infrared_Hemispherical_Emissivity"
+            ],
+            Back_Side_Slat_Infrared_Hemispherical_Emissivity=params[
+                "Slat_Infrared_Hemispherical_Emissivity"
+            ],
+            Blind_to_Glass_Distance=params["Blind_to_Glass_Distance"],
             Blind_Top_Opening_Multiplier=1,
             Blind_Bottom_Opening_Multiplier=1,
             Blind_Left_Side_Opening_Multiplier=1,
             Blind_Right_Side_Opening_Multiplier=1,
-            Minimum_Slat_Angle=
-            params["Minimum_Slat_Angle"],
-            Maximum_Slat_Angle=
-            params["Maximum_Slat_Angle"],
+            Minimum_Slat_Angle=params["Minimum_Slat_Angle"],
+            Maximum_Slat_Angle=params["Maximum_Slat_Angle"],
         )
 
     windows = [
         window
-        for window in model.idf.idfobjects[
-            "FENESTRATIONSURFACE:DETAILED"
-        ]
+        for window in model.idf.idfobjects["FENESTRATIONSURFACE:DETAILED"]
         if (
-            (
-                not window.Surface_Type
-                or window.Surface_Type.upper() == "WINDOW"
-            )
+            (not window.Surface_Type or window.Surface_Type.upper() == "WINDOW")
             and _matches_filter(window.Name, name_filter)
         )
     ]
 
     existing_controls = {
-        obj.Name: obj
-        for obj in model.idf.idfobjects[
-            "WINDOWSHADINGCONTROL"
-        ]
+        obj.Name: obj for obj in model.idf.idfobjects["WINDOWSHADINGCONTROL"]
     }
 
     for window in windows:
-
-        control_name = (
-            f"{window.Name}_{blind_name}_control"
-        )
+        control_name = f"{window.Name}_{blind_name}_control"
 
         if control_name in existing_controls:
-
-            control = existing_controls[
-                control_name
-            ]
+            control = existing_controls[control_name]
 
         else:
-
             control = model.idf.newidfobject(
                 "WINDOWSHADINGCONTROL",
                 Name=control_name,
             )
 
-        control.Zone_Name = (
-            _get_window_zone_name(model.idf, window)
-        )
+        control.Zone_Name = _get_window_zone_name(model.idf, window)
 
-        control.Shading_Type = (
-            params["Shading_Type"]
-        )
+        control.Shading_Type = params["Shading_Type"]
 
         control.Construction_with_Shading_Name = _build_shaded_construction(
             model.idf, window, blind_name, params["Shading_Type"], blind_name
         )
 
-        control.Shading_Control_Type = (
-            "OnIfScheduleAllows"
-        )
+        control.Shading_Control_Type = "OnIfScheduleAllows"
 
         control.Shading_Control_Is_Scheduled = "Yes"
 
         if params["Schedule"] is not None:
-
-            control.Schedule_Name = (
-                params["Schedule"]
-            )
+            control.Schedule_Name = params["Schedule"]
 
         try:
-            control.Fenestration_Surface_1_Name = (
-                window.Name
-            )
+            control.Fenestration_Surface_1_Name = window.Name
         except Exception:
             pass
